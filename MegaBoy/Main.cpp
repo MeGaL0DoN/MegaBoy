@@ -2,7 +2,7 @@
 
 #include "glad/glad.h"
 #include "GLFW/glfw3.h"
-#include "instructions.h"
+#include "instructionsEngine.h"
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
@@ -57,10 +57,23 @@ int main()
 {
     if (!setGLFW()) return -1;
 
-    Instructions::Test();
+    CPU cpu{};
+    InstructionsEngine instructions { &cpu };
+
+    instructions.TEST();
+    //cpu.loadROM("tests.gb");
 
     while (!glfwWindowShouldClose(window))
     {
+        //cpu.execute();
+
+        //if (cpu.MEM[0xff02] == 0x81) 
+        //{
+        //    char c = cpu.MEM[0xff01];
+        //    printf("%c", c);
+        //    cpu.MEM[0xff02] = 0x0;
+        //}
+
         glfwPollEvents();
         render();
     }

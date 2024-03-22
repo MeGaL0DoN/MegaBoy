@@ -4,6 +4,6 @@
 
 namespace GBCore
 {
-	static CPU _CPU;
-	static GPU _GPU;
+	//extern CPU _CPU;
+    //extern GPU _GPU;
 };

@@ -111,6 +111,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>C:\Users\sidor\source\repos\MegaBoy\MegaBoy\Libs;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -128,6 +129,7 @@
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>C:\Users\sidor\source\repos\MegaBoy\MegaBoy\Libs;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -156,7 +158,7 @@
     <ClInclude Include="CPU.h" />
     <ClInclude Include="GBCore.h" />
     <ClInclude Include="GPU.h" />
-    <ClInclude Include="instructions.h" />
+    <ClInclude Include="instructionsEngine.h" />
     <ClInclude Include="Libs\ImGUI\imconfig.h" />
     <ClInclude Include="Libs\ImGUI\imgui.h" />
     <ClInclude Include="Libs\ImGUI\imgui_impl_glfw.h" />

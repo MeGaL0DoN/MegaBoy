@@ -3,36 +3,41 @@
 #include <cstring>
 #include "registers.h"
 
-class Instructions;
+class InstructionsEngine;
 
 class CPU
 {
 public:
+	uint8_t MEM[0xFFFF];
 	uint8_t execute();
-	friend class Instructions;
+	void loadROM(std::string_view path);
+
+    CPU();
+	friend class InstructionsEngine;
 
 private:
 	void executePrefixed();
 	void executeUnprefixed();
 
-	uint8_t getRegister(uint8_t ind);
-	void setRegister(uint8_t ind, uint8_t val);
+	static constexpr uint8_t HL_IND = 6;
+	uint8_t& getRegister(uint8_t ind);
+	//void setRegister(uint8_t ind, uint8_t val);
 
 	void init()
 	{
-		registers = {};
+		registers.resetRegisters();
 		PC = 0;
 		SP = 0;
-		std::memset(RAM, 0, sizeof(RAM));
+		std::memset(MEM, 0, sizeof(MEM));
 	}
 
 	constexpr void write8(uint16_t addr, uint8_t val)
 	{
-		RAM[addr] = val;
+		MEM[addr] = val;
 	}
-	constexpr uint8_t read8(uint16_t addr)
+	constexpr uint8_t& read8(uint16_t addr)
 	{
-		return RAM[addr];
+		return MEM[addr];
 	}
 
 	constexpr void write16(uint16_t addr, uint16_t val)
@@ -45,11 +50,29 @@ private:
 		return (read8(addr + 1) << 8) | read8(addr);
 	}
 
-	uint8_t RAM[8192];
-	registerCollection registers;
 
-	uint8_t opcode;
-	uint8_t cycles;
-	uint16_t PC;
-	uint16_t SP;
+	registerCollection registers {};
+
+	uint8_t opcode {};
+	uint8_t cycles {};
+	uint16_t PC {};
+	Register16 SP;
+
+	bool stopped{ false };
+	bool halted{ false };
+
+	bool IME { false };
+	bool setIME { false };
+
+	void loadProgram(std::initializer_list<uint8_t> values)
+	{
+		std::memset(MEM, 0, sizeof(MEM));
+		int i = 0;
+
+		for (int item : values)
+		{
+			MEM[i] = item;
+			i++;
+		}
+	}
 };

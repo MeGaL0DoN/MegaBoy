@@ -104,7 +104,7 @@
     <ClInclude Include="GBCore.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="instructions.h">
+    <ClInclude Include="instructionsEngine.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
