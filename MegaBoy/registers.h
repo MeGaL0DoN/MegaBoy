@@ -32,7 +32,7 @@ union Register16 {
 	}
 };
 
-enum class FlagType : uint8_t
+enum FlagType : uint8_t
 {
 	Zero = 7,
 	Subtract = 6,
@@ -64,25 +64,29 @@ struct registerCollection
 
 	void resetRegisters()
 	{
-		AF = 0;
-		BC = 0;
-		DE = 0;
-		HL = 0;
+		A = 0x01;
+		B = 0x00;
+		C = 0x13;
+		D = 0x00;
+		E = 0xD8;
+		F = 0xB0;
+		H = 0x01;
+		L = 0x4D;
 	}
 
 	constexpr void setFlag(FlagType flag, bool value)
 	{
 		if (value)
-			F.val |= (1 << static_cast<uint8_t>(flag));
+			F.val |= (1 << flag);
 		else
-			F.val &= ~(1 << static_cast<uint8_t>(flag));
+			F.val &= ~(1 << flag);
 	}
 	constexpr void resetFlags()
 	{
-		F.val &= 0xF0;
+		F.val &= 0x0F;
 	}
 	constexpr bool getFlag(FlagType flag)
 	{
-		return F.val & (1 << static_cast<uint8_t>(flag));
+		return F.val & (1 << flag);
 	}
 };

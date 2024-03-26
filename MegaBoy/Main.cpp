@@ -1,8 +1,8 @@
 #include <iostream>
-
 #include "glad/glad.h"
 #include "GLFW/glfw3.h"
 #include "instructionsEngine.h"
+#include "thread"
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
@@ -57,25 +57,32 @@ int main()
 {
     if (!setGLFW()) return -1;
 
-    CPU cpu{};
-    InstructionsEngine instructions { &cpu };
+    MBU mbu{};
+    CPU cpu{mbu};
 
-    instructions.TEST();
-    //cpu.loadROM("tests.gb");
+    //cpu.runTests();
+      
+    cpu.mbu.loadROM("test.gb");
+
+    double lastFrameTime = glfwGetTime();
+    double renderTimer{};
 
     while (!glfwWindowShouldClose(window))
     {
-        //cpu.execute();
+        double currentFrameTime = glfwGetTime();
+        double deltaTime = currentFrameTime - lastFrameTime;
+        renderTimer += deltaTime;
 
-        //if (cpu.MEM[0xff02] == 0x81) 
-        //{
-        //    char c = cpu.MEM[0xff01];
-        //    printf("%c", c);
-        //    cpu.MEM[0xff02] = 0x0;
-        //}
+        cpu.execute();
 
-        glfwPollEvents();
-        render();
+        if (renderTimer >= 1.0 / 60)
+        {
+            renderTimer = 0;
+            glfwPollEvents();
+            render();
+        }
+
+        lastFrameTime = currentFrameTime;
     }
 
 	return 1;

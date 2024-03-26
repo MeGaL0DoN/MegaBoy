@@ -152,6 +152,7 @@
     <ClCompile Include="Libs\ImGUI\imgui_tables.cpp" />
     <ClCompile Include="Libs\ImGUI\imgui_widgets.cpp" />
     <ClCompile Include="Main.cpp" />
+    <ClCompile Include="MBU.cpp" />
     <ClCompile Include="Shader.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -168,6 +169,8 @@
     <ClInclude Include="Libs\ImGUI\imstb_rectpack.h" />
     <ClInclude Include="Libs\ImGUI\imstb_textedit.h" />
     <ClInclude Include="Libs\ImGUI\imstb_truetype.h" />
+    <ClInclude Include="Libs\nlohmann\json.hpp" />
+    <ClInclude Include="MBU.h" />
     <ClInclude Include="Shader.h" />
   </ItemGroup>
   <ItemGroup>

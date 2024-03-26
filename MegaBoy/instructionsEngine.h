@@ -2,63 +2,67 @@
 #include <cstdint>
 #include "CPU.h"
 
-#include <iostream>
-#include <bitset>
-
 class InstructionsEngine
 {
 private:
 	CPU* cpu;
 
-	constexpr bool halfCarry8(uint8_t a, uint8_t b)
+	constexpr bool halfCarry8(uint8_t a, uint8_t b, uint8_t c)
 	{
-		return ((a & 0xF) + (b & 0xF)) & 0x10;
+		return ((a & 0xF) + (b & 0xF) + c) & 0x10;
 	}
 	constexpr bool halfCarry16(uint16_t a, uint16_t b)
 	{
 		return ((a & 0xFFF) + (b & 0xFFF)) & 0x1000;
 	}
-
-	constexpr bool halfBorrow8(uint8_t a, uint8_t b)
+	
+	constexpr bool halfBorrow8(uint8_t a, uint8_t b, uint8_t c)
 	{
-		return ((a & 0xF) < (b & 0xF));
+		return ((a & 0xF) < (b & 0xF) + c);
 	}
 	constexpr bool halfBorrow16(uint16_t a, uint16_t b)
 	{
 		return ((a & 0xFFF) < (b & 0xFFF));
 	}
 
-	inline void add8_base(uint8_t& reg, uint8_t val, uint8_t cycles, uint8_t pc)
+	inline void add8_base(Register8& reg, uint8_t add1, uint8_t add2, uint8_t cycles, uint8_t pc)
 	{
-		uint16_t result = reg + val;
+		uint16_t result = reg.val + add1 + add2;
 
-		cpu->registers.setFlag(FlagType::Subtract, false);
-		cpu->registers.setFlag(FlagType::HalfCarry, halfCarry8(reg, val));
-		cpu->registers.setFlag(FlagType::Carry, result > 0xFF);
+		cpu->registers.setFlag(Subtract, false);
+		cpu->registers.setFlag(HalfCarry, halfCarry8(reg.val, add1, add2));
+		cpu->registers.setFlag(Carry, result > 0xFF);
 
 		reg = result;
-		cpu->registers.setFlag(FlagType::Zero, reg == 0);
+		cpu->registers.setFlag(Zero, reg.val == 0);
 
 		cpu->PC += pc;
 		cpu->cycles = cycles;
 	}
-	inline void sub8_base(uint8_t& reg, uint8_t val, uint8_t cycles, uint8_t pc)
+	inline void add16_signed(Register16& reg, int8_t val)
 	{
-		reg = cp_base(reg, val, cycles, pc);
-	}
-	inline uint8_t cp_base(uint8_t reg, uint8_t val, uint8_t cycles, uint8_t pc)
-	{
-		cpu->registers.setFlag(FlagType::Subtract, true);
-		cpu->registers.setFlag(FlagType::HalfCarry, halfBorrow8(reg, val));
-		cpu->registers.setFlag(FlagType::Carry, val > reg);
+		uint16_t result = reg.val + val;
 
-		reg -= val;
-		cpu->registers.setFlag(FlagType::Zero, reg == 0);
+		cpu->registers.resetFlags();
+		cpu->registers.setFlag(HalfCarry, (reg.val ^ val ^ (result & 0xFFFF)) & 0x10);
+		cpu->registers.setFlag(Carry, (reg.val ^ val ^ (result & 0xFFFF)) & 0x100);
+
+		reg = result;
+	}
+
+	inline uint8_t cp_base(uint8_t reg, uint8_t sub1, uint8_t sub2, uint8_t cycles, uint8_t pc)
+	{
+		int16_t result = reg - sub1 - sub2;
+
+		cpu->registers.setFlag(Subtract, true);
+		cpu->registers.setFlag(HalfCarry, halfBorrow8(reg, sub1, sub2));
+		cpu->registers.setFlag(Carry, result < 0);
+		cpu->registers.setFlag(Zero, (result & 0xFF) == 0);
 
 		cpu->PC += pc;
 		cpu->cycles = cycles;
 
-		return reg;
+		return result;
 	}
 
 	inline void and_base(uint8_t& reg, uint8_t val, uint8_t cycles, uint8_t pc)
@@ -66,8 +70,8 @@ private:
 		reg &= val;
 
 		cpu->registers.resetFlags();
-		cpu->registers.setFlag(FlagType::Zero, reg == 0);
-		cpu->registers.setFlag(FlagType::HalfCarry, true);
+		cpu->registers.setFlag(Zero, reg == 0);
+		cpu->registers.setFlag(HalfCarry, true);
 
 		cpu->PC += pc;
 		cpu->cycles = cycles;
@@ -76,7 +80,7 @@ private:
 	{
 		reg ^= val;
 		cpu->registers.resetFlags();
-		cpu->registers.setFlag(FlagType::Zero, reg == 0);
+		cpu->registers.setFlag(Zero, reg == 0);
 
 		cpu->PC += pc;
 		cpu->cycles = cycles;
@@ -85,7 +89,69 @@ private:
 	{
 		reg |= val;
 		cpu->registers.resetFlags();
-		cpu->registers.setFlag(FlagType::Zero, reg == 0);
+		cpu->registers.setFlag(Zero, reg == 0);
+
+		cpu->PC += pc;
+		cpu->cycles = cycles;
+	}
+
+	inline void rlc_base(uint8_t& reg, uint8_t cycles, uint8_t pc)
+	{
+		uint8_t carry = (reg & 0x80) >> 7;
+		reg <<= 1;
+
+		if (carry) reg |= 1;
+		else reg &= (~1);
+
+		cpu->registers.resetFlags();
+		cpu->registers.setFlag(Carry, carry);
+		cpu->registers.setFlag(Zero, reg == 0);
+
+		cpu->PC += pc;
+		cpu->cycles = cycles;
+	}
+	inline void rrc_base(uint8_t& reg, uint8_t cycles, uint8_t pc)
+	{
+		uint8_t carry = reg & 1;
+		reg >>= 1;
+
+		if (carry) reg |= 0x80;
+		else reg &= (~0x80);
+
+		cpu->registers.resetFlags();
+		cpu->registers.setFlag(Carry, carry);
+		cpu->registers.setFlag(Zero, reg == 0);
+
+		cpu->PC += pc;
+		cpu->cycles = cycles;
+	}
+
+	inline void rl_base(uint8_t& reg, uint8_t cycles, uint8_t pc) 
+	{
+		uint8_t carry = reg >> 7;
+		reg <<= 1;
+
+		if (cpu->registers.getFlag(Carry)) reg |= 1;
+		else reg &= (~1);
+
+		cpu->registers.resetFlags();
+		cpu->registers.setFlag(Carry, carry);
+		cpu->registers.setFlag(Zero, reg == 0);
+
+		cpu->PC += pc;
+		cpu->cycles = cycles;
+	}
+	inline void rr_base(uint8_t& reg, uint8_t cycles, uint8_t pc) 
+	{
+		uint8_t carry = reg & 1;
+		reg >>= 1;
+
+		if (cpu->registers.getFlag(Carry)) reg |= 0x80;
+		else reg &= (~0x80);
+
+		cpu->registers.resetFlags();
+		cpu->registers.setFlag(Carry, carry);
+		cpu->registers.setFlag(Zero, reg == 0);
 
 		cpu->PC += pc;
 		cpu->cycles = cycles;
@@ -95,97 +161,20 @@ public:
 	InstructionsEngine() = default;
 	InstructionsEngine(CPU* cp) : cpu(cp) {};
 
-	void assertEqual(int expected, int actual, const std::string& test_name) {
-		if (expected == actual) {
-			std::cout << "Test " << test_name << " passed.\n";
-		}
-		else {
-			std::cout << "Test " << test_name << " failed: expected " << expected << ", but got " << actual << ".\n";
-		}
-	}
-
-	void TEST() {
-		// Test INC D opcode (0x14)
-		cpu->PC = 0;
-		cpu->registers.D = 0x12; // Set D to 0x12
-		cpu->loadProgram({ 0x14 }); // INC D opcode
-		cpu->execute();
-		assertEqual(0x13, cpu->registers.D.val, "INC D D");
-		assertEqual(1, cpu->PC, "INC D PC");
-		assertEqual(1, cpu->cycles, "INC D cycles");
-
-		// Test DEC D opcode (0x15)
-		cpu->PC = 0;
-		cpu->registers.D = 0x12; // Set D to 0x12
-		cpu->loadProgram({ 0x15 }); // DEC D opcode
-		cpu->execute();
-		assertEqual(0x11, cpu->registers.D.val, "DEC D D");
-		assertEqual(1, cpu->PC, "DEC D PC");
-		assertEqual(1, cpu->cycles, "DEC D cycles");
-
-		// Test LD D,d8 opcode (0x16)
-		cpu->PC = 0;
-		cpu->loadProgram({ 0x16, 0x34 }); // LD D,d8 opcode with immediate value 0x34
-		cpu->execute();
-		assertEqual(0x34, cpu->registers.D.val, "LD D,d8 D");
-		assertEqual(2, cpu->PC, "LD D,d8 PC");
-		assertEqual(2, cpu->cycles, "LD D,d8 cycles");
-
-		// Test RLA opcode (0x17)
-		cpu->PC = 0;
-		cpu->registers.A = 0x85; // Set A to 0x85
-		cpu->loadProgram({ 0x17 }); // RLA opcode
-		cpu->execute();
-		assertEqual(0x0A, cpu->registers.A.val, "RLA A");
-		assertEqual(1, cpu->PC, "RLA PC");
-		assertEqual(1, cpu->cycles, "RLA cycles");
-
-		// Test JR d8 opcode (0x18)
-		cpu->PC = 0;
-		cpu->loadProgram({ 0x18, 0x02 }); // JR d8 opcode with immediate value 0x02
-		cpu->execute();
-		assertEqual(2, cpu->PC, "JR d8 PC");
-		assertEqual(3, cpu->cycles, "JR d8 cycles");
-
-		// Test ADD HL,DE opcode (0x19)
-		cpu->PC = 0;
-		cpu->registers.HL.val = 0x1234; // Set HL to 0x1234
-		cpu->registers.DE.val = 0x1111; // Set DE to 0x1111
-		cpu->loadProgram({ 0x19 }); // ADD HL,DE opcode
-		cpu->execute();
-		assertEqual(0x2345, cpu->registers.HL.val, "ADD HL,DE HL");
-		assertEqual(1, cpu->PC, "ADD HL,DE PC");
-		assertEqual(2, cpu->cycles, "ADD HL,DE cycles");
-
-		// Test LD A,(DE) opcode (0x1A)
-		cpu->PC = 0;
-		cpu->registers.DE.val = 0x2000; // Set DE to 0x2000
-		cpu->MEM[0x2000] = 0x12; // Set memory at address DE to 0x12
-		cpu->loadProgram({ 0x1A }); // LD A,(DE) opcode
-		cpu->execute();
-		assertEqual(0x12, cpu->registers.A.val, "LD A,(DE) A");
-		assertEqual(1, cpu->PC, "LD A,(DE) PC");
-		assertEqual(2, cpu->cycles, "LD A,(DE) cycles");
-
-		// ... continue for all opcodes
-	}
-
-
-
 	void INCR(Register16& reg)
 	{
 		reg.val++;
 		cpu->PC++;
 		cpu->cycles = 2;
 	}
-	void INCR(Register8& reg)
+	void INCR(uint8_t& reg)
 	{
-		bool halfCarry = halfCarry8(reg.val, 1);
-		reg.val++;
+		bool halfCarry = halfCarry8(reg, 1, 0);
+		reg++;
 
-		cpu->registers.setFlag(FlagType::Zero, reg.val == 0);
-		cpu->registers.setFlag(FlagType::Subtract, false);
-		cpu->registers.setFlag(FlagType::HalfCarry, halfCarry);
+		cpu->registers.setFlag(Zero, reg == 0);
+		cpu->registers.setFlag(Subtract, false);
+		cpu->registers.setFlag(HalfCarry, halfCarry);
 
 		cpu->PC++;
 		cpu->cycles = 1;
@@ -193,56 +182,48 @@ public:
 
 	void ADD(uint8_t regInd)
 	{
-		uint8_t cycles = 1;
-		if (regInd == cpu->HL_IND) cycles++;
-		add8_base(cpu->registers.A.val, cpu->getRegister(regInd), regInd == cpu->HL_IND ? 2 : 1, 1);
+		add8_base(cpu->registers.A, cpu->getRegister(regInd), 0, regInd == cpu->HL_IND ? 2 : 1, 1);
 	}
 	void ADD(Register8& reg, uint8_t val)
 	{
-		add8_base(reg.val, val, 2, 2);
+		add8_base(reg, val, 0, 2, 2);
 	}
 	void ADC(Register8& reg, uint8_t val)
 	{
-		add8_base(reg.val, val + cpu->registers.getFlag(FlagType::Carry), 2, 2);
+		add8_base(reg, val, cpu->registers.getFlag(Carry), 2, 2);
 	}
 	void ADC(uint8_t regInd)
 	{
-		add8_base(cpu->registers.A.val, cpu->getRegister(regInd) + cpu->registers.getFlag(FlagType::Carry), regInd == cpu->HL_IND ? 2 : 1, 1);
+		add8_base(cpu->registers.A, cpu->getRegister(regInd), cpu->registers.getFlag(Carry), regInd == cpu->HL_IND ? 2 : 1, 1);
 	}
 
 	void addToHL(Register16 reg)
 	{
 		uint32_t result = cpu->registers.HL.val + reg.val;
 
-		cpu->registers.setFlag(FlagType::Subtract, 0);
-		cpu->registers.setFlag(FlagType::HalfCarry, halfCarry16(cpu->registers.HL.val, reg.val));
-		cpu->registers.setFlag(FlagType::Carry, result > 0xFFFF);
+		cpu->registers.setFlag(Subtract, 0);
+		cpu->registers.setFlag(HalfCarry, halfCarry16(cpu->registers.HL.val, reg.val));
+		cpu->registers.setFlag(Carry, result > 0xFFFF);
 
 		cpu->registers.HL = result & 0xFFFF;
 		cpu->PC++;
 		cpu->cycles = 2;
 	}
-	void addToSP(int8_t val) // TO CHECK
+	void addToSP(int8_t val) 
 	{
-		uint16_t result = cpu->SP.val + val;
-
-		cpu->registers.resetFlags();
-		cpu->registers.setFlag(FlagType::HalfCarry, halfCarry8(cpu->SP.val, val));
-		cpu->registers.setFlag(FlagType::Carry, result > 0xFF);
-
-		cpu->SP = result;
+		add16_signed(cpu->SP, val);
 		cpu->PC += 2;
 		cpu->cycles = 4;
 	}
 
-    void DECR(Register8& reg)
+    void DECR(uint8_t& reg)
 	{
-		bool halfCarry = (reg.val & 0x0F) == 0;
-		reg.val--;
+		bool halfCarry = (reg & 0x0F) == 0;
+		reg--;
 
-		cpu->registers.setFlag(FlagType::Zero, reg.val == 0);
-		cpu->registers.setFlag(FlagType::Subtract, true);
-		cpu->registers.setFlag(FlagType::HalfCarry, halfCarry);
+		cpu->registers.setFlag(Zero, reg == 0);
+		cpu->registers.setFlag(Subtract, true);
+		cpu->registers.setFlag(HalfCarry, halfCarry);
 
 		cpu->PC++;
 		cpu->cycles = 1;
@@ -256,27 +237,27 @@ public:
 
 	void SUB(uint8_t regInd)
 	{
-		sub8_base(cpu->registers.A.val, cpu->getRegister(regInd), regInd == cpu->HL_IND ? 2 : 1, 1);
+		cpu->registers.A = cp_base(cpu->registers.A.val, cpu->getRegister(regInd), 0, regInd == cpu->HL_IND ? 2 : 1, 1);
 	}
 	void SUB(Register8& reg, uint8_t val)
 	{
-		sub8_base(reg.val, val, 2, 2);
+		reg = cp_base(reg.val, val, 0, 2, 2);
 	}
 	void CP(uint8_t regInd)
 	{
-		cp_base(cpu->registers.A.val, cpu->getRegister(regInd), regInd == cpu->HL_IND ? 2 : 1, 1);
+		cp_base(cpu->registers.A.val, cpu->getRegister(regInd), 0, regInd == cpu->HL_IND ? 2 : 1, 1);
 	}
 	void CP(Register8& reg, uint8_t val)
 	{
-		cp_base(reg.val, val, 2, 2);
+		cp_base(reg.val, val, 0, 2, 2);
 	}
 	void SBC(Register8& reg, uint8_t val)
 	{
-		sub8_base(reg.val, val + cpu->registers.getFlag(FlagType::Carry), 2, 2);
+		reg = cp_base(reg.val, val, cpu->registers.getFlag(Carry), 2, 2);
 	}
 	void SBC(uint8_t regInd)
 	{
-		sub8_base(cpu->registers.A.val, cpu->getRegister(regInd) + cpu->registers.getFlag(FlagType::Carry), regInd == cpu->HL_IND ? 2 : 1, 1);
+		cpu->registers.A = cp_base(cpu->registers.A.val, cpu->getRegister(regInd), cpu->registers.getFlag(Carry), regInd == cpu->HL_IND ? 2 : 1, 1);
 	}
 
 	void AND(Register8& reg, uint8_t val)
@@ -325,12 +306,12 @@ public:
 		cpu->PC++;
 		cpu->cycles = 2;
 	}
-	//void loadToReg(Register8& reg, uint16_t addr)
-	//{
-	//	reg = cpu->read8(addr);
-	//	cpu->PC += 2;
-	//	cpu->cycles = 3;
-	//}
+	void loadToReg(Register8& reg, uint16_t addr)
+	{
+		reg = cpu->read8(addr);
+		cpu->PC += 3;
+		cpu->cycles = 4;
+	}
 	void loadToReg(uint8_t inInd, uint8_t outInd)
 	{
 		uint8_t& inReg = cpu->getRegister(inInd);
@@ -366,15 +347,43 @@ public:
 		cpu->cycles = 4;
 	}
 
-	void LD_C_A() // TO CHECK
+	void LD_C_A() 
 	{
-		cpu->write16(0xFF00 + cpu->registers.getFlag(FlagType::Carry), cpu->registers.A.val);
+		cpu->write8(0xFF00 + cpu->registers.C.val, cpu->registers.A.val);
 		cpu->PC++;
 		cpu->cycles = 2;
 	}
-	void LD_A_C() // TO CHECK
+	void LD_A_C() 
 	{
-		//loadToReg(cpu->registers.A, Register16{ 0xFF00 + cpu->registers.getFlag(FlagType::Carry) });
+		loadToReg(cpu->registers.A, Register16 { static_cast<uint16_t>(0xFF00 + cpu->registers.C.val) });
+	}
+
+	void LD_SP_HL()
+	{
+		cpu->SP = cpu->registers.HL;
+		cpu->PC++;
+		cpu->cycles = 2;
+	}
+	void LD_HL_SP(int8_t val) 
+	{
+		Register16 result { cpu->SP };
+		add16_signed(result, val);
+		cpu->registers.HL = result;
+		cpu->PC += 2;
+		cpu->cycles = 3;
+	}
+
+	void LD_OFFSET_A(uint8_t addr)
+	{
+		cpu->write8(0xFF00 + addr, cpu->registers.A.val);
+		cpu->PC += 2;
+		cpu->cycles = 3;
+	}
+	void LD_A_OFFSET(uint8_t addr)
+	{
+		cpu->registers.A = cpu->read8(0xFF00 + addr);
+		cpu->PC += 2;
+		cpu->cycles = 3;
 	}
 
 	void LD_HLI_A()
@@ -403,98 +412,142 @@ public:
 		cpu->PC--;
 	}
 
-	void RLC(Register8& reg, uint8_t len = 2)
+	void RLCA()
 	{
-		uint8_t carry = (reg.val & 0x80) >> 7;
-		cpu->registers.resetFlags();
-		cpu->registers.setFlag(FlagType::Carry, carry);
-		reg.val <<= 1;
-
-		if (carry) reg.val |= 1;
-		else reg.val &= (~1);
-
-		cpu->PC += len;
-		cpu->cycles = len;
+		rlc_base(cpu->registers.A.val, 1, 1);
+		cpu->registers.setFlag(Zero, false);
 	}
-	void RRC(Register8& reg, uint8_t len = 2)
-	{
-		uint8_t carry = reg.val & 1;
-		cpu->registers.resetFlags();
-		cpu->registers.setFlag(FlagType::Carry, carry);
-		reg.val >>= 1;
+	void RLC(uint8_t regInd) { rlc_base(cpu->getRegister(regInd), regInd == cpu->HL_IND ? 4 : 2, 1); }
 
-		if (carry) reg.val |= 0x80;
-		else reg.val &= (~0x80);
-
-		cpu->PC += len;
-		cpu->cycles = len;
+	void RRCA() 
+	{ 
+		rrc_base(cpu->registers.A.val, 1, 1); 
+		cpu->registers.setFlag(Zero, false);
 	}
+	void RRC(uint8_t regInd) { rrc_base(cpu->getRegister(regInd), regInd == cpu->HL_IND ? 4 : 2, 1); }
 
-    void RLCA() { RLC(cpu->registers.A, 1); }
-	void RRCA() { RRC(cpu->registers.A, 1); }
+	void RLA() 
+	{ 
+		rl_base(cpu->registers.A.val, 1, 1); 
+		cpu->registers.setFlag(Zero, false);
+	}
+	void RL(uint8_t regInd) { rl_base(cpu->getRegister(regInd), regInd == cpu->HL_IND ? 4 : 2, 1); }
 
-	void RL(Register8& reg, uint8_t len = 2) // TO CHECK
+	void RRA() 
 	{
-		uint8_t carry = reg.val >> 7;
-		reg.val <<= 1;
+		rr_base(cpu->registers.A.val, 1, 1);
+		cpu->registers.setFlag(Zero, false);
+	}
+	void RR(uint8_t regInd) { rr_base(cpu->getRegister(regInd), regInd == cpu->HL_IND ? 4 : 2, 1); }
 
-		if (cpu->registers.getFlag(FlagType::Carry)) reg.val |= 1;
-		else reg .val&= (~1);
+	void SLA(uint8_t regInd)
+	{
+		uint8_t& reg = cpu->getRegister(regInd);
+		uint8_t carry = (reg & 0x80) >> 7;
+		reg <<= 1;
 
 		cpu->registers.resetFlags();
-		cpu->registers.setFlag(FlagType::Carry, carry);
+		cpu->registers.setFlag(Carry, carry);
+		cpu->registers.setFlag(Zero, reg == 0);
 
-		cpu->PC += len;
-		cpu->cycles += len;
+		cpu->PC++;
+		cpu->cycles = regInd == cpu->HL_IND ? 4 : 2;
 	}
-	void RR(Register8& reg, uint8_t len = 2) // TO CHECK
+	void SRA(uint8_t regInd)
 	{
-		uint8_t carry = reg.val & 0x01;
-		reg.val >>= 1;
+		uint8_t& reg = cpu->getRegister(regInd);
+		uint8_t carry = reg & 1;
+		reg >>= 1;
 
-		if (cpu->registers.getFlag(FlagType::Carry)) reg.val |= 0x80;
-		else reg.val &= (~0x80);
+		if (reg & 0x40) 
+			reg |= 0x80;
 
 		cpu->registers.resetFlags();
-		cpu->registers.setFlag(FlagType::Carry, carry);
+		cpu->registers.setFlag(Carry, carry);
+		cpu->registers.setFlag(Zero, reg == 0);
 
-		cpu->PC += len;
-		cpu->cycles = len;
+		cpu->PC++;
+		cpu->cycles = regInd == cpu->HL_IND ? 4 : 2;
+	}
+	void SRL(uint8_t regInd)
+	{
+		SRA(regInd);
+		cpu->getRegister(regInd) &= 0x7F;
 	}
 
-	void RLA() { RL(cpu->registers.A, 1); }
-	void RRA() { RR(cpu->registers.A, 1); }
+	void SWAP(uint8_t regInd)
+	{
+		uint8_t& reg = cpu->getRegister(regInd);
+		uint8_t upperNibble = reg & 0xF0;
+		uint8_t lowerNibble = reg & 0x0F;
+
+		reg = (lowerNibble << 4) | (upperNibble >> 4);
+		cpu->registers.resetFlags();
+		cpu->registers.setFlag(Zero, reg == 0);
+
+		cpu->PC++;
+		cpu->cycles = regInd == cpu->HL_IND ? 4 : 2;
+	}
+
+	void BIT(uint8_t bit, uint8_t regInd)
+	{
+		uint8_t reg = cpu->getRegister(regInd);
+		bool bitSet = reg & (1 << bit);
+
+		cpu->registers.setFlag(Zero, !bitSet);
+		cpu->registers.setFlag(Subtract, false);
+		cpu->registers.setFlag(HalfCarry, true);
+
+		cpu->PC++;
+		cpu->cycles = regInd == cpu->HL_IND ? 3 : 2;
+	}
+	void RES(uint8_t bit, uint8_t regInd)
+	{
+		uint8_t& reg = cpu->getRegister(regInd);
+		reg &= ~(1 << bit);
+
+		cpu->PC++;
+		cpu->cycles = regInd == cpu->HL_IND ? 4 : 2;
+	}
+	void SET(uint8_t bit, uint8_t regInd)
+	{
+		uint8_t& reg = cpu->getRegister(regInd);
+		reg |= (1 << bit);
+
+		cpu->PC++;
+		cpu->cycles = regInd == cpu->HL_IND ? 4 : 2;
+	}
 
 	void CPL()
 	{
 		cpu->registers.A.val = ~cpu->registers.A.val;
-		cpu->registers.setFlag(FlagType::Subtract, true);
-		cpu->registers.setFlag(FlagType::HalfCarry, true);
+		cpu->registers.setFlag(Subtract, true);
+		cpu->registers.setFlag(HalfCarry, true);
 
 		cpu->PC++;
 		cpu->cycles = 1;
 	}
 	void CCF()
 	{
-		cpu->registers.setFlag(FlagType::Carry, !cpu->registers.getFlag(FlagType::Carry));
-		cpu->registers.setFlag(FlagType::HalfCarry, 0);
-		cpu->registers.setFlag(FlagType::Subtract, 0);
+		cpu->registers.setFlag(Carry, !cpu->registers.getFlag(Carry));
+		cpu->registers.setFlag(HalfCarry, 0);
+		cpu->registers.setFlag(Subtract, 0);
 
 		cpu->PC++;
 		cpu->cycles = 1;
 	}
 	void SCF()
 	{
-		cpu->registers.setFlag(FlagType::Carry, true);
-		cpu->registers.setFlag(FlagType::HalfCarry, false);
-		cpu->registers.setFlag(FlagType::Subtract, false);
+		cpu->registers.setFlag(Carry, true);
+		cpu->registers.setFlag(HalfCarry, false);
+		cpu->registers.setFlag(Subtract, false);
 
 		cpu->PC++;
 		cpu->cycles = 1;
 	}
 	void EI()
 	{
-		cpu->setIME = true;
+		cpu->toSetIME = true;
 		cpu->PC++;
 		cpu->cycles = 1;
 	}
@@ -504,6 +557,34 @@ public:
 		cpu->PC++;
 		cpu->cycles = 1;
 	}
+	void DAA() // TO CHECK
+	{
+		if (cpu->registers.getFlag(Subtract)) 
+		{
+			if (cpu->registers.getFlag(Carry))
+				cpu->registers.A.val -= 0x60;
+
+			if (cpu->registers.getFlag(HalfCarry))
+				cpu->registers.A.val -= 0x06;
+		}
+		else 
+		{
+			if (cpu->registers.getFlag(Carry) || cpu->registers.A.val > 0x99)
+			{
+				cpu->registers.A.val += 0x60;
+				cpu->registers.setFlag(Carry, true);
+			}
+			if (cpu->registers.getFlag(HalfCarry) || (cpu->registers.A.val & 0x0F) > 0x09)
+				cpu->registers.A.val += 0x06;
+		}
+
+		cpu->registers.setFlag(Zero, cpu->registers.A.val == 0);
+		cpu->registers.setFlag(HalfCarry, false);
+
+		cpu->PC++;
+		cpu->cycles = 1;
+	}
+
 
 	void STOP() // TODO
 	{
@@ -557,15 +638,23 @@ public:
 
 	void POP(uint16_t& val) 
 	{
+		cpu->PC++;
 		val = cpu->read16(cpu->SP.val);
 		cpu->SP.val += 2;
 		cpu->cycles = 3;
+	}
+	void POP_AF()
+	{
+		uint16_t val;
+		POP(val);
+		cpu->registers.AF = val & 0xFFF0;
 	}
 	void PUSH(uint16_t val) 
 	{
 		cpu->SP.val -= 2;
 		cpu->write16(cpu->SP.val, val);
 		cpu->cycles = 4;
+		cpu->PC++;
 	}
 
 	void RET()
@@ -581,7 +670,15 @@ public:
 			cpu->cycles = 5;
 		}
 		else
+		{
 			cpu->cycles = 2;
+			cpu->PC++;
+		}
+	}
+	void RET1()
+	{
+		RET();
+		cpu->IME = true;
 	}
 
 	inline void CALL(uint16_t addr)

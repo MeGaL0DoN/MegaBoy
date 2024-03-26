@@ -1,19 +1,138 @@
 #pragma once
 #include <cstdint>
 #include <cstring>
+
 #include "registers.h"
+#include "MBU.h"
+
+#include <nlohmann/json.hpp>
+#include <fstream>
+#include "Windows.h"
+using json = nlohmann::json;
+#include <filesystem>
+namespace fs = std::filesystem;
 
 class InstructionsEngine;
 
 class CPU
 {
 public:
-	uint8_t MEM[0xFFFF];
 	uint8_t execute();
-	void loadROM(std::string_view path);
+	MBU& mbu;
 
-    CPU();
+	CPU(MBU& mbu);
 	friend class InstructionsEngine;
+
+	void printState()
+	{
+		std::cout << "A: " << std::hex << +registers.A.val << " "
+			<< "F: " << std::hex << +registers.F.val << " "
+			<< "B: " << std::hex << +registers.B.val << " "
+			<< "C: " << std::hex << +registers.C.val << " "
+			<< "D: " << std::hex << +registers.D.val << " "
+			<< "E: " << std::hex << +registers.E.val << " "
+			<< "H: " << std::hex << +registers.H.val << " "
+			<< "L: " << std::hex << +registers.L.val << " "
+			<< "SP: " << std::hex << SP.val << " "
+			<< "PC: " << std::hex << PC << " "
+			<< "(" << std::hex << +read8(PC) << " "
+			<< std::hex << +read8(PC + 1) << " "
+			<< std::hex << +read8(PC + 2) << " "
+			<< std::hex << +read8(PC + 3) << ")"
+			<< std::endl;
+	}
+
+	uint16_t fromHex(const json& js)
+	{
+		return std::stoul(std::string(js), 0, 16);
+	}
+
+	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	void runTest( std::string_view jsonPath, int amount = 50)
+	{
+		std::ifstream s(jsonPath.data());
+		json data = json::parse(s);
+
+		uint8_t opcode = std::stoul(std::string(data[0]["name"]).substr(0, 2), 0, 16);
+		SetConsoleTextAttribute(hConsole, 14);
+		std::cout << "Testing: 0x" << std::uppercase << std::hex << +opcode << "\n\n";
+		SetConsoleTextAttribute(hConsole, 15);
+
+		for (int i = 0; i < amount; i++)
+		{
+			json& test = data[i];
+			json& initial = test["initial"];
+			json& result = test["final"];
+
+			//auto a = std::string(data[0]["name"]).substr(3, 2);
+			//uint8_t opcode = std::stoul(std::string(data[0]["name"]).substr(3, 4), 0, 16);
+			//SetConsoleTextAttribute(hConsole, 14);
+			//std::cout << "Testing: 0x" << std::uppercase << std::hex << +opcode << "\n\n";
+			//SetConsoleTextAttribute(hConsole, 15);
+
+			registers.A = fromHex(initial["cpu"]["a"]);
+			registers.B = fromHex(initial["cpu"]["b"]);
+			registers.C = fromHex(initial["cpu"]["c"]);
+			registers.D = fromHex(initial["cpu"]["d"]);
+			registers.E = fromHex(initial["cpu"]["e"]);
+			registers.F = fromHex(initial["cpu"]["f"]);
+			registers.H = fromHex(initial["cpu"]["h"]);
+			registers.L = fromHex(initial["cpu"]["l"]);
+			PC = fromHex(initial["cpu"]["pc"]);
+			SP = fromHex(initial["cpu"]["sp"]);
+
+			std::memset(mbu.MEM, 0, sizeof(mbu.MEM));
+
+			for (json& ram : initial["ram"])
+			{
+				write8(fromHex(ram[0]), fromHex(ram[1]));
+			}
+
+			int cycles = execute();
+			printState();
+
+			bool passed{true};
+
+			if (registers.A.val != fromHex(result["cpu"]["a"]) || registers.B.val != fromHex(result["cpu"]["b"]) ||
+				registers.C.val != fromHex(result["cpu"]["c"]) || registers.D.val != fromHex(result["cpu"]["d"]) ||
+				registers.E.val != fromHex(result["cpu"]["e"]) || registers.F.val != fromHex(result["cpu"]["f"]) ||
+				registers.H.val != fromHex(result["cpu"]["h"]) || registers.L.val != fromHex(result["cpu"]["l"]) ||
+				PC != fromHex(result["cpu"]["pc"]) || SP.val != fromHex(result["cpu"]["sp"]))
+			{
+				passed = false;
+			}
+
+			for (json& ram : result["ram"])
+			{
+				if (read8(fromHex(ram[0])) != fromHex(ram[1]))
+				{
+					passed = false;
+					break;
+				}
+			}
+
+			//int finalCycles = 0;
+			//for (json& cycl : test["cycles"])
+			//{
+			//	finalCycles++;
+			//}
+
+			//if (cycles != finalCycles) passed = false;
+
+			SetConsoleTextAttribute(hConsole, passed ? 10 : 4);
+			std::cout << test["name"] << " " << (passed ? "PASSED!" : "NOT PASSED") << "\n";
+			SetConsoleTextAttribute(hConsole, 15);
+		}
+	}
+
+	void runTests()
+	{
+		for (const auto& entry : fs::directory_iterator("tests"))
+		{
+			runTest(entry.path().string(), 20);
+			std::cout << "\n<----------------------------------------->\n\n";
+		}
+	}
 
 private:
 	void executePrefixed();
@@ -21,58 +140,42 @@ private:
 
 	static constexpr uint8_t HL_IND = 6;
 	uint8_t& getRegister(uint8_t ind);
-	//void setRegister(uint8_t ind, uint8_t val);
 
-	void init()
+	void reset()
 	{
 		registers.resetRegisters();
-		PC = 0;
-		SP = 0;
-		std::memset(MEM, 0, sizeof(MEM));
+		PC = 0x1000;
+		SP = 0xFFFE;
 	}
 
-	constexpr void write8(uint16_t addr, uint8_t val)
+	inline void write8(uint16_t addr, uint8_t val)
 	{
-		MEM[addr] = val;
+		mbu.write8(addr, val);
 	}
-	constexpr uint8_t& read8(uint16_t addr)
+	inline uint8_t& read8(uint16_t addr)
 	{
-		return MEM[addr];
+		return mbu.read8(addr);
 	}
-
-	constexpr void write16(uint16_t addr, uint16_t val)
+	inline void write16(uint16_t addr, uint16_t val)
 	{
-		write8(addr, val & 0xFF);
-		write8(addr + 1, val >> 8);
+		mbu.write16(addr, val);
 	}
-	constexpr uint16_t read16(uint16_t addr) 
+	inline uint16_t read16(uint16_t addr) 
 	{
-		return (read8(addr + 1) << 8) | read8(addr);
+		return mbu.read16(addr);
 	}
-
 
 	registerCollection registers {};
 
 	uint8_t opcode {};
 	uint8_t cycles {};
-	uint16_t PC {};
-	Register16 SP;
 
-	bool stopped{ false };
-	bool halted{ false };
+	uint16_t PC { 0x0101 };
+	Register16 SP { 0xFFFE };
+
+	bool stopped { false };
+	bool halted { false };
 
 	bool IME { false };
-	bool setIME { false };
-
-	void loadProgram(std::initializer_list<uint8_t> values)
-	{
-		std::memset(MEM, 0, sizeof(MEM));
-		int i = 0;
-
-		for (int item : values)
-		{
-			MEM[i] = item;
-			i++;
-		}
-	}
+	bool toSetIME { false };
 };
