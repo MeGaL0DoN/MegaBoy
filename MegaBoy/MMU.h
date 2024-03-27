@@ -2,13 +2,13 @@
 #include <cstdint>
 #include <string_view>
 
-class MBU
+class MMU
 {
 public:
 	uint8_t MEM[0xFFFF]{};
 
 	void write8(uint16_t addr, uint8_t val);
-    uint8_t& read8(uint16_t addr);
+    uint8_t read8(uint16_t addr);
 
     inline void write16(uint16_t addr, uint16_t val)
 	{

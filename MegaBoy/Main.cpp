@@ -57,12 +57,12 @@ int main()
 {
     if (!setGLFW()) return -1;
 
-    MBU mbu{};
-    CPU cpu{mbu};
+    MMU mmu{};
+    CPU cpu{mmu};
 
     //cpu.runTests();
       
-    cpu.mbu.loadROM("test.gb");
+    mmu.loadROM("test.gb");
 
     double lastFrameTime = glfwGetTime();
     double renderTimer{};

@@ -179,10 +179,18 @@ public:
 		cpu->PC++;
 		cpu->cycles = 1;
 	}
+	void INCR_HL()
+	{
+		uint8_t val = cpu->read8(cpu->registers.HL.val);
+		INCR(val);
+		cpu->write8(cpu->registers.HL.val, val);
+	}
 
 	void ADD(uint8_t regInd)
 	{
-		add8_base(cpu->registers.A, cpu->getRegister(regInd), 0, regInd == cpu->HL_IND ? 2 : 1, 1);
+		uint8_t& reg = cpu->getRegister(regInd);
+		add8_base(cpu->registers.A, reg, 0, regInd == cpu->HL_IND ? 2 : 1, 1);
+		if (regInd == cpu->HL_IND) cpu->write8(cpu->registers.HL.val, reg);
 	}
 	void ADD(Register8& reg, uint8_t val)
 	{
@@ -194,7 +202,9 @@ public:
 	}
 	void ADC(uint8_t regInd)
 	{
-		add8_base(cpu->registers.A, cpu->getRegister(regInd), cpu->registers.getFlag(Carry), regInd == cpu->HL_IND ? 2 : 1, 1);
+		uint8_t& reg = cpu->getRegister(regInd);
+		add8_base(cpu->registers.A, reg, cpu->registers.getFlag(Carry), regInd == cpu->HL_IND ? 2 : 1, 1);
+		if (regInd == cpu->HL_IND) cpu->write8(cpu->registers.HL.val, reg);
 	}
 
 	void addToHL(Register16 reg)
@@ -234,10 +244,18 @@ public:
 		cpu->PC++;
 		cpu->cycles = 2;
 	}
+	void DECR_HL()
+	{
+		uint8_t val = cpu->read8(cpu->registers.HL.val);
+		DECR(val);
+		cpu->write8(cpu->registers.HL.val, val);
+	}
 
 	void SUB(uint8_t regInd)
 	{
-		cpu->registers.A = cp_base(cpu->registers.A.val, cpu->getRegister(regInd), 0, regInd == cpu->HL_IND ? 2 : 1, 1);
+		uint8_t& reg = cpu->getRegister(regInd);
+		cpu->registers.A = cp_base(cpu->registers.A.val, reg, 0, regInd == cpu->HL_IND ? 2 : 1, 1);
+		if (regInd == cpu->HL_IND) cpu->write8(cpu->registers.HL.val, reg);
 	}
 	void SUB(Register8& reg, uint8_t val)
 	{
@@ -245,7 +263,9 @@ public:
 	}
 	void CP(uint8_t regInd)
 	{
-		cp_base(cpu->registers.A.val, cpu->getRegister(regInd), 0, regInd == cpu->HL_IND ? 2 : 1, 1);
+		uint8_t& reg = cpu->getRegister(regInd);
+		cp_base(cpu->registers.A.val, reg, 0, regInd == cpu->HL_IND ? 2 : 1, 1);
+		if (regInd == cpu->HL_IND) cpu->write8(cpu->registers.HL.val, reg);
 	}
 	void CP(Register8& reg, uint8_t val)
 	{
@@ -257,7 +277,9 @@ public:
 	}
 	void SBC(uint8_t regInd)
 	{
-		cpu->registers.A = cp_base(cpu->registers.A.val, cpu->getRegister(regInd), cpu->registers.getFlag(Carry), regInd == cpu->HL_IND ? 2 : 1, 1);
+		uint8_t& reg = cpu->getRegister(regInd);
+		cpu->registers.A = cp_base(cpu->registers.A.val, reg, cpu->registers.getFlag(Carry), regInd == cpu->HL_IND ? 2 : 1, 1);
+		if (regInd == cpu->HL_IND) cpu->write8(cpu->registers.HL.val, reg);
 	}
 
 	void AND(Register8& reg, uint8_t val)
@@ -266,7 +288,9 @@ public:
 	}
 	void AND(uint8_t regInd)
 	{
-		and_base(cpu->registers.A.val, cpu->getRegister(regInd), regInd == cpu->HL_IND ? 2 : 1, 1);
+		uint8_t& reg = cpu->getRegister(regInd);
+		and_base(cpu->registers.A.val, reg, regInd == cpu->HL_IND ? 2 : 1, 1);
+		if (regInd == cpu->HL_IND) cpu->write8(cpu->registers.HL.val, reg);
 	}
 
 	void XOR(Register8& reg, uint8_t val)
@@ -275,7 +299,9 @@ public:
 	}
 	void XOR(uint8_t regInd)
 	{
-		xor_base(cpu->registers.A.val, cpu->getRegister(regInd), regInd == cpu->HL_IND ? 2 : 1, 1);
+		uint8_t& reg = cpu->getRegister(regInd);
+		xor_base(cpu->registers.A.val, reg, regInd == cpu->HL_IND ? 2 : 1, 1);
+		if (regInd == cpu->HL_IND) cpu->write8(cpu->registers.HL.val, reg);
 	}
 
 	void OR(Register8& reg, uint8_t val)
@@ -284,7 +310,9 @@ public:
 	}
 	void OR(uint8_t regInd)
 	{
-		or_base(cpu->registers.A.val, cpu->getRegister(regInd), regInd == cpu->HL_IND ? 2 : 1, 1);
+		uint8_t& reg = cpu->getRegister(regInd);
+		or_base(cpu->registers.A.val, reg, regInd == cpu->HL_IND ? 2 : 1, 1);
+		if (regInd == cpu->HL_IND) cpu->write8(cpu->registers.HL.val, reg);
 	}
 
 
@@ -316,9 +344,13 @@ public:
 	{
 		uint8_t& inReg = cpu->getRegister(inInd);
 		uint8_t outReg = cpu->getRegister(outInd);
-		inReg = outReg;
-
 		cpu->PC++;
+
+		if (inInd == cpu->HL_IND)
+			cpu->write8(cpu->registers.HL.val, outReg);
+		else 
+			inReg = outReg;
+
 		cpu->cycles = (inInd == cpu->HL_IND || outInd == cpu->HL_IND) ? 2 : 1;
 	}
 
@@ -417,28 +449,48 @@ public:
 		rlc_base(cpu->registers.A.val, 1, 1);
 		cpu->registers.setFlag(Zero, false);
 	}
-	void RLC(uint8_t regInd) { rlc_base(cpu->getRegister(regInd), regInd == cpu->HL_IND ? 4 : 2, 1); }
+	void RLC(uint8_t regInd)
+	{
+		uint8_t& reg = cpu->getRegister(regInd);
+		rlc_base(reg, regInd == cpu->HL_IND ? 4 : 2, 1);
+		if (regInd == cpu->HL_IND) cpu->write8(cpu->registers.HL.val, reg);
+	}
 
 	void RRCA() 
 	{ 
 		rrc_base(cpu->registers.A.val, 1, 1); 
 		cpu->registers.setFlag(Zero, false);
 	}
-	void RRC(uint8_t regInd) { rrc_base(cpu->getRegister(regInd), regInd == cpu->HL_IND ? 4 : 2, 1); }
+	void RRC(uint8_t regInd)
+	{
+		uint8_t& reg = cpu->getRegister(regInd);
+		rrc_base(reg, regInd == cpu->HL_IND ? 4 : 2, 1);
+		if (regInd == cpu->HL_IND) cpu->write8(cpu->registers.HL.val, reg);
+	}
 
 	void RLA() 
 	{ 
 		rl_base(cpu->registers.A.val, 1, 1); 
 		cpu->registers.setFlag(Zero, false);
 	}
-	void RL(uint8_t regInd) { rl_base(cpu->getRegister(regInd), regInd == cpu->HL_IND ? 4 : 2, 1); }
+	void RL(uint8_t regInd)
+	{
+		uint8_t& reg = cpu->getRegister(regInd);
+		rl_base(reg, regInd == cpu->HL_IND ? 4 : 2, 1);
+		if (regInd == cpu->HL_IND) cpu->write8(cpu->registers.HL.val, reg);
+	}
 
 	void RRA() 
 	{
 		rr_base(cpu->registers.A.val, 1, 1);
 		cpu->registers.setFlag(Zero, false);
 	}
-	void RR(uint8_t regInd) { rr_base(cpu->getRegister(regInd), regInd == cpu->HL_IND ? 4 : 2, 1); }
+	void RR(uint8_t regInd)
+	{
+		uint8_t& reg = cpu->getRegister(regInd);
+		rr_base(reg, regInd == cpu->HL_IND ? 4 : 2, 1);
+		if (regInd == cpu->HL_IND) cpu->write8(cpu->registers.HL.val, reg);
+	}
 
 	void SLA(uint8_t regInd)
 	{
@@ -450,6 +502,7 @@ public:
 		cpu->registers.setFlag(Carry, carry);
 		cpu->registers.setFlag(Zero, reg == 0);
 
+		if (regInd == cpu->HL_IND) cpu->write8(cpu->registers.HL.val, reg);
 		cpu->PC++;
 		cpu->cycles = regInd == cpu->HL_IND ? 4 : 2;
 	}
@@ -466,13 +519,15 @@ public:
 		cpu->registers.setFlag(Carry, carry);
 		cpu->registers.setFlag(Zero, reg == 0);
 
+		if (regInd == cpu->HL_IND) cpu->write8(cpu->registers.HL.val, reg);
 		cpu->PC++;
 		cpu->cycles = regInd == cpu->HL_IND ? 4 : 2;
 	}
 	void SRL(uint8_t regInd)
 	{
 		SRA(regInd);
-		cpu->getRegister(regInd) &= 0x7F;
+		uint8_t reg = (cpu->getRegister(regInd) &= 0x7F);
+		if (regInd == cpu->HL_IND) cpu->write8(cpu->registers.HL.val, reg);
 	}
 
 	void SWAP(uint8_t regInd)
@@ -485,6 +540,7 @@ public:
 		cpu->registers.resetFlags();
 		cpu->registers.setFlag(Zero, reg == 0);
 
+		if (regInd == cpu->HL_IND) cpu->write8(cpu->registers.HL.val, reg);
 		cpu->PC++;
 		cpu->cycles = regInd == cpu->HL_IND ? 4 : 2;
 	}
@@ -505,6 +561,7 @@ public:
 	{
 		uint8_t& reg = cpu->getRegister(regInd);
 		reg &= ~(1 << bit);
+		if (regInd == cpu->HL_IND) cpu->write8(cpu->registers.HL.val, reg);
 
 		cpu->PC++;
 		cpu->cycles = regInd == cpu->HL_IND ? 4 : 2;
@@ -513,6 +570,7 @@ public:
 	{
 		uint8_t& reg = cpu->getRegister(regInd);
 		reg |= (1 << bit);
+		if (regInd == cpu->HL_IND) cpu->write8(cpu->registers.HL.val, reg);
 
 		cpu->PC++;
 		cpu->cycles = regInd == cpu->HL_IND ? 4 : 2;

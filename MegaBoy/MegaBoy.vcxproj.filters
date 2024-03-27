@@ -60,13 +60,10 @@
     <ClCompile Include="CPU.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="GPU.cpp">
+    <ClCompile Include="PPU.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="GBCore.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="MBU.cpp">
+    <ClCompile Include="MMU.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -104,10 +101,7 @@
     <ClInclude Include="CPU.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="GPU.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="GBCore.h">
+    <ClInclude Include="PPU.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="instructionsEngine.h">
@@ -116,7 +110,7 @@
     <ClInclude Include="Libs\nlohmann\json.hpp">
       <Filter>Header Files\nlohmann</Filter>
     </ClInclude>
-    <ClInclude Include="MBU.h">
+    <ClInclude Include="MMU.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

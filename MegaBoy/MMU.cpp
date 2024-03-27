@@ -1,7 +1,7 @@
-#include "MBU.h"
+#include "MMU.h"
 #include <fstream>
 
-void MBU::write8(uint16_t addr, uint8_t val)
+void MMU::write8(uint16_t addr, uint8_t val)
 {
 	MEM[addr] = val;
 
@@ -12,12 +12,12 @@ void MBU::write8(uint16_t addr, uint8_t val)
 		MEM[0xff02] = 0x0;
 	}
 }
-uint8_t& MBU::read8(uint16_t addr)
+uint8_t MMU::read8(uint16_t addr)
 {
 	return MEM[addr];
 }
 
-void MBU::loadROM(std::string_view path)
+void MMU::loadROM(std::string_view path)
 {
 	std::ifstream ifs(path.data(), std::ios::binary | std::ios::ate);
 	std::ifstream::pos_type pos = ifs.tellg();

@@ -4,11 +4,12 @@
 
 InstructionsEngine instructions;
 
-CPU::CPU(MBU& mbu) : mbu(mbu)
+CPU::CPU(MMU& mmu) : mmu(mmu)
 {
 	instructions = { this };
 }
 
+uint8_t HL_val;
 uint8_t& CPU::getRegister(uint8_t ind)
 {
 	switch (ind)
@@ -19,9 +20,33 @@ uint8_t& CPU::getRegister(uint8_t ind)
 		case 3: return registers.E.val;
 		case 4: return registers.H.val;
 		case 5: return registers.L.val;
-		case 6: return read8(registers.HL.val);
+		case 6: 
+		{
+			HL_val = read8(registers.HL.val);;
+			return HL_val;
+		}
 		case 7: return registers.A.val;
 		default: throw;
+	}
+}
+
+void CPU::handleInterrupts()
+{
+	if (IME)
+	{
+		uint8_t IE = read8(0xFFFF);
+		uint8_t IF = read8(0xFF0F);
+
+		if (IE & IF)
+		{
+			if ((IE & 1) & (IF & 1))
+			{
+				// VBLANK
+				instructions.PUSH(PC);
+				PC = 0x40;
+				write8(0xFF0F, IF & ~1);
+			}
+		}
 	}
 }
 
@@ -216,10 +241,10 @@ void CPU::executeUnprefixed()
 		instructions.INCR(SP);
 		break;
 	case 0x34:
-		instructions.INCR(read8(registers.HL.val));
+		instructions.INCR_HL();
 		break;
 	case 0x35:
-		instructions.DECR(read8(registers.HL.val));
+		instructions.DECR_HL();
 		break;
 	case 0x36:
 		instructions.loadToAddr(registers.HL.val, operand);

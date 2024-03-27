@@ -3,7 +3,7 @@
 #include <cstring>
 
 #include "registers.h"
-#include "MBU.h"
+#include "MMU.h"
 
 #include <nlohmann/json.hpp>
 #include <fstream>
@@ -18,9 +18,9 @@ class CPU
 {
 public:
 	uint8_t execute();
-	MBU& mbu;
+	void handleInterrupts();
 
-	CPU(MBU& mbu);
+	CPU(MMU& mmu);
 	friend class InstructionsEngine;
 
 	void printState()
@@ -81,7 +81,7 @@ public:
 			PC = fromHex(initial["cpu"]["pc"]);
 			SP = fromHex(initial["cpu"]["sp"]);
 
-			std::memset(mbu.MEM, 0, sizeof(mbu.MEM));
+			std::memset(mmu.MEM, 0, sizeof(mmu.MEM));
 
 			for (json& ram : initial["ram"])
 			{
@@ -150,22 +150,23 @@ private:
 
 	inline void write8(uint16_t addr, uint8_t val)
 	{
-		mbu.write8(addr, val);
+		mmu.write8(addr, val);
 	}
-	inline uint8_t& read8(uint16_t addr)
+	inline uint8_t read8(uint16_t addr)
 	{
-		return mbu.read8(addr);
+		return mmu.read8(addr);
 	}
 	inline void write16(uint16_t addr, uint16_t val)
 	{
-		mbu.write16(addr, val);
+		mmu.write16(addr, val);
 	}
 	inline uint16_t read16(uint16_t addr) 
 	{
-		return mbu.read16(addr);
+		return mmu.read16(addr);
 	}
 
 	registerCollection registers {};
+	MMU& mmu;
 
 	uint8_t opcode {};
 	uint8_t cycles {};
