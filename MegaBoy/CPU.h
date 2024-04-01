@@ -10,18 +10,32 @@
 #include "Windows.h"
 using json = nlohmann::json;
 #include <filesystem>
+#include <iostream>
 namespace fs = std::filesystem;
 
+enum class Interrupt : uint8_t
+{
+	Vblank = 0,
+	LCD = 1,
+	Timer = 2,
+	Serial = 3,
+	Joypad = 4
+};
+
 class InstructionsEngine;
+class MMU;
 
 class CPU
 {
 public:
 	uint8_t execute();
-	void handleInterrupts();
+	uint8_t handleInterrupts();
+	void requestInterrupt(Interrupt interrupt);
+	void updateTimer(uint8_t cycles);
 
 	CPU(MMU& mmu);
 	friend class InstructionsEngine;
+	friend class MMU;
 
 	void printState()
 	{
@@ -81,11 +95,11 @@ public:
 			PC = fromHex(initial["cpu"]["pc"]);
 			SP = fromHex(initial["cpu"]["sp"]);
 
-			std::memset(mmu.MEM, 0, sizeof(mmu.MEM));
+			//std::memset(mmu.MEM, 0, sizeof(mmu.MEM));
 
 			for (json& ram : initial["ram"])
 			{
-				write8(fromHex(ram[0]), fromHex(ram[1]));
+				mmu.directWrite(fromHex(ram[0]), fromHex(ram[1]));
 			}
 
 			int cycles = execute();
@@ -141,12 +155,7 @@ private:
 	static constexpr uint8_t HL_IND = 6;
 	uint8_t& getRegister(uint8_t ind);
 
-	void reset()
-	{
-		registers.resetRegisters();
-		PC = 0x1000;
-		SP = 0xFFFE;
-	}
+	void reset();
 
 	inline void write8(uint16_t addr, uint8_t val)
 	{
@@ -174,9 +183,13 @@ private:
 	uint16_t PC { 0x0101 };
 	Register16 SP { 0xFFFE };
 
+	uint16_t DIV{};
+	uint16_t TIMA{};
+
 	bool stopped { false };
 	bool halted { false };
+	bool halt_bug{ false };
 
 	bool IME { false };
-	bool toSetIME { false };
+	bool shouldSetIME { false };
 };

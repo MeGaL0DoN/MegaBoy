@@ -33,7 +33,7 @@ private:
 		cpu->registers.setFlag(HalfCarry, halfCarry8(reg.val, add1, add2));
 		cpu->registers.setFlag(Carry, result > 0xFF);
 
-		reg = result;
+		reg = static_cast<uint8_t>(result);
 		cpu->registers.setFlag(Zero, reg.val == 0);
 
 		cpu->PC += pc;
@@ -62,7 +62,7 @@ private:
 		cpu->PC += pc;
 		cpu->cycles = cycles;
 
-		return result;
+		return static_cast<uint8_t>(result);
 	}
 
 	inline void and_base(uint8_t& reg, uint8_t val, uint8_t cycles, uint8_t pc)
@@ -183,6 +183,7 @@ public:
 	{
 		uint8_t val = cpu->read8(cpu->registers.HL.val);
 		INCR(val);
+		cpu->cycles = 3;
 		cpu->write8(cpu->registers.HL.val, val);
 	}
 
@@ -248,6 +249,7 @@ public:
 	{
 		uint8_t val = cpu->read8(cpu->registers.HL.val);
 		DECR(val);
+		cpu->cycles = 3;
 		cpu->write8(cpu->registers.HL.val, val);
 	}
 
@@ -605,7 +607,7 @@ public:
 	}
 	void EI()
 	{
-		cpu->toSetIME = true;
+		cpu->shouldSetIME = true;
 		cpu->PC++;
 		cpu->cycles = 1;
 	}
@@ -650,7 +652,7 @@ public:
 		cpu->PC++;
 		cpu->cycles = 1;
 	}
-	void HALT() //TODO
+	void HALT() 
 	{
 		cpu->halted = true;
 		cpu->PC++;

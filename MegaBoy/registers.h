@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include "bitOps.h"
 
 struct Register8
 {
@@ -74,19 +75,19 @@ struct registerCollection
 		L = 0x4D;
 	}
 
-	constexpr void setFlag(FlagType flag, bool value)
+	inline bool getFlag(FlagType flag)
+	{
+		return getBit(F.val, flag);
+	}
+	inline void setFlag(FlagType flag, bool value)
 	{
 		if (value)
-			F.val |= (1 << flag);
+			F = setBit(F.val, flag);
 		else
-			F.val &= ~(1 << flag);
+			F = resetBit(F.val, flag);
 	}
 	constexpr void resetFlags()
 	{
 		F.val &= 0x0F;
-	}
-	constexpr bool getFlag(FlagType flag)
-	{
-		return F.val & (1 << flag);
 	}
 };

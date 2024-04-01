@@ -2,11 +2,20 @@
 #include "glad/glad.h"
 #include "GLFW/glfw3.h"
 #include "instructionsEngine.h"
+#include "GBCore.h"
 #include "thread"
+
+GBCore gbCore;
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
     glViewport(0, 0, width, height);
+}
+
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+    if (gbCore.input.update(scancode, action))
+        gbCore.cpu.requestInterrupt(Interrupt::Joypad);
 }
 
 GLFWwindow* window;
@@ -33,8 +42,7 @@ bool setGLFW()
 
     glfwSetWindowSize(window, width, height);
     glfwSetWindowAspectRatio(window, width, height);
-
-   // glfwSetKeyCallback(window, key_callback);
+    glfwSetKeyCallback(window, key_callback);
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
@@ -57,12 +65,11 @@ int main()
 {
     if (!setGLFW()) return -1;
 
-    MMU mmu{};
-    CPU cpu{mmu};
+    GBCore gbCore;
 
     //cpu.runTests();
       
-    mmu.loadROM("test.gb");
+    gbCore.mmu.loadROM("read_timing.gb");
 
     double lastFrameTime = glfwGetTime();
     double renderTimer{};
@@ -73,7 +80,7 @@ int main()
         double deltaTime = currentFrameTime - lastFrameTime;
         renderTimer += deltaTime;
 
-        cpu.execute();
+        gbCore.update();
 
         if (renderTimer >= 1.0 / 60)
         {

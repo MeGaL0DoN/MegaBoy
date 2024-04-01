@@ -1,9 +1,34 @@
-#include "MMU.h"
 #include <fstream>
+#include "MMU.h"
+#include "GBCore.h"
 
-void MMU::write8(uint16_t addr, uint8_t val)
+MMU::MMU(GBCore& gbCore) : gbCore(gbCore) {}
+
+void MMU::write8(memoryAddress addr, uint8_t val)
 {
-	MEM[addr] = val;
+	if (addr.inRange(0xFE0A, 0xFEFF))
+		return;
+
+	if (addr.inRange(0xE000, 0xFDFF))
+	{
+		MEM[addr - 0x2000] = val;
+		return;
+	}
+
+	switch (addr)
+	{
+	case 0xFF00:
+		// Allow writing only upper nibble to joypad register.
+		MEM[0xFF00] = (MEM[0xFF00] & 0x0F) | (val & 0xF0);
+		return;
+	case 0xFF04:
+		MEM[0xFF04] = 0;
+		gbCore.cpu.DIV = 0;
+		return;
+	default:
+		MEM[addr] = val;
+		break;
+	}
 
 	if (read8(0xff02) == 0x81)
 	{
@@ -12,13 +37,28 @@ void MMU::write8(uint16_t addr, uint8_t val)
 		MEM[0xff02] = 0x0;
 	}
 }
-uint8_t MMU::read8(uint16_t addr)
+uint8_t MMU::read8(memoryAddress addr)
 {
-	return MEM[addr];
+	if (addr.inRange(0xFEA0, 0xFEFF)) 
+		return 0xFF;
+
+	if (addr.inRange(0xE000, 0xFDFF)) 
+		return MEM[addr - 0x2000];
+
+	switch (addr)
+	{
+	default:
+		return MEM[addr];
+	}
 }
 
 void MMU::loadROM(std::string_view path)
 {
+	std::memset(MEM, 0, sizeof(MEM));
+
+	// reset input register
+	MEM[0xFF00] = 0xFF;
+
 	std::ifstream ifs(path.data(), std::ios::binary | std::ios::ate);
 	std::ifstream::pos_type pos = ifs.tellg();
 

@@ -66,6 +66,15 @@
     <ClCompile Include="MMU.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="GBCore.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="CPU_interrupts.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="inputManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Libs\ImGUI\imconfig.h">
@@ -113,9 +122,18 @@
     <ClInclude Include="MMU.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="GBCore.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="inputManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="registers.h">
+      <Filter>Header Files</Filter>
+    </None>
+    <None Include="bitOps.h">
       <Filter>Header Files</Filter>
     </None>
   </ItemGroup>

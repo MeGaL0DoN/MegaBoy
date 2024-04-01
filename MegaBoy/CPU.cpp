@@ -9,6 +9,19 @@ CPU::CPU(MMU& mmu) : mmu(mmu)
 	instructions = { this };
 }
 
+void CPU::reset()
+{
+	registers.resetRegisters();
+	PC = 0x1000;
+	SP = 0xFFFE;
+	DIV = 0;
+	TIMA = 0;
+	IME = false;
+	halted = false;
+	stopped = false;
+	halt_bug = false;
+}
+
 uint8_t HL_val;
 uint8_t& CPU::getRegister(uint8_t ind)
 {
@@ -30,29 +43,9 @@ uint8_t& CPU::getRegister(uint8_t ind)
 	}
 }
 
-void CPU::handleInterrupts()
-{
-	if (IME)
-	{
-		uint8_t IE = read8(0xFFFF);
-		uint8_t IF = read8(0xFF0F);
-
-		if (IE & IF)
-		{
-			if ((IE & 1) & (IF & 1))
-			{
-				// VBLANK
-				instructions.PUSH(PC);
-				PC = 0x40;
-				write8(0xFF0F, IF & ~1);
-			}
-		}
-	}
-}
-
 uint8_t CPU::execute()
 {
-	//if (halted) return 1;
+	if (halted) return 1;
 
 	opcode = read8(PC);
 	if (opcode == 0xCB)
@@ -63,10 +56,10 @@ uint8_t CPU::execute()
 	else
 		executeUnprefixed();
 
-	if (toSetIME)
+	if (shouldSetIME)
 	{
 		IME = true;
-		toSetIME = false;
+		shouldSetIME = false;
 	}
 
 	return cycles;
@@ -593,7 +586,7 @@ void CPU::executeUnprefixed()
 		break;
 
 	default:
-		std::cout << "Unknown unprefixed opcode: " << std::hex << +opcode << "\n";
+		std::cout << "Unknown unprefixed opcode: 0x" << std::hex << +opcode << "\n";
 		PC++;
 	}
 }
@@ -895,7 +888,7 @@ void CPU::executePrefixed()
 		break;
 
 	default:
-		std::cout << "Unknown prefixed opcode: " << std::hex << +opcode << "\n";
+		std::cout << "Unknown prefixed opcode: 0x" << std::hex << +opcode << "\n";
 		PC++;
 	}
 }
