@@ -12,11 +12,12 @@ CPU::CPU(MMU& mmu) : mmu(mmu)
 void CPU::reset()
 {
 	registers.resetRegisters();
-	PC = 0x1000;
+	PC = 0x0100;
 	SP = 0xFFFE;
 	DIV = 0;
 	TIMA = 0;
 	IME = false;
+	shouldSetIME = false;
 	halted = false;
 	stopped = false;
 	halt_bug = false;
@@ -72,6 +73,11 @@ void CPU::executeUnprefixed()
 
 	uint8_t outRegInd = opcode & 0x07;
 	uint8_t inRegInd = (opcode >> 3) & 0x07;
+
+	if (registers.HL.val == 0x7FFF)
+	{
+		int a = 4;
+	}
 
 	switch (opcode)
 	{

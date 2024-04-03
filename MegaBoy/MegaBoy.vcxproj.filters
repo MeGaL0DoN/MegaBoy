@@ -25,6 +25,12 @@
     <Filter Include="Header Files\nlohmann">
       <UniqueIdentifier>{8276b919-1bb9-4689-a203-2f300d09e270}</UniqueIdentifier>
     </Filter>
+    <Filter Include="data">
+      <UniqueIdentifier>{584aa01e-cf78-419d-86fe-b05a7f7dd3e7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="data\shaders">
+      <UniqueIdentifier>{73d07796-dcb3-4c93-bb47-d6576ada369c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Main.cpp">
@@ -136,5 +142,16 @@
     <None Include="bitOps.h">
       <Filter>Header Files</Filter>
     </None>
+    <None Include="data\shaders\fragmentShader.glsl">
+      <Filter>data\shaders</Filter>
+    </None>
+    <None Include="data\shaders\vertexShader.glsl">
+      <Filter>data\shaders</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Font Include="data\roboto.ttf">
+      <Filter>data</Filter>
+    </Font>
   </ItemGroup>
 </Project>

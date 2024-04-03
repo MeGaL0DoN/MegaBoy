@@ -1,6 +1,6 @@
 #pragma once
+#include <fstream>
 #include <cstdint>
-#include <string_view>
 
 struct memoryAddress
 {
@@ -39,9 +39,27 @@ public:
 	constexpr void directWrite(uint16_t addr, uint8_t val) { MEM[addr] = val; }
 	constexpr uint8_t directRead(uint16_t addr) { return MEM[addr]; }
 
-	void loadROM(std::string_view path);
+	//inline uint16_t directRead16(memoryAddress addr)
+	//{
+	//	return static_cast<uint16_t>(directRead(addr + 1) << 8) | directRead(addr);
+	//}
+
+	void resetMEM();
+
+	inline void loadROM(const wchar_t* path)
+	{
+		std::ifstream ifs(path, std::ios::binary | std::ios::ate);
+		loadROM(ifs);
+	}
+	inline void loadROM(const char* path)
+	{
+		std::ifstream ifs(path, std::ios::binary | std::ios::ate);
+		loadROM(ifs);
+	}
 
 private:
-	uint8_t MEM[0xFFFF]{};
+	uint8_t MEM[0xFFFF + 1]{};
 	GBCore& gbCore;
+
+	void loadROM(std::ifstream& ifs);
 };
