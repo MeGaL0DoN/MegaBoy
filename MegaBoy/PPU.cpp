@@ -6,24 +6,27 @@ void PPU::reset()
 {
 	std::memset(VRAM, 0, sizeof(VRAM));
 	std::memset(renderBuffer.data(), 0, sizeof(renderBuffer));
+
+	ticks = 0;
+	LY = 0;
 }
 
 void PPU::execute(uint8_t cycles)
 {
-	renderBackground();
+	ticks += cycles * 4;
 
 	// TODO
 	switch (state)
 	{
 	case PPUState::OAMSearch:
-		if (ticks == 40)
+		if (ticks >= 40)
 			state = PPUState::PixelTransfer;
 		break;
 	case PPUState::PixelTransfer:
 		state = PPUState::HBlank;
 		break;
 	case PPUState::HBlank:
-		if (ticks == 456)
+		if (ticks >= 456)
 		{
 			ticks = 0;
 			LY++;
@@ -31,7 +34,16 @@ void PPU::execute(uint8_t cycles)
 		}
 		break;
 	case PPUState::VBlank:
-		state = PPUState::OAMSearch;
+		if (ticks >= 456)
+		{
+			ticks = 0;
+			LY++;
+			if (LY == 153) 
+			{
+				LY = 0;
+				state = PPUState::OAMSearch;
+			}
+		}
 		break;
 	}
 }

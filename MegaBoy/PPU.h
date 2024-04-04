@@ -28,6 +28,7 @@ public:
 	PPU(MMU& mmu, CPU& cpu) : mmu(mmu), cpu(cpu)
 	{}
 
+	void renderBackground();
 	void execute(uint8_t cycles);
 	void reset();
 	const auto getRenderingBuffer() { return renderBuffer.data(); }
@@ -36,8 +37,8 @@ private:
 	CPU& cpu;
 
 	uint8_t VRAM[8192]{};
-	uint8_t ticks;
-	uint8_t LY;
+	uint16_t ticks{0};
+	uint8_t LY{0};
 	std::array<uint8_t, SCR_WIDTH * SCR_HEIGHT * 3> renderBuffer{};
 
 	inline void setPixel(uint8_t x, uint8_t y, color c)
@@ -48,5 +49,4 @@ private:
 	}
 
 	void renderTile(uint16_t tile, uint8_t x, uint8_t y);
-	void renderBackground();
 };

@@ -16,8 +16,11 @@ void MMU::write8(memoryAddress addr, uint8_t val)
 		MEM[0xFF04] = 0;
 		gbCore.cpu.DIV = 0;
 		return;
+	case 0xFF44:
+		// read only LY register
+		return;
 	default:
-		if (addr > 0xFFFF || addr.inRange(0xFE0A, 0xFEFF))
+		if (addr.inRange(0xFE0A, 0xFEFF))
 			return;
 
 		if (addr.inRange(0x0000, 0x7FFF))
@@ -53,8 +56,11 @@ uint8_t MMU::read8(memoryAddress addr)
 {
 	switch (addr)
 	{
+	case 0xFF44:
+		return gbCore.ppu.LY;
+
 	default:
-		if (addr > 0xFFFF || addr.inRange(0xFEA0, 0xFEFF))
+		if (addr.inRange(0xFEA0, 0xFEFF))
 			return 0xFF;
 
 		if (addr.inRange(0xE000, 0xFDFF))

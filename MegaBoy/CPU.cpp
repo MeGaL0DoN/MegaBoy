@@ -74,11 +74,6 @@ void CPU::executeUnprefixed()
 	uint8_t outRegInd = opcode & 0x07;
 	uint8_t inRegInd = (opcode >> 3) & 0x07;
 
-	if (registers.HL.val == 0x7FFF)
-	{
-		int a = 4;
-	}
-
 	switch (opcode)
 	{
 	// 0x00: NOP

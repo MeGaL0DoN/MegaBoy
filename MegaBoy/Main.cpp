@@ -241,7 +241,7 @@ int main()
         if (renderTimer >= 1.0 / 60)
         {
             renderTimer = 0;
-            gbCore.ppu.execute(0);
+            gbCore.ppu.renderBackground();
             glfwPollEvents();
             render();
         }
