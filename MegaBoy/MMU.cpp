@@ -17,8 +17,14 @@ void MMU::write8(memoryAddress addr, uint8_t val)
 		gbCore.cpu.DIV = 0;
 		return;
 	default:
-		if (addr.inRange(0xFE0A, 0xFEFF))
+		if (addr > 0xFFFF || addr.inRange(0xFE0A, 0xFEFF))
 			return;
+
+		if (addr.inRange(0x0000, 0x7FFF))
+		{
+			// ROM writes, TODO
+			return;
+		}
 
 		if (addr.inRange(0xE000, 0xFDFF))
 		{
@@ -48,9 +54,7 @@ uint8_t MMU::read8(memoryAddress addr)
 	switch (addr)
 	{
 	default:
-		if (addr > 0xFFFF) return 0xFF;
-
-		if (addr.inRange(0xFEA0, 0xFEFF))
+		if (addr > 0xFFFF || addr.inRange(0xFEA0, 0xFEFF))
 			return 0xFF;
 
 		if (addr.inRange(0xE000, 0xFDFF))
@@ -66,8 +70,6 @@ uint8_t MMU::read8(memoryAddress addr)
 void MMU::resetMEM()
 {
 	std::memset(MEM, 0, sizeof(MEM));
-	std::memset(gbCore.ppu.VRAM, 0, sizeof(gbCore.ppu.VRAM));
-	std::memset(gbCore.ppu.renderBuffer.data(), 0, sizeof(gbCore.ppu.renderBuffer));
 
 	// reset input register
 	MEM[0xFF00] = 0xCF; // Joypad
@@ -126,6 +128,7 @@ void MMU::loadROM(std::ifstream& ifs)
 {
 	resetMEM();
 	gbCore.cpu.reset();
+	gbCore.ppu.reset();
 
 	std::ifstream::pos_type pos = ifs.tellg();
 	ifs.seekg(0, std::ios::beg);

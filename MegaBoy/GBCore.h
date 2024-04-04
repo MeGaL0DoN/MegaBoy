@@ -11,7 +11,7 @@ public:
 
 	MMU mmu {*this};
 	CPU cpu { mmu };
-	PPU ppu { mmu };
+	PPU ppu { mmu, cpu };
 	inputManager input { mmu };
 
 private:

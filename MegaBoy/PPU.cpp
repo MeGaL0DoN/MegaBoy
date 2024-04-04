@@ -2,9 +2,38 @@
 #include "bitOps.h"
 #include <iostream>
 
+void PPU::reset()
+{
+	std::memset(VRAM, 0, sizeof(VRAM));
+	std::memset(renderBuffer.data(), 0, sizeof(renderBuffer));
+}
+
 void PPU::execute(uint8_t cycles)
 {
 	renderBackground();
+
+	// TODO
+	switch (state)
+	{
+	case PPUState::OAMSearch:
+		if (ticks == 40)
+			state = PPUState::PixelTransfer;
+		break;
+	case PPUState::PixelTransfer:
+		state = PPUState::HBlank;
+		break;
+	case PPUState::HBlank:
+		if (ticks == 456)
+		{
+			ticks = 0;
+			LY++;
+			state = LY == 144 ? PPUState::VBlank : PPUState::OAMSearch;
+		}
+		break;
+	case PPUState::VBlank:
+		state = PPUState::OAMSearch;
+		break;
+	}
 }
 
 constexpr color palette[] = { {255, 255, 255}, {169, 169, 169}, {84, 84, 84}, {0, 0, 0} };
