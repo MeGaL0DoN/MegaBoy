@@ -11,6 +11,7 @@ void MMU::write8(memoryAddress addr, uint8_t val)
 	case 0xFF00:
 		// Allow writing only upper nibble to joypad register.
 		MEM[0xFF00] = (MEM[0xFF00] & 0x0F) | (val & 0xF0);
+		gbCore.input.modeChanged(MEM[0xFF00]);
 		return;
 	case 0xFF04:
 		MEM[0xFF04] = 0;
@@ -23,7 +24,7 @@ void MMU::write8(memoryAddress addr, uint8_t val)
 		if (addr.inRange(0xFE0A, 0xFEFF))
 			return;
 
-		if (addr.inRange(0x0000, 0x7FFF))
+		if (addr.inRange(0x0000, 0x7FFF))   
 		{
 			// ROM writes, TODO
 			return;
@@ -135,6 +136,7 @@ void MMU::loadROM(std::ifstream& ifs)
 	resetMEM();
 	gbCore.cpu.reset();
 	gbCore.ppu.reset();
+	gbCore.input.reset();
 
 	std::ifstream::pos_type pos = ifs.tellg();
 	ifs.seekg(0, std::ios::beg);

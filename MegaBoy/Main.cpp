@@ -149,8 +149,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         }
     }
 
-    if (gbCore.input.update(scancode, action))
-        gbCore.cpu.requestInterrupt(Interrupt::Joypad);
+    gbCore.input.update(scancode, action);
 }
 void drop_callback(GLFWwindow* window, int count, const char** paths)
 {
@@ -197,7 +196,7 @@ void setWindowSize()
     ImGui::Render();
 
     const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-    viewport_width = { static_cast<int>(mode->width * 0.45f) };
+    viewport_width = { static_cast<int>(mode->width * 0.4f) };
     viewport_height = { static_cast<int>(viewport_width / (static_cast<float>(PPU::SCR_WIDTH) / PPU::SCR_HEIGHT)) };
 
     glfwSetWindowSize(window, viewport_width, viewport_height + menuBarHeight);
@@ -228,22 +227,21 @@ int main()
     setBuffers();
 
     double lastFrameTime = glfwGetTime();
-    double renderTimer{};
+    double timer{};
 
     while (!glfwWindowShouldClose(window))
     {
         double currentFrameTime = glfwGetTime();
         double deltaTime = currentFrameTime - lastFrameTime;
-        renderTimer += deltaTime;
+        timer += deltaTime;
 
-        gbCore.update();
-
-        if (renderTimer >= 1.0 / 60)
+        if (timer >= GBCore::FRAME_RATE)
         {
-            renderTimer = 0;
-            gbCore.ppu.renderBackground();
+            timer = 0;
+            gbCore.update();
             glfwPollEvents();
             render();
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
 
         lastFrameTime = currentFrameTime;

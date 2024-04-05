@@ -7,36 +7,45 @@ void PPU::reset()
 	std::memset(VRAM, 0, sizeof(VRAM));
 	std::memset(renderBuffer.data(), 0, sizeof(renderBuffer));
 
-	ticks = 0;
+	videoCycles = 0;
 	LY = 0;
 }
 
 void PPU::execute(uint8_t cycles)
 {
-	ticks += cycles * 4;
+	videoCycles += cycles * 4;
 
 	// TODO
 	switch (state)
 	{
 	case PPUState::OAMSearch:
-		if (ticks >= 40)
+		if (videoCycles >= 40)
 			state = PPUState::PixelTransfer;
 		break;
 	case PPUState::PixelTransfer:
 		state = PPUState::HBlank;
 		break;
 	case PPUState::HBlank:
-		if (ticks >= 456)
+		if (videoCycles >= 456)
 		{
-			ticks = 0;
+			videoCycles = 0;
 			LY++;
-			state = LY == 144 ? PPUState::VBlank : PPUState::OAMSearch;
+
+			if (LY == 144)
+			{
+				state = PPUState::VBlank;
+				cpu.requestInterrupt(Interrupt::VBlank);
+
+				renderBackground(); // TODO
+				renderWindow();
+			}
+			else state = PPUState::OAMSearch;
 		}
 		break;
 	case PPUState::VBlank:
-		if (ticks >= 456)
+		if (videoCycles >= 456)
 		{
-			ticks = 0;
+			videoCycles = 0;
 			LY++;
 			if (LY == 153) 
 			{
@@ -65,15 +74,35 @@ void PPU::renderTile(uint16_t addr, uint8_t screenX, uint8_t screenY)
 	}
 }
 
-void PPU::renderBackground() {
-	constexpr uint16_t bgStartAddr = 0x1800;
+void PPU::renderBackground()
+{
+	const uint16_t bgStartAddr = getBit(mmu.directRead(0xFF40), 3) ? 0x1C00 : 0x1800;
+	renderTileMap(bgStartAddr);
+}
+void PPU::renderWindow()
+{
+	const bool windowEnable = getBit(mmu.directRead(0xFF40), 5);
+	if (windowEnable)
+	{
+		const uint16_t windowStartAddr = getBit(mmu.directRead(0xFF40), 6) ? 0x1C00 : 0x1800;
+		renderTileMap(windowStartAddr);
+	}
+}
+
+void PPU::renderTileMap(uint16_t tileMapAddr)
+{
+	const bool unsignedAddressing = getBit(mmu.directRead(0xFF40), 4);
 
 	for (uint8_t tileY = 0; tileY < 18; tileY++) 
 	{
 		for (uint8_t tileX = 0; tileX < 20; tileX++)
 		{
-			uint8_t tileIndex = VRAM[bgStartAddr + tileY * 32 + tileX];
-			uint16_t tileDataAddr = tileIndex * 16;
+			uint8_t tileIndex = VRAM[tileMapAddr + tileY * 32 + tileX];
+			uint16_t tileDataAddr;
+
+			if (unsignedAddressing) tileDataAddr = tileIndex * 16;
+			else tileDataAddr = 0x1000 + static_cast<int8_t>(tileIndex) * 16;
+
 			renderTile(tileDataAddr, tileX * 8, tileY * 8);
 		}
 	}

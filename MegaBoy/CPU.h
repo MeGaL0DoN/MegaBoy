@@ -15,7 +15,7 @@ namespace fs = std::filesystem;
 
 enum class Interrupt : uint8_t
 {
-	Vblank = 0,
+	VBlank = 0,
 	LCD = 1,
 	Timer = 2,
 	Serial = 3,

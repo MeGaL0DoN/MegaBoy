@@ -81,10 +81,7 @@ struct registerCollection
 	}
 	inline void setFlag(FlagType flag, bool value)
 	{
-		if (value)
-			F = setBit(F.val, flag);
-		else
-			F = resetBit(F.val, flag);
+		F = setBit(F.val, flag, value);
 	}
 	constexpr void resetFlags()
 	{

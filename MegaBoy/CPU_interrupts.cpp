@@ -10,7 +10,7 @@ uint8_t CPU::handleInterrupts()
 	uint8_t IE = mmu.directRead(0xFFFF);
 	uint8_t IF = mmu.directRead(0xFF0F);
 
-	if (IE && IF)
+	if (IE & IF & 0x1F)
 	{
 		if (IME)
 		{

@@ -49,6 +49,13 @@ uint8_t CPU::execute()
 	if (halted) return 1;
 
 	opcode = read8(PC);
+
+	if (halt_bug)
+	{
+		PC--;
+		halt_bug = false;
+	}
+
 	if (opcode == 0xCB)
 	{
 		opcode = read8(++PC);
