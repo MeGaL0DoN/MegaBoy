@@ -657,6 +657,9 @@ public:
 		cpu->halted = true;
 		cpu->PC++;
 		cpu->cycles = 1;
+
+		if (!cpu->IME && cpu->interruptsPending())
+			cpu->halt_bug = true;
 	}
 
 	inline void JR(int8_t val) 

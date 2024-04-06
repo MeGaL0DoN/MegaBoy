@@ -5,8 +5,9 @@
 void PPU::reset()
 {
 	std::memset(VRAM, 0, sizeof(VRAM));
-	std::memset(renderBuffer.data(), 0, sizeof(renderBuffer));
+	std::memset(renderBuffer.data(), 255, sizeof(renderBuffer));
 
+	BGpalette = { 0, 1, 2, 3 };
 	videoCycles = 0;
 	LY = 0;
 }
@@ -38,6 +39,7 @@ void PPU::execute(uint8_t cycles)
 
 				renderBackground(); // TODO
 				renderWindow();
+				renderOAM();
 			}
 			else state = PPUState::OAMSearch;
 		}
@@ -57,9 +59,7 @@ void PPU::execute(uint8_t cycles)
 	}
 }
 
-constexpr color palette[] = { {255, 255, 255}, {169, 169, 169}, {84, 84, 84}, {0, 0, 0} };
-
-void PPU::renderTile(uint16_t addr, uint8_t screenX, uint8_t screenY)
+void PPU::renderTile(uint16_t addr, uint8_t screenX, uint8_t screenY, std::array<uint8_t, 4> palette)
 {
 	for (int y = 0; y < 8; y++, addr += 2)
 	{
@@ -69,7 +69,7 @@ void PPU::renderTile(uint16_t addr, uint8_t screenX, uint8_t screenY)
 		for (int x = 0; x < 8; x++)
 		{
 			uint8_t colorId = (getBit(msbLineByte, 7 - x) << 1) | getBit(lsbLineByte, 7 - x);
-			setPixel(x + screenX, y + screenY, palette[colorId]);
+			setPixel(x + screenX, y + screenY, getColor(palette[colorId]));
 		}
 	}
 }
@@ -103,7 +103,58 @@ void PPU::renderTileMap(uint16_t tileMapAddr)
 			if (unsignedAddressing) tileDataAddr = tileIndex * 16;
 			else tileDataAddr = 0x1000 + static_cast<int8_t>(tileIndex) * 16;
 
-			renderTile(tileDataAddr, tileX * 8, tileY * 8);
+			renderTile(tileDataAddr, tileX * 8, tileY * 8, BGpalette);
+		}
+	}
+}
+
+void PPU::OAMTransfer(uint16_t sourceAddr)
+{
+	uint16_t destinationAddr = 0xFE00;
+
+	for (int i = 0; i < 159; i++, sourceAddr++, destinationAddr++)
+		mmu.directWrite(destinationAddr, mmu.directRead(sourceAddr));
+
+	videoCycles += 640;
+}
+
+void PPU::renderOAM()
+{
+	uint16_t OAMAddr = 0xFE00;
+	bool objEnable = getBit(mmu.directRead(0xFF40), 1);
+	if (!objEnable) return;
+
+	for (int i = 0; i < 40; i++, OAMAddr += 4)
+	{
+		uint8_t yPos = mmu.directRead(OAMAddr) - 16;
+		uint8_t xPos = mmu.directRead(OAMAddr + 1) - 8;
+		uint8_t tileInd = mmu.directRead(OAMAddr + 2);
+		uint8_t attributes = mmu.directRead(OAMAddr + 3);
+
+		bool xFlip = getBit(attributes, 5);
+		bool yFlip = getBit(attributes, 6);
+		const auto& palette = getBit(attributes, 4) ? OBP1palette : OBP0palette;
+		uint8_t priority = getBit(attributes, 7);
+
+		if (yPos >= 0 && yPos <= SCR_HEIGHT && xPos >= 0 && xPos <= SCR_WIDTH)
+		{
+			uint16_t addr = tileInd * 16;
+
+			for (int y = 0; y < 8; y++, addr += 2)
+			{
+				uint8_t lsbLineByte = VRAM[addr];
+				uint8_t msbLineByte = VRAM[addr + 1];
+
+				for (int x = 0; x < 8; x++)
+				{
+					uint8_t xVal = xPos + x;
+					uint8_t yVal = yPos + y;
+					uint8_t colorId = (getBit(msbLineByte, 7 - x) << 1) | getBit(lsbLineByte, 7 - x);
+
+					if (colorId != 0 && (priority == 0 || getPixel(xVal, yVal) == getColor(BGpalette[0])))
+						setPixel(xVal, yVal, getColor(palette[colorId]));
+				}
+			}
 		}
 	}
 }

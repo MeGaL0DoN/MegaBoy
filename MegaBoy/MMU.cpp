@@ -20,6 +20,22 @@ void MMU::write8(memoryAddress addr, uint8_t val)
 	case 0xFF44:
 		// read only LY register
 		return;
+	case 0xFF46:
+		gbCore.ppu.OAMTransfer(val * 0x100);
+		MEM[0xFF46] = val;
+		return;
+	case 0xFF47:
+		gbCore.ppu.updatePalette(val, gbCore.ppu.BGpalette);
+		MEM[0xFF47] = val;
+		return;
+	case 0xFF48:
+		gbCore.ppu.updatePalette(val, gbCore.ppu.OBP0palette);
+		MEM[0xFF48] = val;
+		return;
+	case 0xFF49:
+		gbCore.ppu.updatePalette(val, gbCore.ppu.OBP1palette);
+		MEM[0xFF49] = val;
+		return;
 	default:
 		if (addr.inRange(0xFE0A, 0xFEFF))
 			return;
@@ -59,6 +75,8 @@ uint8_t MMU::read8(memoryAddress addr)
 	{
 	case 0xFF44:
 		return gbCore.ppu.LY;
+	case 0xFF0F:
+		return MEM[0xFF0F] | 0xE0;
 
 	default:
 		if (addr.inRange(0xFEA0, 0xFEFF))
@@ -142,4 +160,6 @@ void MMU::loadROM(std::ifstream& ifs)
 	ifs.seekg(0, std::ios::beg);
 	ifs.read(reinterpret_cast<char*>(&MEM[0]), pos);
 	ifs.close();
+
+	ROMLoaded = true;
 }

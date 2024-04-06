@@ -3,14 +3,21 @@
 #include "instructionsEngine.h"
 extern InstructionsEngine instructions;
 
-constexpr uint8_t interruptSources[5] = { 0x40, 0x48, 0x50, 0x58, 0x60 };
+constexpr std::array<uint8_t, 5> interruptSources = { 0x40, 0x48, 0x50, 0x58, 0x60 };
+
+bool CPU::interruptsPending()
+{
+	uint8_t IE = mmu.directRead(0xFFFF);
+	uint8_t IF = mmu.directRead(0xFF0F);
+	return IE & IF & 0x1F;
+}
 
 uint8_t CPU::handleInterrupts()
 {
 	uint8_t IE = mmu.directRead(0xFFFF);
 	uint8_t IF = mmu.directRead(0xFF0F);
 
-	if (IE & IF & 0x1F)
+	if (interruptsPending())
 	{
 		if (IME)
 		{
@@ -27,11 +34,10 @@ uint8_t CPU::handleInterrupts()
 				}
 			}
 		}
-		else if (halted)
+		else
 		{
-			// TODO halt bug
+			// halt bug
 			halted = false;
-			halt_bug = true;
 		}
 	}
 
@@ -49,7 +55,7 @@ constexpr uint16_t TIMA_ADDR = 0xFF05;
 constexpr uint16_t TMA_ADDR = 0xFF06;
 constexpr uint16_t TAC_ADDR = 0xFF07;
 
-constexpr uint16_t TIMAcycles[4] = { 256, 4, 16, 64 };
+constexpr std::array<uint16_t, 4> TIMAcycles = { 256, 4, 16, 64 };
 
 void CPU::updateTimer(uint8_t cycles)
 {

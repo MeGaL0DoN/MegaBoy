@@ -22,7 +22,9 @@ class MMU
 {
 public:
 	MMU(GBCore& cpu);
+	bool ROMLoaded{ false };
 
+	void resetMEM();
 	void write8(memoryAddress addr, uint8_t val);
     uint8_t read8(memoryAddress addr);
 
@@ -38,13 +40,6 @@ public:
 
 	constexpr void directWrite(uint16_t addr, uint8_t val) { MEM[addr] = val; }
 	constexpr uint8_t directRead(uint16_t addr) { return MEM[addr]; }
-
-	//inline uint16_t directRead16(memoryAddress addr)
-	//{
-	//	return static_cast<uint16_t>(directRead(addr + 1) << 8) | directRead(addr);
-	//}
-
-	void resetMEM();
 
 	inline void loadROM(const wchar_t* path)
 	{
