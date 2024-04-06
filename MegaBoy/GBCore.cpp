@@ -2,7 +2,7 @@
 
 void GBCore::update()
 {
-	if (!mmu.ROMLoaded) return;
+	if (!mmu.ROMLoaded || paused) return;
 
 	int totalCycles{0};
 	while (totalCycles < CYCLES_PER_FRAME)

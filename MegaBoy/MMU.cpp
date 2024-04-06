@@ -10,12 +10,20 @@ void MMU::write8(memoryAddress addr, uint8_t val)
 	{
 	case 0xFF00:
 		// Allow writing only upper nibble to joypad register.
-		MEM[0xFF00] = (MEM[0xFF00] & 0x0F) | (val & 0xF0);
+		MEM[0xFF00] = (MEM[0xFF00] & 0xCF) | (val & 0x30);
 		gbCore.input.modeChanged(MEM[0xFF00]);
 		return;
 	case 0xFF04:
 		MEM[0xFF04] = 0;
 		gbCore.cpu.DIV = 0;
+		return;	
+	case 0xFF40:
+		MEM[0xFF40] = val;
+		if (!getBit(val, 7)) gbCore.ppu.disableLCD();
+		return;
+	case 0xFF41:
+		// Allow writing only five upper bits to LCD status register.
+		MEM[0xFF41] = (MEM[0xFF41] & 0x87) | (val & 0xF8);
 		return;
 	case 0xFF44:
 		// read only LY register
@@ -54,9 +62,18 @@ void MMU::write8(memoryAddress addr, uint8_t val)
 
 		if (addr.inRange(0x8000, 0x9FFF))
 		{
-			gbCore.ppu.VRAM[addr - 0x8000] = val;
+			if (gbCore.ppu.state != PPUMode::PixelTransfer) 
+				gbCore.ppu.VRAM[addr - 0x8000] = val;
+
 			return;
 		}
+		if (addr.inRange(0xFE00, 0xFE9F))
+		{
+			if (gbCore.ppu.state == PPUMode::HBlank || gbCore.ppu.state == PPUMode::VBlank)
+				MEM[addr] = val;
+
+			return;
+		}		
 
 		MEM[addr] = val;
 		break;
@@ -86,7 +103,10 @@ uint8_t MMU::read8(memoryAddress addr)
 			return MEM[addr - 0x2000];
 
 		if (addr.inRange(0x8000, 0x9FFF))
-			return gbCore.ppu.VRAM[addr - 0x8000];
+			return gbCore.ppu.state == PPUMode::PixelTransfer ? 0xFF : gbCore.ppu.VRAM[addr - 0x8000];
+
+		if (addr.inRange(0xFE00, 0xFE9F))
+			return gbCore.ppu.state == PPUMode::HBlank || gbCore.ppu.state == PPUMode::VBlank ? MEM[addr] : 0xFF;
 
 		return MEM[addr];
 	}
@@ -162,4 +182,5 @@ void MMU::loadROM(std::ifstream& ifs)
 	ifs.close();
 
 	ROMLoaded = true;
+	gbCore.paused = false;
 }

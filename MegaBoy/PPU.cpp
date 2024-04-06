@@ -8,56 +8,134 @@ void PPU::reset()
 	std::memset(renderBuffer.data(), 255, sizeof(renderBuffer));
 
 	BGpalette = { 0, 1, 2, 3 };
-	videoCycles = 0;
 	LY = 0;
+	SetPPUMode(PPUMode::OAMSearch);
+}
+void PPU::disableLCD()
+{
+	std::memset(renderBuffer.data(), 255, sizeof(renderBuffer));
+	LY = 0;
+	SetPPUMode(PPUMode::HBlank);
+}
+
+void PPU::SetLY(uint8_t val)
+{
+	LY = val;
+
+	if (LY == LYC())
+	{
+		mmu.directWrite(0xFF41, setBit(mmu.directRead(0xFF41), 2));
+
+		if (LYC_STAT())
+			cpu.requestInterrupt(Interrupt::STAT);
+	}
+}
+
+void PPU::SetPPUMode(PPUMode ppuState)
+{
+	uint8_t lcdS = mmu.directRead(0xFF41);
+	lcdS = setBit(lcdS, 1, static_cast<uint8_t>(ppuState) & 0x2);
+	lcdS = setBit(lcdS, 0, static_cast<uint8_t>(ppuState) & 0x1);
+
+	mmu.directWrite(0xFF41, lcdS);
+	state = ppuState;
+	videoCycles = 0;
+
+	switch (state)
+	{
+	case PPUMode::HBlank:
+		if (HBlank_STAT()) cpu.requestInterrupt(Interrupt::STAT);
+		break;
+	case PPUMode::VBlank:
+		if (VBlank_STAT()) cpu.requestInterrupt(Interrupt::STAT);
+		break;
+	case PPUMode::OAMSearch:
+		if (OAM_STAT()) cpu.requestInterrupt(Interrupt::STAT);
+		break;
+	}
 }
 
 void PPU::execute(uint8_t cycles)
 {
-	videoCycles += cycles * 4;
+	if (!LCDEnabled()) return;
+	videoCycles += cycles;
 
-	// TODO
 	switch (state)
 	{
-	case PPUState::OAMSearch:
-		if (videoCycles >= 40)
-			state = PPUState::PixelTransfer;
+	case PPUMode::OAMSearch:
+		handleOAMSearch();
 		break;
-	case PPUState::PixelTransfer:
-		state = PPUState::HBlank;
+	case PPUMode::PixelTransfer:
+		handlePixelTransfer();
 		break;
-	case PPUState::HBlank:
-		if (videoCycles >= 456)
-		{
-			videoCycles = 0;
-			LY++;
-
-			if (LY == 144)
-			{
-				state = PPUState::VBlank;
-				cpu.requestInterrupt(Interrupt::VBlank);
-
-				renderBackground(); // TODO
-				renderWindow();
-				renderOAM();
-			}
-			else state = PPUState::OAMSearch;
-		}
+	case PPUMode::HBlank:
+		handleHBlank();
 		break;
-	case PPUState::VBlank:
-		if (videoCycles >= 456)
-		{
-			videoCycles = 0;
-			LY++;
-			if (LY == 153) 
-			{
-				LY = 0;
-				state = PPUState::OAMSearch;
-			}
-		}
+	case PPUMode::VBlank:
+		handleVBlank();
 		break;
 	}
 }
+
+void PPU::handleOAMSearch()
+{
+	if (videoCycles >= 20)
+		SetPPUMode(PPUMode::PixelTransfer);
+}
+
+void PPU::handlePixelTransfer()
+{
+	if (videoCycles >= 43)
+	{
+		// render scanline
+		SetPPUMode(PPUMode::HBlank);
+	}
+}
+
+void PPU::handleHBlank()
+{
+	if (videoCycles >= 51)
+	{
+		SetLY(LY + 1);
+
+		if (LY == 144)
+		{
+			SetPPUMode(PPUMode::VBlank);
+			cpu.requestInterrupt(Interrupt::VBlank);
+
+			renderBackground(); // To remove
+			renderWindow(); // To remove
+			renderOAM(); // To remove
+		}
+		else
+			SetPPUMode(PPUMode::OAMSearch);
+	}
+}
+
+void PPU::handleVBlank()
+{
+	if (videoCycles >= 114)
+	{
+		videoCycles = 0;
+		SetLY(LY + 1);
+
+		if (LY == 153)
+		{
+			SetLY(0);
+			SetPPUMode(PPUMode::OAMSearch);
+		}
+	}
+}
+
+
+
+
+
+
+
+
+
+
 
 void PPU::renderTile(uint16_t addr, uint8_t screenX, uint8_t screenY, std::array<uint8_t, 4> palette)
 {

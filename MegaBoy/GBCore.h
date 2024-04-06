@@ -9,7 +9,9 @@ class GBCore
 public:
 	static constexpr int CYCLES_PER_FRAME = 17556;
 	static constexpr double FRAME_RATE = 1.0 / 59.7;
+
 	void update();
+	bool paused { false };
 
 	MMU mmu {*this};
 	CPU cpu { mmu };

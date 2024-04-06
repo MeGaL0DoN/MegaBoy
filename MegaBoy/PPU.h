@@ -14,19 +14,18 @@ struct color
 	}
 };
 
-enum class PPUState
+enum class PPUMode : uint8_t
 {
-	OAMSearch,
-	PixelTransfer,
-	HBlank,
-	VBlank
+	HBlank = 0,
+	VBlank = 1,
+	OAMSearch = 2,
+	PixelTransfer = 3,
 };
 
 class PPU
 {
 public:
 	friend MMU;
-	PPUState state{ PPUState::OAMSearch };
 
 	static constexpr uint8_t SCR_WIDTH = 160;
 	static constexpr uint8_t SCR_HEIGHT = 144;
@@ -37,19 +36,11 @@ public:
 	}
 
 	void execute(uint8_t cycles);
-	void OAMTransfer(uint16_t sourceAddr);
 	void reset();
 	const auto getRenderingBuffer() { return renderBuffer.data(); }
-private:
-	MMU& mmu;
-	CPU& cpu;
 
-	uint8_t VRAM[8192];
-	uint16_t videoCycles;
-	uint8_t LY;
-	std::array<uint8_t, SCR_WIDTH * SCR_HEIGHT * 3> renderBuffer{};
-
-	static constexpr std::array<color, 4> colors = { color {255, 255, 255}, color {169, 169, 169}, color {84, 84, 84}, color {0, 0, 0} };
+	void disableLCD();
+	void OAMTransfer(uint16_t sourceAddr);
 
 	std::array<uint8_t, 4> BGpalette;
 	std::array<uint8_t, 4> OBP0palette;
@@ -60,7 +51,17 @@ private:
 		for (int i = 0; i < 4; i++)
 			palette[i] = (getBit(val, i * 2 + 1) << 1) | getBit(val, i * 2);
 	}
+private:
+	MMU& mmu;
+	CPU& cpu;
 
+	PPUMode state;
+	uint8_t VRAM[8192];
+	uint16_t videoCycles;
+	uint8_t LY;
+	std::array<uint8_t, SCR_WIDTH * SCR_HEIGHT * 3> renderBuffer{};
+
+	static constexpr std::array<color, 4> colors = { color {255, 255, 255}, color {169, 169, 169}, color {84, 84, 84}, color {0, 0, 0} };
 	constexpr color getColor(uint8_t ind) { return colors[ind]; }
 
 	inline void setPixel(uint8_t x, uint8_t y, color c)
@@ -84,4 +85,33 @@ private:
 	void renderOAM();
 	void renderTileMap(uint16_t tileMapAddr);
 	void renderTile(uint16_t tile, uint8_t x, uint8_t y, std::array<uint8_t, 4> palette);
+
+	/////////////////////////////////////////////
+	void SetLY(uint8_t val);
+	void SetPPUMode(PPUMode ppuState);
+
+	void handleOAMSearch();
+	void handlePixelTransfer();
+	void handleHBlank();
+	void handleVBlank();
+
+	inline bool BGEnable() { return getBit(mmu.directRead(0xFF40), 0); }
+	inline bool OBJEnable() { return getBit(mmu.directRead(0xFF40), 1); }
+	inline bool DoubleOBJSize() { return getBit(mmu.directRead(0xFF40), 2); }
+	inline uint16_t BGTileAddr() { return getBit(mmu.directRead(0xFF40), 3) ? 0x1C00 : 0x1800; }
+	inline uint16_t WindowTileAddr() { return getBit(mmu.directRead(0xFF40), 6) ? 0x1C00 : 0x1800; }
+	inline bool BGUnsignedAddressing() { return getBit(mmu.directRead(0xFF40), 4); }
+	inline bool WindowEnable() { return getBit(mmu.directRead(0xFF40), 5); }
+	inline bool LCDEnabled() { return getBit(mmu.directRead(0xFF40), 7); }
+
+	constexpr uint8_t LYC() { return mmu.directRead(0xFF45); }
+	inline bool LYC_STAT() { return getBit(mmu.directRead(0xFF41), 6); }
+	inline bool OAM_STAT() { return getBit(mmu.directRead(0xFF41), 5); }
+	inline bool VBlank_STAT() { return getBit(mmu.directRead(0xFF41), 4); }
+	inline bool HBlank_STAT() { return getBit(mmu.directRead(0xFF41), 3); }
+
+	constexpr uint8_t SCY() { return mmu.directRead(0xFF42); }
+	constexpr uint8_t SCX() { return mmu.directRead(0xFF43); }
+	constexpr uint8_t WY() { return mmu.directRead(0xFF4A); }
+	constexpr uint8_t WX() { return mmu.directRead(0xFF4B); }
 };

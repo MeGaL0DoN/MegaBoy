@@ -81,6 +81,7 @@ void setBuffers()
 
     Shader textureShader { "data/Shaders/vertexShader.glsl", "data/Shaders/fragmentShader.glsl" };
     textureShader.use();
+    glClearColor(255, 255, 255, 0);
 }
 
 void renderGameBoy()
@@ -116,6 +117,11 @@ void renderImGUI()
         {
             ImGui::EndMenu();
         }
+        if (gbCore.paused)
+        {
+            ImGui::Separator();
+            ImGui::Text("Emulation Paused");
+        }
 
         ImGui::EndMainMenuBar();
     }
@@ -145,6 +151,11 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         if (key == GLFW_KEY_ESCAPE)
         {
             loadROM(currentROMPAth.c_str());
+            return;
+        }
+        if (key == GLFW_KEY_TAB)
+        {
+            gbCore.paused = !gbCore.paused;
             return;
         }
     }
