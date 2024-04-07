@@ -37,23 +37,10 @@ public:
 	friend class InstructionsEngine;
 	friend class MMU;
 
-	void printState()
+	inline void enableBootROM()
 	{
-		std::cout << "A: " << std::hex << +registers.A.val << " "
-			<< "F: " << std::hex << +registers.F.val << " "
-			<< "B: " << std::hex << +registers.B.val << " "
-			<< "C: " << std::hex << +registers.C.val << " "
-			<< "D: " << std::hex << +registers.D.val << " "
-			<< "E: " << std::hex << +registers.E.val << " "
-			<< "H: " << std::hex << +registers.H.val << " "
-			<< "L: " << std::hex << +registers.L.val << " "
-			<< "SP: " << std::hex << SP.val << " "
-			<< "PC: " << std::hex << PC << " "
-			<< "(" << std::hex << +read8(PC) << " "
-			<< std::hex << +read8(PC + 1) << " "
-			<< std::hex << +read8(PC + 2) << " "
-			<< std::hex << +read8(PC + 3) << ")"
-			<< std::endl;
+		PC = 0x0;
+		executingBootROM = true;
 	}
 
 private:
@@ -101,4 +88,6 @@ private:
 
 	bool IME { false };
 	bool shouldSetIME { false };
+
+	bool executingBootROM { false };
 };

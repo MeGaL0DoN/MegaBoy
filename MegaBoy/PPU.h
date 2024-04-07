@@ -39,7 +39,7 @@ public:
 	void reset();
 	const auto getRenderingBuffer() { return renderBuffer.data(); }
 
-	void disableLCD();
+	void disableLCD(PPUMode mode = PPUMode::HBlank);
 	void OAMTransfer(uint16_t sourceAddr);
 
 	std::array<uint8_t, 4> BGpalette;
@@ -60,6 +60,11 @@ private:
 	uint16_t videoCycles;
 	uint8_t LY;
 	std::array<uint8_t, SCR_WIDTH * SCR_HEIGHT * 3> renderBuffer{};
+
+	static constexpr uint8_t OAM_SCAN_CYCLES = 20;
+	static constexpr uint8_t PIXEL_TRANSFER_CYCLES = 43;
+	static constexpr uint8_t HBLANK_CYCLES = 51;
+	static constexpr uint8_t VBLANK_CYCLES = 114;
 
 	static constexpr std::array<color, 4> colors = { color {255, 255, 255}, color {169, 169, 169}, color {84, 84, 84}, color {0, 0, 0} };
 	constexpr color getColor(uint8_t ind) { return colors[ind]; }
@@ -91,11 +96,19 @@ private:
 	void SetPPUMode(PPUMode ppuState);
 
 	void handleOAMSearch();
-	void handlePixelTransfer();
 	void handleHBlank();
 	void handleVBlank();
+	void handlePixelTransfer();
 
-	inline bool BGEnable() { return getBit(mmu.directRead(0xFF40), 0); }
+	void renderScanLine();
+	void renderTile_S(uint16_t addr, uint8_t screenX, uint8_t scrollY);
+	void renderTileMap_S(uint16_t tileMapAddr, uint8_t scrollX, uint8_t scrollY);
+	void renderBackground_S();
+	void renderWindow_S();
+	void renderOAM_S();
+	void renderBlank();
+
+	inline bool TileMapsEnable() { return getBit(mmu.directRead(0xFF40), 0); }
 	inline bool OBJEnable() { return getBit(mmu.directRead(0xFF40), 1); }
 	inline bool DoubleOBJSize() { return getBit(mmu.directRead(0xFF40), 2); }
 	inline uint16_t BGTileAddr() { return getBit(mmu.directRead(0xFF40), 3) ? 0x1C00 : 0x1800; }

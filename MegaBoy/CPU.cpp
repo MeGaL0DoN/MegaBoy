@@ -21,6 +21,7 @@ void CPU::reset()
 	halted = false;
 	stopped = false;
 	halt_bug = false;
+	executingBootROM = false;
 }
 
 uint8_t HL_val;
@@ -69,6 +70,9 @@ uint8_t CPU::execute()
 		IME = true;
 		shouldSetIME = false;
 	}
+
+	if (PC >= 0xFF)
+		executingBootROM = false;
 
 	return cycles;
 }

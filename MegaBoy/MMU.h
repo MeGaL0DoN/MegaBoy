@@ -54,6 +54,7 @@ public:
 
 private:
 	uint8_t MEM[0xFFFF + 1]{};
+	uint8_t bootROM[256]{};
 	GBCore& gbCore;
 
 	void loadROM(std::ifstream& ifs);

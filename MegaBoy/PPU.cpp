@@ -5,17 +5,15 @@
 void PPU::reset()
 {
 	std::memset(VRAM, 0, sizeof(VRAM));
-	std::memset(renderBuffer.data(), 255, sizeof(renderBuffer));
-
 	BGpalette = { 0, 1, 2, 3 };
-	LY = 0;
-	SetPPUMode(PPUMode::OAMSearch);
+	disableLCD(PPUMode::OAMSearch);
 }
-void PPU::disableLCD()
+void PPU::disableLCD(PPUMode mode)
 {
 	std::memset(renderBuffer.data(), 255, sizeof(renderBuffer));
 	LY = 0;
-	SetPPUMode(PPUMode::HBlank);
+	videoCycles = 0;
+	SetPPUMode(mode);
 }
 
 void PPU::SetLY(uint8_t val)
@@ -39,7 +37,6 @@ void PPU::SetPPUMode(PPUMode ppuState)
 
 	mmu.directWrite(0xFF41, lcdS);
 	state = ppuState;
-	videoCycles = 0;
 
 	switch (state)
 	{
@@ -79,23 +76,17 @@ void PPU::execute(uint8_t cycles)
 
 void PPU::handleOAMSearch()
 {
-	if (videoCycles >= 20)
-		SetPPUMode(PPUMode::PixelTransfer);
-}
-
-void PPU::handlePixelTransfer()
-{
-	if (videoCycles >= 43)
+	if (videoCycles >= OAM_SCAN_CYCLES)
 	{
-		// render scanline
-		SetPPUMode(PPUMode::HBlank);
+		videoCycles -= OAM_SCAN_CYCLES;
+		SetPPUMode(PPUMode::PixelTransfer);
 	}
 }
-
 void PPU::handleHBlank()
 {
-	if (videoCycles >= 51)
+	if (videoCycles >= HBLANK_CYCLES)
 	{
+		videoCycles -= HBLANK_CYCLES;
 		SetLY(LY + 1);
 
 		if (LY == 144)
@@ -103,20 +94,19 @@ void PPU::handleHBlank()
 			SetPPUMode(PPUMode::VBlank);
 			cpu.requestInterrupt(Interrupt::VBlank);
 
-			renderBackground(); // To remove
-			renderWindow(); // To remove
-			renderOAM(); // To remove
+			//renderBackground(); // To remove
+			//renderWindow(); // To remove
+			//renderOAM(); // To remove
 		}
 		else
 			SetPPUMode(PPUMode::OAMSearch);
 	}
 }
-
 void PPU::handleVBlank()
 {
-	if (videoCycles >= 114)
+	if (videoCycles >= VBLANK_CYCLES)
 	{
-		videoCycles = 0;
+		videoCycles -= VBLANK_CYCLES;
 		SetLY(LY + 1);
 
 		if (LY == 153)
@@ -127,9 +117,112 @@ void PPU::handleVBlank()
 	}
 }
 
+void PPU::handlePixelTransfer()
+{
+	if (videoCycles >= PIXEL_TRANSFER_CYCLES)
+	{
+		videoCycles -= PIXEL_TRANSFER_CYCLES;
+	    renderScanLine();
+		SetPPUMode(PPUMode::HBlank);
+	}
+}
+
+void PPU::renderScanLine()
+{
+	if (TileMapsEnable())
+	{
+		renderBackground_S();
+		if (WindowEnable()) renderWindow_S();
+	}
+	else
+		renderBlank();
+
+	if (OBJEnable()) renderOAM_S();
+}
+
+void PPU::renderBlank()
+{
+	for (int x = 0; x < SCR_WIDTH; x++)
+		setPixel(x, LY, color { 255, 255, 255 });
+}
+void PPU::renderBackground_S()
+{
+	renderTileMap_S(BGTileAddr(), SCX(), SCY());
+}
+void PPU::renderWindow_S()
+{
+	renderTileMap_S(WindowTileAddr(), WX(), WY());
+}
+
+void PPU::renderTileMap_S(uint16_t tileMapAddr, uint8_t scrollX, uint8_t scrollY)
+{
+	bool unsignedAddr = BGUnsignedAddressing();
+	uint16_t tileYInd = ((LY + scrollY) / 8) * 32;
+
+	for (uint8_t tileX = 0; tileX < 20; tileX++)
+	{
+		uint8_t tileIndex = VRAM[tileMapAddr + tileYInd + tileX];
+		uint16_t tileDataAddr;
+
+		if (unsignedAddr) tileDataAddr = tileIndex * 16;
+		else tileDataAddr = 0x1000 + static_cast<int8_t>(tileIndex) * 16;
+
+		renderTile_S(tileDataAddr, tileX * 8, scrollY);
+	}
+}
+void PPU::renderTile_S(uint16_t addr, uint8_t screenX, uint8_t scrollY)
+{
+	uint8_t lineOffset = 2 * ((LY + scrollY) % 8);
+	uint8_t lsbLineByte = VRAM[addr + lineOffset];
+	uint8_t msbLineByte = VRAM[addr + lineOffset + 1];
+
+	for (int x = 7; x >= 0; x--)
+	{
+		uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
+		setPixel(7 - x + screenX, LY, getColor(BGpalette[colorId]));
+	}
+}
+
+void PPU::renderOAM_S()
+{
+	uint16_t OAMAddr = 0xFE00;
+
+	for (int i = 0; i < 40; i++, OAMAddr += 4)
+	{
+		uint8_t yPos = mmu.directRead(OAMAddr); // -16
+		uint8_t xPos = mmu.directRead(OAMAddr + 1); // -8
+		uint8_t tileInd = mmu.directRead(OAMAddr + 2);
+		uint8_t attributes = mmu.directRead(OAMAddr + 3);
+
+		bool xFlip = getBit(attributes, 5);
+		bool yFlip = getBit(attributes, 6);
+		const auto& palette = getBit(attributes, 4) ? OBP1palette : OBP0palette;
+		uint8_t priority = getBit(attributes, 7);
 
 
 
+		//if (yPos >= 0 && yPos <= SCR_HEIGHT && xPos >= 0 && xPos <= SCR_WIDTH)
+		//{
+			//uint16_t addr = tileInd * 16;
+
+			//for (int y = 0; y < 8; y++, addr += 2)
+			//{
+			//	uint8_t lsbLineByte = VRAM[addr];
+			//	uint8_t msbLineByte = VRAM[addr + 1];
+
+			//	for (int x = 0; x < 8; x++)
+			//	{
+			//		uint8_t xVal = xPos + x;
+			//		uint8_t yVal = yPos + y;
+			//		uint8_t colorId = (getBit(msbLineByte, 7 - x) << 1) | getBit(lsbLineByte, 7 - x);
+
+			//		if (colorId != 0 && (priority == 0 || getPixel(xVal, yVal) == getColor(BGpalette[0])))
+			//			setPixel(xVal, yVal, getColor(palette[colorId]));
+			//	}
+			//}
+		//}
+	}
+}
 
 
 
@@ -154,22 +247,17 @@ void PPU::renderTile(uint16_t addr, uint8_t screenX, uint8_t screenY, std::array
 
 void PPU::renderBackground()
 {
-	const uint16_t bgStartAddr = getBit(mmu.directRead(0xFF40), 3) ? 0x1C00 : 0x1800;
-	renderTileMap(bgStartAddr);
+	renderTileMap(BGTileAddr());
 }
 void PPU::renderWindow()
 {
-	const bool windowEnable = getBit(mmu.directRead(0xFF40), 5);
-	if (windowEnable)
-	{
-		const uint16_t windowStartAddr = getBit(mmu.directRead(0xFF40), 6) ? 0x1C00 : 0x1800;
-		renderTileMap(windowStartAddr);
-	}
+	if (WindowEnable())
+		renderTileMap(WindowTileAddr());
 }
 
 void PPU::renderTileMap(uint16_t tileMapAddr)
 {
-	const bool unsignedAddressing = getBit(mmu.directRead(0xFF40), 4);
+	const bool unsignedAddressing = BGUnsignedAddressing();
 
 	for (uint8_t tileY = 0; tileY < 18; tileY++) 
 	{
@@ -186,6 +274,7 @@ void PPU::renderTileMap(uint16_t tileMapAddr)
 	}
 }
 
+// To fix - cycles, copying 1 byte per M cycle.
 void PPU::OAMTransfer(uint16_t sourceAddr)
 {
 	uint16_t destinationAddr = 0xFE00;
@@ -193,14 +282,13 @@ void PPU::OAMTransfer(uint16_t sourceAddr)
 	for (int i = 0; i < 159; i++, sourceAddr++, destinationAddr++)
 		mmu.directWrite(destinationAddr, mmu.directRead(sourceAddr));
 
-	videoCycles += 640;
+	//videoCycles += 640;
 }
 
 void PPU::renderOAM()
 {
 	uint16_t OAMAddr = 0xFE00;
-	bool objEnable = getBit(mmu.directRead(0xFF40), 1);
-	if (!objEnable) return;
+	if (!OBJEnable()) return;
 
 	for (int i = 0; i < 40; i++, OAMAddr += 4)
 	{

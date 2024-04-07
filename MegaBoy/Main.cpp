@@ -106,7 +106,10 @@ void renderImGUI()
                 nfdresult_t result = NFD::OpenDialog(outPath, filterItem, 1, defaultPath.c_str());
 
                 if (result == NFD_OKAY)
+                {
                     loadROM(outPath.get());
+                    outPath.release();
+                }
             }
             else if (ImGui::MenuItem("Reload Game", "(Esc)"))
                 loadROM(currentROMPAth.c_str());
@@ -115,6 +118,8 @@ void renderImGUI()
         }
         if (ImGui::BeginMenu("Settings", "Ctrl+Q"))
         {
+            ImGui::Checkbox("Run Boot ROM", &gbCore.runBootROM);
+
             ImGui::EndMenu();
         }
         if (gbCore.paused)

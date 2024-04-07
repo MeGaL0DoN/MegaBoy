@@ -1,4 +1,5 @@
 #include <fstream>
+#include <filesystem>
 #include "MMU.h"
 #include "GBCore.h"
 
@@ -75,6 +76,9 @@ void MMU::write8(memoryAddress addr, uint8_t val)
 			return;
 		}		
 
+		if (addr.inRange(0x00, 0xFF) && gbCore.cpu.executingBootROM)
+			bootROM[addr] = val;
+
 		MEM[addr] = val;
 		break;
 	}
@@ -108,14 +112,15 @@ uint8_t MMU::read8(memoryAddress addr)
 		if (addr.inRange(0xFE00, 0xFE9F))
 			return gbCore.ppu.state == PPUMode::HBlank || gbCore.ppu.state == PPUMode::VBlank ? MEM[addr] : 0xFF;
 
+		if (addr.inRange(0x00, 0xFF) && gbCore.cpu.executingBootROM)
+			return bootROM[addr];
+
 		return MEM[addr];
 	}
 }
 
 void MMU::resetMEM()
 {
-	std::memset(MEM, 0, sizeof(MEM));
-
 	// reset input register
 	MEM[0xFF00] = 0xCF; // Joypad
 
@@ -171,16 +176,32 @@ void MMU::resetMEM()
 
 void MMU::loadROM(std::ifstream& ifs)
 {
-	resetMEM();
-	gbCore.cpu.reset();
-	gbCore.ppu.reset();
+	std::memset(MEM, 0, sizeof(MEM));
 	gbCore.input.reset();
 
 	std::ifstream::pos_type pos = ifs.tellg();
 	ifs.seekg(0, std::ios::beg);
 	ifs.read(reinterpret_cast<char*>(&MEM[0]), pos);
-	ifs.close();
 
 	ROMLoaded = true;
 	gbCore.paused = false;
+
+	if (gbCore.runBootROM && std::filesystem::exists("data/boot_rom.bin"))
+	{
+		std::ifstream ifs("data/boot_rom.bin", std::ios::binary | std::ios::ate);
+		std::ifstream::pos_type pos = ifs.tellg();
+		if (pos != 256) return;
+
+		ifs.seekg(0, std::ios::beg);
+		ifs.read(reinterpret_cast<char*>(&bootROM[0]), pos);
+
+		gbCore.ppu.disableLCD();
+		gbCore.cpu.enableBootROM();
+		return;
+	}
+
+	// If didn't run boot ROM
+	resetMEM();
+	gbCore.cpu.reset();
+	gbCore.ppu.reset();
 }
