@@ -27,16 +27,23 @@ GBCore gbCore{};
 std::wstring currentROMPAth{};
 void loadROM(const wchar_t* path)
 {
-    system("cls");
-    gbCore.mmu.loadROM(path);
-    currentROMPAth = path;
+    if (path != L"" && std::filesystem::exists(path))
+    {
+        system("cls");
+        gbCore.mmu.loadROM(path);
+        currentROMPAth = path;
+    }
 }
 void loadROM(const char* path)
 {
-    system("cls");
-    gbCore.mmu.loadROM(path);
-    currentROMPAth = std::wstring(path, path + strlen(path));
+    if (path != "" && std::filesystem::exists(path))
+    {
+        system("cls");
+        gbCore.mmu.loadROM(path);
+        currentROMPAth = std::wstring(path, path + strlen(path));
+    }
 }
+
 void setBuffers()
 {
     unsigned int VAO, VBO, EBO;
@@ -76,12 +83,12 @@ void setBuffers()
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
     glGenerateMipmap(GL_TEXTURE_2D);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
     Shader textureShader { "data/Shaders/vertexShader.glsl", "data/Shaders/fragmentShader.glsl" };
     textureShader.use();
-    glClearColor(255, 255, 255, 0);
+    glClearColor(224, 248, 208, 0);
 }
 
 void renderGameBoy()
@@ -119,6 +126,16 @@ void renderImGUI()
         if (ImGui::BeginMenu("Settings", "Ctrl+Q"))
         {
             ImGui::Checkbox("Run Boot ROM", &gbCore.runBootROM);
+            ImGui::SeparatorText("UI");
+
+            static int palette{0};
+            constexpr const char* palettes[] = {"BGB Green", "Gray", "Classic"};
+
+            if (ImGui::ListBox("Palette", &palette, palettes, 3))
+            {
+                gbCore.ppu.setColorsPalette(palette == 0 ? PPU::BGB_GREEN_PALETTE : palette == 1 ? PPU::GRAY_PALETTE : PPU::CLASSIC_PALETTE);
+                if (!gbCore.mmu.ROMLoaded) gbCore.ppu.clearBuffer();
+            }
 
             ImGui::EndMenu();
         }

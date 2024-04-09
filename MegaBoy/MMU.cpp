@@ -83,12 +83,12 @@ void MMU::write8(memoryAddress addr, uint8_t val)
 		break;
 	}
 
-	if (read8(0xff02) == 0x81)
-	{
-		char c = read8(0xff01);
-		printf("%c", c);
-		MEM[0xff02] = 0x0;
-	}
+	//if (read8(0xff02) == 0x81)
+	//{
+	//	char c = read8(0xff01);
+	//	printf("%c", c);
+	//	MEM[0xff02] = 0x0;
+	//}
 }
 uint8_t MMU::read8(memoryAddress addr)
 {
@@ -121,6 +121,8 @@ uint8_t MMU::read8(memoryAddress addr)
 
 void MMU::resetMEM()
 {
+	std::memset(MEM, 0, sizeof(MEM));
+
 	// reset input register
 	MEM[0xFF00] = 0xCF; // Joypad
 
@@ -166,18 +168,18 @@ void MMU::resetMEM()
 	MEM[0xFF44] = 0x00; // LY
 	MEM[0xFF45] = 0x00; // LYC
 	MEM[0xFF46] = 0x00; // DMA
-	MEM[0xFF47] = 0xFC; // BGP
+	write8(0xFF47, 0xFC); // BGP
 	MEM[0xFF48] = 0xFF; // OBP0
 	MEM[0xFF49] = 0xFF; // OBP1
 	MEM[0xFF4A] = 0x00; // WY
 	MEM[0xFF4B] = 0x00; // WX
 }
 
-
 void MMU::loadROM(std::ifstream& ifs)
 {
-	std::memset(MEM, 0, sizeof(MEM));
+	resetMEM();
 	gbCore.input.reset();
+	gbCore.cpu.reset();
 
 	std::ifstream::pos_type pos = ifs.tellg();
 	ifs.seekg(0, std::ios::beg);
@@ -195,13 +197,12 @@ void MMU::loadROM(std::ifstream& ifs)
 		ifs.seekg(0, std::ios::beg);
 		ifs.read(reinterpret_cast<char*>(&bootROM[0]), pos);
 
-		gbCore.ppu.disableLCD();
+		// LCD disabled on boot ROM start
+		write8(0xFF40, resetBit(directRead(0xFF40), 7));
 		gbCore.cpu.enableBootROM();
 		return;
 	}
 
-	// If didn't run boot ROM
-	resetMEM();
-	gbCore.cpu.reset();
+	// If didn't run boot ROM VRAM should be cleared
 	gbCore.ppu.reset();
 }

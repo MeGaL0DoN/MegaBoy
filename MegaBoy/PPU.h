@@ -32,25 +32,20 @@ public:
 
 	PPU(MMU& mmu, CPU& cpu) : mmu(mmu), cpu(cpu)
 	{
+		setColorsPalette(BGB_GREEN_PALETTE);
 		reset();
 	}
 
 	void execute(uint8_t cycles);
 	void reset();
 	const auto getRenderingBuffer() { return renderBuffer.data(); }
+	void clearBuffer();
 
-	void disableLCD(PPUMode mode = PPUMode::HBlank);
-	void OAMTransfer(uint16_t sourceAddr);
+	static constexpr std::array<color, 4> GRAY_PALETTE = { color {255, 255, 255}, color {169, 169, 169}, color {84, 84, 84}, color {0, 0, 0} };
+	static constexpr std::array<color, 4> CLASSIC_PALETTE = { color {155, 188, 15}, color {139, 172, 15}, color {48, 98, 48}, color {15, 56, 15} };
+	static constexpr std::array<color, 4> BGB_GREEN_PALETTE = { color {224, 248, 208}, color {136, 192, 112 }, color {52, 104, 86}, color{8, 24, 32} };
 
-	std::array<uint8_t, 4> BGpalette;
-	std::array<uint8_t, 4> OBP0palette;
-	std::array<uint8_t, 4> OBP1palette;
-
-	inline void updatePalette(uint8_t val, std::array<uint8_t, 4>& palette)
-	{
-		for (int i = 0; i < 4; i++)
-			palette[i] = (getBit(val, i * 2 + 1) << 1) | getBit(val, i * 2);
-	}
+	constexpr void setColorsPalette(std::array<color, 4> newColors) { colors = newColors; }
 private:
 	MMU& mmu;
 	CPU& cpu;
@@ -66,7 +61,7 @@ private:
 	static constexpr uint8_t HBLANK_CYCLES = 51;
 	static constexpr uint8_t VBLANK_CYCLES = 114;
 
-	static constexpr std::array<color, 4> colors = { color {255, 255, 255}, color {169, 169, 169}, color {84, 84, 84}, color {0, 0, 0} };
+	std::array<color, 4> colors;
 	constexpr color getColor(uint8_t ind) { return colors[ind]; }
 
 	inline void setPixel(uint8_t x, uint8_t y, color c)
@@ -85,15 +80,17 @@ private:
 		};
 	}
 
-	void renderBackground();
-	void renderWindow();
-	void renderOAM();
-	void renderTileMap(uint16_t tileMapAddr);
-	void renderTile(uint16_t tile, uint8_t x, uint8_t y, std::array<uint8_t, 4> palette);
+	std::array<uint8_t, 4> BGpalette;
+	std::array<uint8_t, 4> OBP0palette;
+	std::array<uint8_t, 4> OBP1palette;
 
-	/////////////////////////////////////////////
+	void updatePalette(uint8_t val, std::array<uint8_t, 4>& palette);
+
 	void SetLY(uint8_t val);
 	void SetPPUMode(PPUMode ppuState);
+
+	void disableLCD(PPUMode mode = PPUMode::HBlank);
+	void OAMTransfer(uint16_t sourceAddr);
 
 	void handleOAMSearch();
 	void handleHBlank();
@@ -101,11 +98,11 @@ private:
 	void handlePixelTransfer();
 
 	void renderScanLine();
-	void renderTile_S(uint16_t addr, uint8_t screenX, uint8_t scrollY);
-	void renderTileMap_S(uint16_t tileMapAddr, uint8_t scrollX, uint8_t scrollY);
-	void renderBackground_S();
-	void renderWindow_S();
-	void renderOAM_S();
+	void renderTile(uint16_t addr, uint8_t screenX, uint8_t scrollY);
+	void renderTileMap(uint16_t tileMapAddr, uint8_t scrollX, uint8_t scrollY);
+	void renderBackground();
+	void renderWindow();
+	void renderOAM();
 	void renderBlank();
 
 	inline bool TileMapsEnable() { return getBit(mmu.directRead(0xFF40), 0); }
