@@ -17,7 +17,8 @@ void PPU::clearBuffer()
 }
 void PPU::disableLCD(PPUMode mode)
 {
-	LY = 0;
+	SetLY(0);
+	WLY = 0;
 	videoCycles = 0;
 	clearBuffer();
 	SetPPUMode(mode);
@@ -132,6 +133,7 @@ void PPU::handleVBlank()
 		if (LY == 153)
 		{
 			SetLY(0);
+			WLY = 0;
 			SetPPUMode(PPUMode::OAMSearch);
 		}
 	}
@@ -152,7 +154,7 @@ void PPU::renderScanLine()
 	if (TileMapsEnable())
 	{
 		renderBackground();
-		//if (WindowEnable()) renderWindow();
+		if (WindowEnable()) renderWindow();
 	}
 	else
 		renderBlank();
@@ -165,36 +167,41 @@ void PPU::renderBlank()
 	for (int x = 0; x < SCR_WIDTH; x++)
 		setPixel(x, LY, colors[0]);
 }
-void PPU::renderBackground()
-{
-	renderTileMap(BGTileAddr(), SCX(), SCY());
-}
-void PPU::renderWindow()
-{
-	// TODO: fix window scrolling.
-	renderTileMap(WindowTileAddr(), WX(), WY());
-}
 
-void PPU::renderTileMap(uint16_t tileMapAddr, uint8_t scrollX, uint8_t scrollY)
+void PPU::renderBackground()
 {
 	// TODO: check horizontal scrolling.
 
-	bool unsignedAddr = BGUnsignedAddressing();
-	uint16_t tileYInd = (static_cast<uint8_t>(LY + scrollY) / 8) * 32;
+	uint16_t bgTileAddr = BGTileAddr();
+	uint16_t tileYInd = (static_cast<uint8_t>(LY + SCY()) / 8) * 32;
+	uint8_t scrollX = SCX();
 
 	for (uint8_t tileX = 0; tileX < 20; tileX++)
 	{
 		uint16_t tileXInd = (tileX + scrollX / 8) % 32; // To check
-		uint8_t tileIndex = VRAM[tileMapAddr + tileYInd + tileXInd];
-		uint16_t tileDataAddr;
-
-		if (unsignedAddr) tileDataAddr = tileIndex * 16;
-		else tileDataAddr = 0x1000 + static_cast<int8_t>(tileIndex) * 16;
-
-		renderTile(tileDataAddr, tileX * 8 /*- scrollX % 8*/, scrollY);
+		uint8_t tileIndex = VRAM[bgTileAddr + tileYInd + tileXInd];
+		uint8_t a = scrollX % 8;
+		renderTile(getTileAddr(tileIndex), LY, tileX * 8 - scrollX % 8, SCY());
 	}
 }
-void PPU::renderTile(uint16_t addr, uint8_t screenX, uint8_t scrollY)
+void PPU::renderWindow()
+{
+	int16_t wx = static_cast<int16_t>(WX()) - 7;
+	uint8_t wy = WY();
+	if (wy > LY) return;
+
+	uint16_t winTileAddr = WindowTileAddr();
+	uint16_t tileYInd = (LY - wy) / 8 * 32;
+	uint8_t winTileXEnd = 20 - (wx / 8);
+
+	for (uint8_t tileX = 0; tileX < winTileXEnd; tileX++)
+	{
+		uint8_t tileIndex = VRAM[winTileAddr + tileYInd + tileX];
+		renderTile(getTileAddr(tileIndex), LY, wx + tileX * 8, 0/*wy*/);
+	}
+}
+
+void PPU::renderTile(uint16_t addr, uint8_t LY, uint8_t screenX, uint8_t scrollY)
 {
 	uint8_t lineOffset = 2 * ((LY + scrollY) % 8);
 	uint8_t lsbLineByte = VRAM[addr + lineOffset];
@@ -204,7 +211,7 @@ void PPU::renderTile(uint16_t addr, uint8_t screenX, uint8_t scrollY)
 	{
 		uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
 		uint8_t xPos = 7 - x + screenX;
-		setPixel(xPos, LY, getColor(BGpalette[colorId]));
+		if (xPos < SCR_WIDTH) setPixel(xPos, LY, getColor(BGpalette[colorId]));
 	}
 }
 
@@ -238,7 +245,7 @@ void PPU::renderOAM()
 				{
 					uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
 					uint8_t xPos = xFlip ? x + objX : 7 - x + objX;
-	
+
 					if (colorId != 0 && (priority == 0 || getPixel(xPos, LY) == getColor(BGpalette[0])))
 						setPixel(xPos, LY, getColor(palette[colorId]));
 				}

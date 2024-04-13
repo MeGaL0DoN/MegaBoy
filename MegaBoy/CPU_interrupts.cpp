@@ -1,21 +1,22 @@
 #include "CPU.h"
 #include "bitOps.h"
 #include "instructionsEngine.h"
+#include "GBCore.h"
 extern InstructionsEngine instructions;
 
 constexpr std::array<uint8_t, 5> interruptSources = { 0x40, 0x48, 0x50, 0x58, 0x60 };
 
 bool CPU::interruptsPending()
 {
-	uint8_t IE = mmu.directRead(0xFFFF);
-	uint8_t IF = mmu.directRead(0xFF0F);
+	uint8_t IE = gbCore.mmu.directRead(0xFFFF);
+	uint8_t IF = gbCore.mmu.directRead(0xFF0F);
 	return IE & IF & 0x1F;
 }
 
 uint8_t CPU::handleInterrupts()
 {
-	uint8_t IE = mmu.directRead(0xFFFF);
-	uint8_t IF = mmu.directRead(0xFF0F);
+	uint8_t IE = gbCore.mmu.directRead(0xFFFF);
+	uint8_t IF = gbCore.mmu.directRead(0xFF0F);
 
 	if (interruptsPending())
 	{
@@ -25,12 +26,14 @@ uint8_t CPU::handleInterrupts()
 			{
 				if (getBit(IE, i) && getBit(IF, i))
 				{
+					cycles = 0;
 					halted = false;
 					instructions.PUSH(PC);
 					PC = interruptSources[i];
-					mmu.directWrite(0xFF0F, resetBit(IF, i));
+					gbCore.mmu.directWrite(0xFF0F, resetBit(IF, i));
+					addCycle(2); // PUSH adds 3, need 5 in total.
 					IME = false;
-					return 5; // m cycles processing interrupt
+					return cycles;
 				}
 			}
 		}
@@ -46,8 +49,8 @@ uint8_t CPU::handleInterrupts()
 
 void CPU::requestInterrupt(Interrupt interrupt)
 {
-	uint8_t IF = mmu.directRead(0xFF0F);
-	mmu.directWrite(0xFF0F, setBit(IF, static_cast<uint8_t>(interrupt)));
+	uint8_t IF = gbCore.mmu.directRead(0xFF0F);
+	gbCore.mmu.directWrite(0xFF0F, setBit(IF, static_cast<uint8_t>(interrupt)));
 }
 
 constexpr uint16_t DIV_ADDR = 0xFF04;
@@ -63,10 +66,10 @@ void CPU::updateTimer(uint8_t cycles)
 	if (DIV >= 64)
 	{
 		DIV -= 64;
-		mmu.directWrite(DIV_ADDR, mmu.directRead(DIV_ADDR) + 1);
+		gbCore.mmu.directWrite(DIV_ADDR, gbCore.mmu.directRead(DIV_ADDR) + 1);
 	}
 
-	uint8_t TAC = mmu.directRead(TAC_ADDR);
+	uint8_t TAC = gbCore.mmu.directRead(TAC_ADDR);
 	if (getBit(TAC, 2))
 	{
 		TIMA += cycles;
@@ -75,15 +78,15 @@ void CPU::updateTimer(uint8_t cycles)
 		while (TIMA >= currentTIMAspeed) 
 		{
 			TIMA -= currentTIMAspeed;
-			uint8_t tima_val = mmu.directRead(TIMA_ADDR) + 1;
+			uint8_t tima_val = gbCore.mmu.directRead(TIMA_ADDR) + 1;
 
 			if (tima_val == 0)
 			{
-				tima_val = mmu.directRead(TMA_ADDR);
+				tima_val = gbCore.mmu.directRead(TMA_ADDR);
 				requestInterrupt(Interrupt::Timer);
 			}
 
-			mmu.directWrite(TIMA_ADDR, tima_val);
+			gbCore.mmu.directWrite(TIMA_ADDR, tima_val);
 		}
 	}
 }

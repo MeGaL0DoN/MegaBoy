@@ -5,6 +5,8 @@
 
 MMU::MMU(GBCore& gbCore) : gbCore(gbCore) {}
 
+void MMU::stepComponents() { gbCore.stepComponents(); }
+
 void MMU::write8(memoryAddress addr, uint8_t val)
 {
 	switch (addr)
@@ -13,6 +15,12 @@ void MMU::write8(memoryAddress addr, uint8_t val)
 		// Allow writing only upper nibble to joypad register.
 		MEM[0xFF00] = (MEM[0xFF00] & 0xCF) | (val & 0x30);
 		gbCore.input.modeChanged(MEM[0xFF00]);
+		return;
+	case 0xFF01:
+		gbCore.serial.writeSerialReg(val);
+		return;
+	case 0xFF02:
+		gbCore.serial.writeSerialControl(val);
 		return;
 	case 0xFF04:
 		MEM[0xFF04] = 0;
@@ -94,6 +102,10 @@ uint8_t MMU::read8(memoryAddress addr)
 {
 	switch (addr)
 	{
+	case 0xFF01:
+		return gbCore.serial.serial_reg;
+	case 0xFF02:
+		return gbCore.serial.serial_control;
 	case 0xFF44:
 		return gbCore.ppu.LY;
 	case 0xFF0F:
@@ -179,6 +191,7 @@ void MMU::loadROM(std::ifstream& ifs)
 {
 	resetMEM();
 	gbCore.input.reset();
+	gbCore.serial.reset();
 	gbCore.cpu.reset();
 
 	std::ifstream::pos_type pos = ifs.tellg();

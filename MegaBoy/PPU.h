@@ -54,6 +54,7 @@ private:
 	uint8_t VRAM[8192];
 	uint16_t videoCycles;
 	uint8_t LY;
+	uint8_t WLY;
 	std::array<uint8_t, SCR_WIDTH * SCR_HEIGHT * 3> renderBuffer{};
 
 	static constexpr uint8_t OAM_SCAN_CYCLES = 20;
@@ -98,8 +99,9 @@ private:
 	void handlePixelTransfer();
 
 	void renderScanLine();
-	void renderTile(uint16_t addr, uint8_t screenX, uint8_t scrollY);
-	void renderTileMap(uint16_t tileMapAddr, uint8_t scrollX, uint8_t scrollY);
+	inline uint16_t getTileAddr(uint8_t tileInd) { return BGUnsignedAddressing() ? tileInd * 16 : 0x1000 + static_cast<int8_t>(tileInd) * 16; }
+	void renderTile(uint16_t addr, uint8_t LY, uint8_t screenX, uint8_t scrollY);
+	//void renderTileMap(uint16_t tileMapAddr, uint8_t scrollX, uint8_t scrollY);
 	void renderBackground();
 	void renderWindow();
 	void renderOAM();

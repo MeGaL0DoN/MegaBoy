@@ -81,6 +81,9 @@
     <ClCompile Include="inputManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="serialPort.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Libs\ImGUI\imconfig.h">
@@ -134,6 +137,9 @@
     <ClInclude Include="inputManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="serialPort.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="registers.h">
@@ -142,16 +148,5 @@
     <None Include="bitOps.h">
       <Filter>Header Files</Filter>
     </None>
-    <None Include="data\shaders\fragmentShader.glsl">
-      <Filter>data\shaders</Filter>
-    </None>
-    <None Include="data\shaders\vertexShader.glsl">
-      <Filter>data\shaders</Filter>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
-    <Font Include="data\roboto.ttf">
-      <Filter>data</Filter>
-    </Font>
   </ItemGroup>
 </Project>

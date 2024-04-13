@@ -27,18 +27,18 @@ GBCore gbCore{};
 std::wstring currentROMPAth{};
 void loadROM(const wchar_t* path)
 {
-    if (path != L"" && std::filesystem::exists(path))
+    if (std::filesystem::exists(path))
     {
-        system("cls");
+        // system("cls");
         gbCore.mmu.loadROM(path);
         currentROMPAth = path;
     }
 }
 void loadROM(const char* path)
 {
-    if (path != "" && std::filesystem::exists(path))
+    if (std::filesystem::exists(path))
     {
-        system("cls");
+        // system("cls");
         gbCore.mmu.loadROM(path);
         currentROMPAth = std::wstring(path, path + strlen(path));
     }
@@ -88,7 +88,7 @@ void setBuffers()
 
     Shader textureShader { "data/Shaders/vertexShader.glsl", "data/Shaders/fragmentShader.glsl" };
     textureShader.use();
-    glClearColor(224, 248, 208, 0);
+    glClearColor(PPU::BGB_GREEN_PALETTE[0].R, PPU::BGB_GREEN_PALETTE[0].G, PPU::BGB_GREEN_PALETTE[0].B, 0);
 }
 
 void renderGameBoy()

@@ -21,22 +21,14 @@ class GBCore;
 class MMU
 {
 public:
-	MMU(GBCore& cpu);
+	MMU(GBCore& gbCore);
 	bool ROMLoaded{ false };
 
 	void resetMEM();
 	void write8(memoryAddress addr, uint8_t val);
     uint8_t read8(memoryAddress addr);
 
-    inline void write16(memoryAddress addr, uint16_t val)
-	{
-		write8(addr, val & 0xFF);
-		write8(addr + 1, val >> 8);
-	}
-    inline uint16_t read16(memoryAddress addr)
-	{
-		return static_cast<uint16_t>(read8(addr + 1) << 8) | read8(addr);
-	}
+	void stepComponents();
 
 	constexpr void directWrite(uint16_t addr, uint8_t val) { MEM[addr] = val; }
 	constexpr uint8_t directRead(uint16_t addr) { return MEM[addr]; }

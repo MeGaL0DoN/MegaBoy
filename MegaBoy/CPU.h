@@ -1,17 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <cstring>
-
 #include "registers.h"
-#include "MMU.h"
-
-#include <nlohmann/json.hpp>
-#include <fstream>
-#include "Windows.h"
-using json = nlohmann::json;
-#include <filesystem>
-#include <iostream>
-namespace fs = std::filesystem;
 
 enum class Interrupt : uint8_t
 {
@@ -23,7 +13,7 @@ enum class Interrupt : uint8_t
 };
 
 class InstructionsEngine;
-class MMU;
+class GBCore;
 
 class CPU
 {
@@ -33,7 +23,7 @@ public:
 	void requestInterrupt(Interrupt interrupt);
 	void updateTimer(uint8_t cycles);
 
-	CPU(MMU& mmu);
+	CPU(GBCore& gbCore);
 	friend class InstructionsEngine;
 	friend class MMU;
 
@@ -44,8 +34,8 @@ public:
 	}
 
 private:
+	void executeMain();
 	void executePrefixed();
-	void executeUnprefixed();
 	bool interruptsPending();
 
 	static constexpr uint8_t HL_IND = 6;
@@ -53,25 +43,22 @@ private:
 
 	void reset();
 
-	inline void write8(uint16_t addr, uint8_t val)
-	{
-		mmu.write8(addr, val);
-	}
-	inline uint8_t read8(uint16_t addr)
-	{
-		return mmu.read8(addr);
-	}
+	void addCycle(uint8_t cycles = 1);
+	void write8(uint16_t addr, uint8_t val);
+	uint8_t read8(uint16_t addr);
+
 	inline void write16(uint16_t addr, uint16_t val)
 	{
-		mmu.write16(addr, val);
+		write8(addr, val & 0xFF);
+		write8(addr + 1, val >> 8);
 	}
-	inline uint16_t read16(uint16_t addr) 
+	inline uint16_t read16(uint16_t addr)
 	{
-		return mmu.read16(addr);
+		return static_cast<uint16_t>(read8(addr + 1) << 8) | read8(addr);
 	}
 
 	registerCollection registers {};
-	MMU& mmu;
+	GBCore& gbCore;
 
 	uint8_t opcode {};
 	uint8_t cycles {};

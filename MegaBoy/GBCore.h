@@ -1,8 +1,10 @@
 #pragma once
+#include <filesystem>
 #include "MMU.h"
 #include "CPU.h"
 #include "PPU.h"
 #include "inputManager.h"
+#include "serialPort.h"
 
 class GBCore
 {
@@ -17,13 +19,14 @@ public:
 	}
 
 	void update();
+	void stepComponents(uint8_t steps = 1);
+
 	bool paused { false };
 	bool runBootROM { false };
 
-	MMU mmu {*this};
-	CPU cpu { mmu };
+	MMU mmu { *this };
+	CPU cpu { *this };
 	PPU ppu { mmu, cpu };
 	inputManager input { mmu, cpu };
-
-private:
+	serialPort serial { cpu };
 };
