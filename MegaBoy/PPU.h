@@ -94,7 +94,7 @@ private:
 	std::array<uint8_t, 4> OBP0palette;
 	std::array<uint8_t, 4> OBP1palette;
 
-	void updatePalette(uint8_t val, std::array<uint8_t, 4> palette);
+	void updatePalette(uint8_t val, std::array<uint8_t, 4>& palette);
 	void startDMATransfer(uint16_t sourceAddr);
 
 	void SetLY(uint8_t val);

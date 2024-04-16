@@ -33,7 +33,7 @@ void PPU::startDMATransfer(uint16_t sourceAddr)
 	dmaSourceAddr = sourceAddr;
 }
 
-void PPU::updatePalette(uint8_t val, std::array<uint8_t, 4> palette)
+void PPU::updatePalette(uint8_t val, std::array<uint8_t, 4>& palette)
 {
 	for (int i = 0; i < 4; i++)
 		palette[i] = (getBit(val, i * 2 + 1) << 1) | getBit(val, i * 2);

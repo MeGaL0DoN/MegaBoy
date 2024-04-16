@@ -1,5 +1,4 @@
 #include "serialPort.h"
-#include <iostream>
 
 void serialPort::writeSerialReg(uint8_t val)
 {
@@ -15,7 +14,8 @@ void serialPort::writeSerialControl(uint8_t val)
     }
 }
 
-void serialPort::execute() {
+void serialPort::execute() 
+{
     if (serial_control & 0x80)
     {
         if (serial_control & 0x1) // For now executing only if internal clock is selected.

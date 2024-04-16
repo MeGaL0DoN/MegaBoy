@@ -83,18 +83,14 @@ void MMU::write8(memoryAddress addr, uint8_t val)
 		}		
 
 		if (addr.inRange(0x00, 0xFF) && gbCore.cpu.executingBootROM)
+		{
 			bootROM[addr] = val;
+			return;
+		}
 
 		MEM[addr] = val;
 		break;
 	}
-
-	//if (read8(0xff02) == 0x81)
-	//{
-	//	char c = read8(0xff01);
-	//	printf("%c", c);
-	//	MEM[0xff02] = 0x0;
-	//}
 }
 uint8_t MMU::read8(memoryAddress addr)
 {
