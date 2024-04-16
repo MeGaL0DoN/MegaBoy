@@ -31,7 +31,7 @@ uint8_t CPU::handleInterrupts()
 					instructions.PUSH(PC);
 					PC = interruptSources[i];
 					gbCore.mmu.directWrite(0xFF0F, resetBit(IF, i));
-					addCycle(2); // PUSH adds 3, need 5 in total.
+					addCycles(2); // PUSH adds 3, need 5 in total.
 					IME = false;
 					return cycles;
 				}
@@ -60,9 +60,9 @@ constexpr uint16_t TAC_ADDR = 0xFF07;
 
 constexpr std::array<uint16_t, 4> TIMAcycles = { 256, 4, 16, 64 };
 
-void CPU::updateTimer(uint8_t cycles)
+void CPU::updateTimer()
 {
-	DIV += cycles;
+	DIV++;
 	if (DIV >= 64)
 	{
 		DIV -= 64;
@@ -72,7 +72,7 @@ void CPU::updateTimer(uint8_t cycles)
 	uint8_t TAC = gbCore.mmu.directRead(TAC_ADDR);
 	if (getBit(TAC, 2))
 	{
-		TIMA += cycles;
+		TIMA++;
 		uint16_t currentTIMAspeed = TIMAcycles[TAC & 0x03];
 
 		while (TIMA >= currentTIMAspeed) 

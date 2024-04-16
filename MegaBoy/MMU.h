@@ -28,8 +28,6 @@ public:
 	void write8(memoryAddress addr, uint8_t val);
     uint8_t read8(memoryAddress addr);
 
-	void stepComponents();
-
 	constexpr void directWrite(uint16_t addr, uint8_t val) { MEM[addr] = val; }
 	constexpr uint8_t directRead(uint16_t addr) { return MEM[addr]; }
 

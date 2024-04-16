@@ -12,9 +12,9 @@ void GBCore::update()
 	}
 }
 
-void GBCore::stepComponents(uint8_t steps)
+void GBCore::stepComponents()
 {
-	cpu.updateTimer(steps);
-	ppu.execute(steps);
-	serial.execute(steps);
+	cpu.updateTimer();
+	ppu.execute();
+	serial.execute();
 }

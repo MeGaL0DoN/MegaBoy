@@ -21,7 +21,7 @@ public:
 	uint8_t execute();
 	uint8_t handleInterrupts();
 	void requestInterrupt(Interrupt interrupt);
-	void updateTimer(uint8_t cycles);
+	void updateTimer();
 
 	CPU(GBCore& gbCore);
 	friend class InstructionsEngine;
@@ -43,7 +43,13 @@ private:
 
 	void reset();
 
-	void addCycle(uint8_t cycles = 1);
+	void addCycle();
+	inline void addCycles(uint8_t cycles)
+	{
+		for (int i = 0; i < cycles; i++)
+			addCycle();
+	}
+
 	void write8(uint16_t addr, uint8_t val);
 	uint8_t read8(uint16_t addr);
 
@@ -54,7 +60,7 @@ private:
 	}
 	inline uint16_t read16(uint16_t addr)
 	{
-		return static_cast<uint16_t>(read8(addr + 1) << 8) | read8(addr);
+		return read8(addr + 1) << 8 | read8(addr);
 	}
 
 	registerCollection registers {};

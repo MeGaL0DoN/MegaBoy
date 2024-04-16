@@ -29,7 +29,6 @@ void loadROM(const wchar_t* path)
 {
     if (std::filesystem::exists(path))
     {
-        // system("cls");
         gbCore.mmu.loadROM(path);
         currentROMPAth = path;
     }
@@ -38,7 +37,6 @@ void loadROM(const char* path)
 {
     if (std::filesystem::exists(path))
     {
-        // system("cls");
         gbCore.mmu.loadROM(path);
         currentROMPAth = std::wstring(path, path + strlen(path));
     }
@@ -129,12 +127,13 @@ void renderImGUI()
             ImGui::SeparatorText("UI");
 
             static int palette{0};
-            constexpr const char* palettes[] = {"BGB Green", "Gray", "Classic"};
+            constexpr const char* palettes[] = {"BGB Green", "Grayscale", "Classic"};
 
             if (ImGui::ListBox("Palette", &palette, palettes, 3))
             {
-                gbCore.ppu.setColorsPalette(palette == 0 ? PPU::BGB_GREEN_PALETTE : palette == 1 ? PPU::GRAY_PALETTE : PPU::CLASSIC_PALETTE);
-                if (!gbCore.mmu.ROMLoaded) gbCore.ppu.clearBuffer();
+                auto colors = palette == 0 ? PPU::BGB_GREEN_PALETTE : palette == 1 ? PPU::GRAY_PALETTE : PPU::CLASSIC_PALETTE;
+                if (gbCore.paused || !gbCore.mmu.ROMLoaded) gbCore.ppu.updateScreenColors(colors);
+                gbCore.ppu.setColorsPalette(colors);
             }
 
             ImGui::EndMenu();
@@ -233,7 +232,7 @@ void setWindowSize()
     viewport_height = { static_cast<int>(viewport_width / (static_cast<float>(PPU::SCR_WIDTH) / PPU::SCR_HEIGHT)) };
 
     glfwSetWindowSize(window, viewport_width, viewport_height + menuBarHeight);
-    glfwSetWindowAspectRatio(window, viewport_width, viewport_height + menuBarHeight);
+    glfwSetWindowAspectRatio(window, viewport_width, viewport_height);
     glViewport(0, 0, viewport_width, viewport_height);
 }
 

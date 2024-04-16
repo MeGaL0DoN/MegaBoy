@@ -5,8 +5,6 @@
 
 MMU::MMU(GBCore& gbCore) : gbCore(gbCore) {}
 
-void MMU::stepComponents() { gbCore.stepComponents(); }
-
 void MMU::write8(memoryAddress addr, uint8_t val)
 {
 	switch (addr)
@@ -38,7 +36,7 @@ void MMU::write8(memoryAddress addr, uint8_t val)
 		// read only LY register
 		return;
 	case 0xFF46:
-		gbCore.ppu.OAMTransfer(val * 0x100);
+		gbCore.ppu.startDMATransfer(val * 0x100);
 		MEM[0xFF46] = val;
 		return;
 	case 0xFF47:
@@ -78,7 +76,7 @@ void MMU::write8(memoryAddress addr, uint8_t val)
 		}
 		if (addr.inRange(0xFE00, 0xFE9F))
 		{
-			if (gbCore.ppu.state == PPUMode::HBlank || gbCore.ppu.state == PPUMode::VBlank)
+			if ((gbCore.ppu.state == PPUMode::HBlank || gbCore.ppu.state == PPUMode::VBlank) && !gbCore.ppu.dmaTransfer)
 				MEM[addr] = val;
 
 			return;
@@ -122,7 +120,12 @@ uint8_t MMU::read8(memoryAddress addr)
 			return gbCore.ppu.state == PPUMode::PixelTransfer ? 0xFF : gbCore.ppu.VRAM[addr - 0x8000];
 
 		if (addr.inRange(0xFE00, 0xFE9F))
-			return gbCore.ppu.state == PPUMode::HBlank || gbCore.ppu.state == PPUMode::VBlank ? MEM[addr] : 0xFF;
+		{
+			if ((gbCore.ppu.state == PPUMode::HBlank || gbCore.ppu.state == PPUMode::VBlank) && !gbCore.ppu.dmaTransfer)
+				return MEM[addr];
+
+			return 0xFF;
+		}
 
 		if (addr.inRange(0x00, 0xFF) && gbCore.cpu.executingBootROM)
 			return bootROM[addr];
@@ -211,6 +214,7 @@ void MMU::loadROM(std::ifstream& ifs)
 		ifs.read(reinterpret_cast<char*>(&bootROM[0]), pos);
 
 		// LCD disabled on boot ROM start
+		gbCore.ppu.dmaTransfer = false;
 		write8(0xFF40, resetBit(directRead(0xFF40), 7));
 		gbCore.cpu.enableBootROM();
 		return;

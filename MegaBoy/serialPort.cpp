@@ -15,11 +15,11 @@ void serialPort::writeSerialControl(uint8_t val)
     }
 }
 
-void serialPort::execute(uint8_t cycles) {
+void serialPort::execute() {
     if (serial_control & 0x80)
     {
         if (serial_control & 0x1) // For now executing only if internal clock is selected.
-            serialCycles += cycles;
+            serialCycles++;
 
         if (serialCycles >= SERIAL_TRANSFER_CYCLES)
         {

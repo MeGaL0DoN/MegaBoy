@@ -25,10 +25,10 @@ void CPU::reset()
 	executingBootROM = false;
 }
 
-void CPU::addCycle(uint8_t cycl)
+void CPU::addCycle()
 {
-	cycles += cycl;
-	gbCore.stepComponents(cycl);
+	cycles++;
+	gbCore.stepComponents();
 }
 
 void CPU::write8(uint16_t addr, uint8_t val)
@@ -70,7 +70,7 @@ uint8_t CPU::execute()
 
 	if (halted)
 	{
-		addCycle(1);
+		addCycle();
 		return 1;
 	}
 
@@ -619,7 +619,6 @@ void CPU::executeMain()
 
 	default:
 		PC++;
-		addCycle();
 	}
 }
 
@@ -921,6 +920,5 @@ void CPU::executePrefixed()
 
 	default:
 		PC++;
-		addCycle();
 	}
 }

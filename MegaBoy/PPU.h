@@ -3,6 +3,7 @@
 #include "CPU.h"
 #include "bitOps.h"
 #include <array>
+#include <bitset>
 
 struct color
 {
@@ -36,16 +37,17 @@ public:
 		reset();
 	}
 
-	void execute(uint8_t cycles);
+	void execute();
 	void reset();
-	const auto getRenderingBuffer() { return renderBuffer.data(); }
+	constexpr const uint8_t* getRenderingBuffer() { return renderBuffer.data(); }
 	void clearBuffer();
 
 	static constexpr std::array<color, 4> GRAY_PALETTE = { color {255, 255, 255}, color {169, 169, 169}, color {84, 84, 84}, color {0, 0, 0} };
 	static constexpr std::array<color, 4> CLASSIC_PALETTE = { color {155, 188, 15}, color {139, 172, 15}, color {48, 98, 48}, color {15, 56, 15} };
 	static constexpr std::array<color, 4> BGB_GREEN_PALETTE = { color {224, 248, 208}, color {136, 192, 112 }, color {52, 104, 86}, color{8, 24, 32} };
 
-	constexpr void setColorsPalette(std::array<color, 4> newColors) { colors = newColors; }
+	constexpr void setColorsPalette(const std::array<color, 4>& newColors) { colors = newColors; }
+	void updateScreenColors(const std::array<color, 4>& newColors);
 private:
 	MMU& mmu;
 	CPU& cpu;
@@ -55,8 +57,15 @@ private:
 	uint16_t videoCycles;
 	uint8_t LY;
 	uint8_t WLY;
-	std::array<uint8_t, SCR_WIDTH * SCR_HEIGHT * 3> renderBuffer{};
 
+	std::array<uint8_t, SCR_WIDTH * SCR_HEIGHT * 3> renderBuffer{};
+	std::bitset<SCR_WIDTH> opaqueBackgroundPixels{};
+
+	bool dmaTransfer;
+	uint8_t dmaCycles;
+	uint16_t dmaSourceAddr;
+
+	static constexpr uint8_t DMA_CYCLES = 160;
 	static constexpr uint8_t OAM_SCAN_CYCLES = 20;
 	static constexpr uint8_t PIXEL_TRANSFER_CYCLES = 43;
 	static constexpr uint8_t HBLANK_CYCLES = 51;
@@ -85,13 +94,12 @@ private:
 	std::array<uint8_t, 4> OBP0palette;
 	std::array<uint8_t, 4> OBP1palette;
 
-	void updatePalette(uint8_t val, std::array<uint8_t, 4>& palette);
+	void updatePalette(uint8_t val, std::array<uint8_t, 4> palette);
+	void startDMATransfer(uint16_t sourceAddr);
 
 	void SetLY(uint8_t val);
 	void SetPPUMode(PPUMode ppuState);
-
 	void disableLCD(PPUMode mode = PPUMode::HBlank);
-	void OAMTransfer(uint16_t sourceAddr);
 
 	void handleOAMSearch();
 	void handleHBlank();
@@ -99,17 +107,18 @@ private:
 	void handlePixelTransfer();
 
 	void renderScanLine();
-	inline uint16_t getTileAddr(uint8_t tileInd) { return BGUnsignedAddressing() ? tileInd * 16 : 0x1000 + static_cast<int8_t>(tileInd) * 16; }
-	void renderTile(uint16_t addr, uint8_t LY, uint8_t screenX, uint8_t scrollY);
-	//void renderTileMap(uint16_t tileMapAddr, uint8_t scrollX, uint8_t scrollY);
 	void renderBackground();
 	void renderWindow();
 	void renderOAM();
 	void renderBlank();
 
+	inline uint16_t getBGTileAddr(uint8_t tileInd) { return BGUnsignedAddressing() ? tileInd * 16 : 0x1000 + static_cast<int8_t>(tileInd) * 16; }
+	void renderBGTile(uint16_t addr, uint8_t LY, uint8_t screenX, uint8_t scrollY);
+	void renderObjTile(uint16_t tileAddr, uint8_t attributes, int16_t objX, int16_t objY);
+
 	inline bool TileMapsEnable() { return getBit(mmu.directRead(0xFF40), 0); }
 	inline bool OBJEnable() { return getBit(mmu.directRead(0xFF40), 1); }
-	inline bool DoubleOBJSize() { return getBit(mmu.directRead(0xFF40), 2); }
+	inline uint8_t OBJSize() { return getBit(mmu.directRead(0xFF40), 2) ? 16 : 8; }
 	inline uint16_t BGTileAddr() { return getBit(mmu.directRead(0xFF40), 3) ? 0x1C00 : 0x1800; }
 	inline uint16_t WindowTileAddr() { return getBit(mmu.directRead(0xFF40), 6) ? 0x1C00 : 0x1800; }
 	inline bool BGUnsignedAddressing() { return getBit(mmu.directRead(0xFF40), 4); }

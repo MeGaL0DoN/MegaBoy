@@ -19,7 +19,7 @@ public:
 	}
 
 	void update();
-	void stepComponents(uint8_t steps = 1);
+	void stepComponents();
 
 	bool paused { false };
 	bool runBootROM { false };
