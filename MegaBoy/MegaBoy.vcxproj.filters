@@ -22,9 +22,6 @@
     <Filter Include="Source Files\glad">
       <UniqueIdentifier>{8cf35fe0-0f96-4891-bb25-7f14dee7e45d}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\nlohmann">
-      <UniqueIdentifier>{8276b919-1bb9-4689-a203-2f300d09e270}</UniqueIdentifier>
-    </Filter>
     <Filter Include="data">
       <UniqueIdentifier>{584aa01e-cf78-419d-86fe-b05a7f7dd3e7}</UniqueIdentifier>
     </Filter>
@@ -40,9 +37,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Libs\ImGUI\imgui.cpp">
-      <Filter>Source Files\ImGUI</Filter>
-    </ClCompile>
-    <ClCompile Include="Libs\ImGUI\imgui_demo.cpp">
       <Filter>Source Files\ImGUI</Filter>
     </ClCompile>
     <ClCompile Include="Libs\ImGUI\imgui_draw.cpp">
@@ -82,6 +76,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="serialPort.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="debugUI.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glFunctions.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -125,9 +125,6 @@
     <ClInclude Include="instructionsEngine.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Libs\nlohmann\json.hpp">
-      <Filter>Header Files\nlohmann</Filter>
-    </ClInclude>
     <ClInclude Include="MMU.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -138,6 +135,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="serialPort.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="debugUI.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="glFunctions.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -51,8 +51,14 @@ void MMU::write8(memoryAddress addr, uint8_t val)
 		gbCore.ppu.updatePalette(val, gbCore.ppu.OBP1palette);
 		MEM[0xFF49] = val;
 		return;
+	case 0xFF0F:
+		gbCore.cpu.IF = val;
+		return;
+	case 0xFFFF:
+		gbCore.cpu.IE = val;
+		return;
 	default:
-		if (addr.inRange(0xFE0A, 0xFEFF))
+		if (addr.inRange(0xFEA0, 0xFEFF))
 			return;
 
 		if (addr.inRange(0x0000, 0x7FFF))   
@@ -92,7 +98,7 @@ void MMU::write8(memoryAddress addr, uint8_t val)
 		break;
 	}
 }
-uint8_t MMU::read8(memoryAddress addr)
+uint8_t MMU::read8(memoryAddress addr) const
 {
 	switch (addr)
 	{
@@ -103,7 +109,9 @@ uint8_t MMU::read8(memoryAddress addr)
 	case 0xFF44:
 		return gbCore.ppu.LY;
 	case 0xFF0F:
-		return MEM[0xFF0F] | 0xE0;
+		return gbCore.cpu.IF | 0xE0;
+	case 0xFFFF:
+		return gbCore.cpu.IE;
 
 	default:
 		if (addr.inRange(0xFEA0, 0xFEFF))
@@ -147,9 +155,9 @@ void MMU::resetMEM()
 	MEM[0xFF06] = 0x00; // TMA
 	MEM[0xFF07] = 0x00; // TAC
 
-	// reset interrupt flag registers
-	MEM[0xFF0F] = 0xE1; // IF
-	MEM[0xFFFF] = 0x00; // IE
+	// reset interrupt registers
+	write8(0xFFFF, 0x0);
+	write8(0xFF0F, 0xE1); // IF
 
 	// reset sound registers
 	MEM[0xFF10] = 0x80; // NR10

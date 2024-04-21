@@ -55,7 +55,6 @@ void PPU::updateScreenColors(const std::array<color, 4>& newColors)
 void PPU::SetLY(uint8_t val)
 {
 	LY = val;
-	opaqueBackgroundPixels.reset();
 
 	if (LY == LYC())
 	{
@@ -175,13 +174,13 @@ void PPU::renderScanLine()
 {
 	if (TileMapsEnable())
 	{
-		renderBackground();
-		if (WindowEnable()) renderWindow();
+		renderBackground(LY, true);
+		if (WindowEnable()) renderWindow(LY, WLY, true);
 	}
 	else
 		renderBlank();
 
-	if (OBJEnable()) renderOAM();
+	if (OBJEnable()) renderOAM(LY, true);
 }
 
 void PPU::renderBlank()
@@ -193,7 +192,7 @@ void PPU::renderBlank()
 	}
 }
 
-void PPU::renderBackground()
+void PPU::renderBackground(uint8_t LY, bool saveTransparencyValues)
 {
 	// TODO: check horizontal scrolling.
 
@@ -205,10 +204,10 @@ void PPU::renderBackground()
 	{
 		uint16_t tileXInd = (tileX + scrollX / 8) % 32; // To check
 		uint8_t tileIndex = VRAM[bgTileAddr + tileYInd + tileXInd];
-		renderBGTile(getBGTileAddr(tileIndex), LY, tileX * 8 - scrollX % 8, SCY());
+		renderBGTile(getBGTileAddr(tileIndex), LY, tileX * 8 - scrollX % 8, SCY(), saveTransparencyValues);
 	}
 }
-void PPU::renderWindow()
+void PPU::renderWindow(uint8_t LY, uint8_t& WLY, bool saveTransparencyValues)
 {
 	int16_t wx = static_cast<int16_t>(WX()) - 7;
 	uint8_t wy = WY();
@@ -221,13 +220,13 @@ void PPU::renderWindow()
 	for (uint8_t tileX = 0; tileX < winTileXEnd; tileX++)
 	{
 		uint8_t tileIndex = VRAM[winTileAddr + tileYInd + tileX];
-		renderBGTile(getBGTileAddr(tileIndex), LY, wx + tileX * 8, 0);
+		renderBGTile(getBGTileAddr(tileIndex), LY, wx + tileX * 8, 0, saveTransparencyValues);
 	};
 
 	WLY++;
 }
 
-void PPU::renderBGTile(uint16_t addr, uint8_t LY, uint8_t screenX, uint8_t scrollY)
+void PPU::renderBGTile(uint16_t addr, uint8_t LY, uint8_t screenX, uint8_t scrollY, bool saveTransparencyValues)
 {
 	uint8_t lineOffset = 2 * ((LY + scrollY) % 8);
 	uint8_t lsbLineByte = VRAM[addr + lineOffset];
@@ -240,12 +239,12 @@ void PPU::renderBGTile(uint16_t addr, uint8_t LY, uint8_t screenX, uint8_t scrol
 		if (xPos >= 0 && xPos < SCR_WIDTH)
 		{
 			setPixel(xPos, LY, getColor(BGpalette[colorId]));
-			if (colorId == 0) opaqueBackgroundPixels[xPos] = true;
+			if (saveTransparencyValues) opaqueBackgroundPixels[xPos] = (colorId == 0);
 		}
 	}
 }
 
-void PPU::renderObjTile(uint16_t tileAddr, uint8_t attributes, int16_t objX, int16_t objY)
+void PPU::renderObjTile(uint16_t tileAddr, uint8_t LY, uint8_t attributes, int16_t objX, int16_t objY, bool checkBgTransparency)
 {
 	const bool xFlip = getBit(attributes, 5);
 	const bool yFlip = getBit(attributes, 6);
@@ -254,7 +253,7 @@ void PPU::renderObjTile(uint16_t tileAddr, uint8_t attributes, int16_t objX, int
 
 	if (objX + 8 < SCR_WIDTH && objX > -8)
 	{
-		const uint8_t lineOffset = 2 * (yFlip ? (objY - LY + 8) : (8 - (objY - LY + 8)));
+		const uint8_t lineOffset = 2 * (yFlip ? (objY - LY + 7) : (8 - (objY - LY + 8)));
 		const uint8_t lsbLineByte = VRAM[tileAddr + lineOffset];
 		const uint8_t msbLineByte = VRAM[tileAddr + lineOffset + 1];
 
@@ -265,96 +264,82 @@ void PPU::renderObjTile(uint16_t tileAddr, uint8_t attributes, int16_t objX, int
 
 			if (xPos >= 0 && xPos < SCR_WIDTH)
 			{
-				if (colorId != 0 && (priority == 0 || opaqueBackgroundPixels[xPos]))
+				if (colorId != 0 && (!checkBgTransparency || (priority == 0 || opaqueBackgroundPixels[xPos])))
 					setPixel(xPos, LY, getColor(palette[colorId]));
 			}
 		}
 	}
 }
 
-void PPU::renderOAM()
+struct object
 {
-	uint16_t OAMAddr = 0xFE00;
-	uint8_t scanlineObjects{ 0 };
-	uint8_t objSize = OBJSize();
+	int16_t X;
+	int16_t Y;
+	uint16_t tileAddr;
+	uint8_t attributes;
+};
 
-	for (int i = 0; i < 40; i++, OAMAddr += 4)
+bool objComparator(const object& obj1, const object& obj2)
+{
+	if (obj1.X > obj2.X)
+		return true;
+	else if (obj1.X < obj2.X)
+		return false;
+
+	return obj1.tileAddr < obj2.tileAddr;
+}
+
+void PPU::renderOAM(uint8_t LY, bool checkBgTransparency)
+{
+	bool doubleObj = DoubleOBJSize();
+
+	uint8_t objCount { 0 };
+	object selectedObjects [10];
+
+	for (uint16_t OAMAddr = 0xFE00; OAMAddr < 0xFE9F; OAMAddr += 4)
 	{
 		const int16_t objY = static_cast<int16_t>(mmu.directRead(OAMAddr)) - 16;
 		const int16_t objX = static_cast<int16_t>(mmu.directRead(OAMAddr + 1)) - 8;
 		const uint8_t tileInd = mmu.directRead(OAMAddr + 2);
 		const uint8_t attributes = mmu.directRead(OAMAddr + 3);
+		const bool yFlip = getBit(attributes, 6);
 
-		if (objSize == 8)
+		if (!doubleObj)
 		{
 			if (LY >= objY && LY < objY + 8)
 			{
-				renderObjTile(tileInd * 16, attributes, objX, objY);
-				scanlineObjects++;
+				selectedObjects[objCount] = object{ objX, objY, static_cast<uint16_t>(tileInd * 16), attributes };
+				objCount++;
 			}
 		}
 		else
 		{
 			if (LY >= objY && LY < objY + 8)
 			{
-				renderObjTile((tileInd & 0xFE) * 16, attributes, objX, objY);
-				scanlineObjects++;
+				uint16_t tileAddr = yFlip ? ((tileInd & 0xFE) + 1) * 16 : (tileInd & 0xFE) * 16;
+				selectedObjects[objCount] = object { objX, objY, tileAddr, attributes };
+				objCount++;
 			}
 			else if (LY >= objY + 8 && LY < objY + 16)
 			{
-				renderObjTile(((tileInd & 0xFE) + 1) * 16, attributes, objX, objY + 8);
-				scanlineObjects++;
+				uint16_t tileAddr = yFlip ? (tileInd & 0xFE) * 16 : ((tileInd & 0xFE) + 1) * 16;
+				selectedObjects[objCount] = object{ objX, objY + 8, tileAddr, attributes };
+				objCount++;
 			}
 		}
 
-		if (scanlineObjects == 10)
-			return;
+		if (objCount == 10)
+			break;
 	}
+
+	std::sort(selectedObjects, selectedObjects + objCount, objComparator);
+
+	for (int i = 0; i < objCount; i++)
+		renderObjTile(selectedObjects[i].tileAddr, LY, selectedObjects[i].attributes, selectedObjects[i].X, selectedObjects[i].Y, checkBgTransparency);
 }
 
 
-//void PPU::renderOAM()
-//{
-//	uint16_t OAMAddr = 0xFE00;
-//	uint8_t scanlineObjects { 0 };
-//	uint8_t objSize = OBJSize();
-//
-//	for (int i = 0; i < 40; i++, OAMAddr += 4)
-//	{
-//		const int16_t objY = static_cast<int16_t>(mmu.directRead(OAMAddr)) - 16;
-//		const int16_t objX = static_cast<int16_t>(mmu.directRead(OAMAddr + 1)) - 8;
-//		const uint8_t tileInd = mmu.directRead(OAMAddr + 2);
-//		const uint8_t attributes = mmu.directRead(OAMAddr + 3);
-//
-//		if (objSize == 8)
-//		{
-//
-//			if (objY + 8 > LY && objY <= LY)
-//			{
-//				renderObjTile(tileInd * 16, attributes, objX, objY);
-//				scanlineObjects++;
-//			}
-//		}
-//
-//
-//		//if (!DoubleOBJSize())
-//		//{
-//		//	if (objY + 8 > LY && objY <= LY)
-//		//	{
-//		//		renderObjTile(tileInd * 16, attributes, objX, objY);
-//		//		scanlineObjects++;
-//		//	}
-//		//}
-//		//else
-//		//{
-//		//	if (true)
-//		//	{
-//		//		renderObjTile(objY <= LY + 8 ? tileInd * 16 : tileInd * 32, attributes, objX, objY);
-//		//		scanlineObjects++;
-//		//	}
-//		//}
-//
-//		if (scanlineObjects == 10)
-//			return;
-//	}
-//}
+void PPU::renderTileMap(uint8_t* buffer)
+{
+
+}

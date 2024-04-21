@@ -18,6 +18,8 @@ class GBCore;
 class CPU
 {
 public:
+	int opcodeNum{ 0 };
+
 	uint8_t execute();
 	uint8_t handleInterrupts();
 	void requestInterrupt(Interrupt interrupt);
@@ -74,6 +76,9 @@ private:
 
 	uint16_t DIV{};
 	uint16_t TIMA{};
+
+	uint8_t IE{};
+	uint8_t IF{};
 
 	bool stopped { false };
 	bool halted { false };

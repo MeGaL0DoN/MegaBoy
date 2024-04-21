@@ -8,16 +8,11 @@ constexpr std::array<uint8_t, 5> interruptSources = { 0x40, 0x48, 0x50, 0x58, 0x
 
 bool CPU::interruptsPending()
 {
-	uint8_t IE = gbCore.mmu.directRead(0xFFFF);
-	uint8_t IF = gbCore.mmu.directRead(0xFF0F);
 	return IE & IF & 0x1F;
 }
 
 uint8_t CPU::handleInterrupts()
 {
-	uint8_t IE = gbCore.mmu.directRead(0xFFFF);
-	uint8_t IF = gbCore.mmu.directRead(0xFF0F);
-
 	if (interruptsPending())
 	{
 		if (IME)
@@ -30,7 +25,7 @@ uint8_t CPU::handleInterrupts()
 					halted = false;
 					instructions.PUSH(PC);
 					PC = interruptSources[i];
-					gbCore.mmu.directWrite(0xFF0F, resetBit(IF, i));
+					IF = resetBit(IF, i);
 					addCycles(2); // PUSH adds 3, need 5 in total.
 					IME = false;
 					return cycles;
@@ -49,8 +44,7 @@ uint8_t CPU::handleInterrupts()
 
 void CPU::requestInterrupt(Interrupt interrupt)
 {
-	uint8_t IF = gbCore.mmu.directRead(0xFF0F);
-	gbCore.mmu.directWrite(0xFF0F, setBit(IF, static_cast<uint8_t>(interrupt)));
+	IF = setBit(IF, static_cast<uint8_t>(interrupt));
 }
 
 constexpr uint16_t DIV_ADDR = 0xFF04;

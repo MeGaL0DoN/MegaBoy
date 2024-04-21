@@ -18,7 +18,7 @@ public:
 			runBootROM = true;
 	}
 
-	void update();
+	void update(double deltaTime);
 	void stepComponents();
 
 	bool paused { false };
@@ -26,7 +26,7 @@ public:
 
 	MMU mmu { *this };
 	CPU cpu { *this };
-	PPU ppu { mmu, cpu };
+	PPU ppu{ mmu, cpu };
 	inputManager input { mmu, cpu };
 	serialPort serial { cpu };
 };

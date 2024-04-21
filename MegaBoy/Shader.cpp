@@ -6,7 +6,7 @@
 #include <sstream>
 #include <iostream>
 
-Shader::Shader(const char* vertexPath, const char* fragmentPath)
+void Shader::compile(const char* vertexPath, const char* fragmentPath)
 {
     // 1. retrieve the vertex/fragment source code from filePath
     std::string vertexCode;
@@ -90,11 +90,6 @@ void Shader::setFloat4(const std::string& name, float values[4]) const
 {
     glUniform4fv(glGetUniformLocation(ID, name.c_str()), 1, values);
 }
-//void Shader::setMatrix4(const std::string& name, glm::mat4 value) const
-//{
-//    glUniformMatrix4fv(glGetUniformLocation(ID, name.c_str()), 1, GL_FALSE, glm::value_ptr(value));
-//}
-
 
 // utility function for checking shader compilation/linking errors.
 // ------------------------------------------------------------------------

@@ -12,17 +12,24 @@
 
 #include "GBCore.h"
 #include "Shader.h"
+#include "debugUI.h"
+#include "glFunctions.h"
 
 GLFWwindow* window;
 int menuBarHeight;
 int viewport_width, viewport_height;
 
-unsigned int texture;
+Shader regularShader;
+Shader scalingShader;
+bool scalingShaderCompiled{ false };
+
+uint32_t gbFramebufferTexture;
 
 const std::wstring defaultPath{ std::filesystem::current_path().wstring() };
 constexpr nfdnfilteritem_t filterItem[] = { {L"Game ROM", L"gb,bin"} };
 
 GBCore gbCore{};
+std::string FPS_text{ "FPS: 00.00" };
 
 std::wstring currentROMPAth{};
 void loadROM(const wchar_t* path)
@@ -75,24 +82,27 @@ void setBuffers()
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
+    OpenGL::createTexture(gbFramebufferTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-    glGenerateMipmap(GL_TEXTURE_2D);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-    Shader textureShader { "data/Shaders/vertexShader.glsl", "data/Shaders/fragmentShader.glsl" };
-    textureShader.use();
-    glClearColor(PPU::BGB_GREEN_PALETTE[0].R, PPU::BGB_GREEN_PALETTE[0].G, PPU::BGB_GREEN_PALETTE[0].B, 0);
+    regularShader.compile("data/shaders/regular_vertex.glsl", "data/shaders/regular_frag.glsl");
+    regularShader.use();
 }
 
 void renderGameBoy()
 {
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, gbCore.ppu.getRenderingBuffer());
+    OpenGL::updateTexture(gbFramebufferTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu.getFrameBuffer());
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+}
+
+inline void updateImGUIViewports()
+{
+    if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+    {
+        GLFWwindow* backup_current_context = glfwGetCurrentContext();
+        ImGui::UpdatePlatformWindows();
+        ImGui::RenderPlatformWindowsDefault();
+        glfwMakeContextCurrent(backup_current_context);
+    }
 }
 
 void renderImGUI()
@@ -116,18 +126,51 @@ void renderImGUI()
                     outPath.release();
                 }
             }
-            else if (ImGui::MenuItem("Reload Game", "(Esc)"))
-                loadROM(currentROMPAth.c_str());
 
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Settings", "Ctrl+Q"))
         {
             ImGui::Checkbox("Run Boot ROM", &gbCore.runBootROM);
+
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Graphics"))
+        {
+            static bool vsync{ true };
+            static bool upscaling{ false };
+
+            if (ImGui::Checkbox("VSync", &vsync))
+                glfwSwapInterval(vsync ? 1 : 0);
+
             ImGui::SeparatorText("UI");
 
-            static int palette{0};
-            constexpr const char* palettes[] = {"BGB Green", "Grayscale", "Classic"};
+            if (ImGui::Checkbox("Upscaling Filter", &upscaling))
+            {
+                if (upscaling)
+                {
+                    if (scalingShaderCompiled)
+                        scalingShader.use();
+                    else
+                    {
+                        scalingShader.compile("data/shaders/omniscale_vertex.glsl", "data/shaders/omniscale_frag.glsl");
+                        scalingShader.use();
+
+                        scalingShader.setFloat2("OutputSize", PPU::SCR_WIDTH * 6, PPU::SCR_HEIGHT * 6); // 6x seems to be the best scale
+                        scalingShader.setFloat2("TextureSize", PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
+                        scalingShaderCompiled = true;
+                    }
+                }
+                else
+                    regularShader.use();
+            }
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            static int palette{ 0 };
+            constexpr const char* palettes[] = { "BGB Green", "Grayscale", "Classic" };
 
             if (ImGui::ListBox("Palette", &palette, palettes, 3))
             {
@@ -138,17 +181,43 @@ void renderImGUI()
 
             ImGui::EndMenu();
         }
+        if (ImGui::BeginMenu("Emulation"))
+        {
+            if (ImGui::MenuItem(gbCore.paused ? "Resume" : "Pause", "(Tab)"))
+                gbCore.paused = !gbCore.paused;
+
+            if (ImGui::MenuItem("Reload", "(Esc)"))
+                loadROM(currentROMPAth.c_str());
+
+            ImGui::EndMenu();
+        }
+
+        debugUI::updateMenu(gbCore);
+
         if (gbCore.paused)
         {
             ImGui::Separator();
             ImGui::Text("Emulation Paused");
         }
 
+        float text_width = ImGui::CalcTextSize(FPS_text.data()).x;
+        float available_width = ImGui::GetContentRegionAvail().x;
+
+        if (text_width < available_width)
+        {
+            ImGui::SameLine(ImGui::GetWindowWidth() - text_width - ImGui::GetStyle().ItemSpacing.x * 3);
+            ImGui::Separator();
+            ImGui::Text(FPS_text.data());
+        }
+
         ImGui::EndMainMenuBar();
     }
 
+    debugUI::updateWindows(gbCore);
+
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    updateImGUIViewports();
 }
 
 void render()
@@ -165,6 +234,7 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
     glViewport(0, 0, viewport_width, viewport_height);
     render();
 }
+
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     if (action == 1)
@@ -185,7 +255,8 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 }
 void drop_callback(GLFWwindow* window, int count, const char** paths)
 {
-    loadROM(paths[0]);
+    if (count > 0)
+        loadROM(paths[0]);
 }
 
 bool setGLFW()
@@ -204,6 +275,7 @@ bool setGLFW()
     }
 
     glfwMakeContextCurrent(window);
+    glfwSwapInterval(1);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetDropCallback(window, drop_callback);
     glfwSetKeyCallback(window, key_callback);
@@ -213,6 +285,9 @@ bool setGLFW()
         std::cout << "Failed to initialize GLAD" << std::endl;
         return false;
     }
+
+    glClearColor(PPU::BGB_GREEN_PALETTE[0].R, PPU::BGB_GREEN_PALETTE[0].G, PPU::BGB_GREEN_PALETTE[0].B, 0);
+    glClear(GL_COLOR_BUFFER_BIT);
 
     return true;
 }
@@ -225,7 +300,9 @@ void setWindowSize()
     ImGui::BeginMainMenuBar();
     menuBarHeight = static_cast<int>(ImGui::GetWindowSize().y);
     ImGui::EndMainMenuBar();
+
     ImGui::Render();
+    updateImGUIViewports();
 
     const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
     viewport_width = { static_cast<int>(mode->width * 0.4f) };
@@ -244,8 +321,9 @@ void setImGUI()
     io.IniFilename = "data/imgui.ini";
 
     const int resolutionX = glfwGetVideoMode(glfwGetPrimaryMonitor())->width;
-    io.Fonts->AddFontFromFileTTF("data/roboto.ttf", (resolutionX / 1920.0f) * 17);
+    io.Fonts->AddFontFromFileTTF("data/robotomono.ttf", (resolutionX / 1920.0f) * 18.0f);
 
+    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
     ImGui::StyleColorsDark();
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330");
@@ -259,25 +337,34 @@ int main()
     setBuffers();
 
     double lastFrameTime = glfwGetTime();
-    double timer{};
+    double fpsTimer{};
+    int frameCount{};
 
     while (!glfwWindowShouldClose(window))
     {
         double currentFrameTime = glfwGetTime();
         double deltaTime = currentFrameTime - lastFrameTime;
-        timer += deltaTime;
 
-        if (timer >= GBCore::FRAME_RATE)
+        fpsTimer += deltaTime;
+
+        constexpr double maxDeltaTime = 1.0 / 5.0;
+        if (deltaTime < maxDeltaTime) gbCore.update(deltaTime); // So holding the window down and then releasing doesn't block emulator by executing a bunch of instructions... 
+
+        glfwPollEvents();
+        render();
+
+        if (fpsTimer >= 1.0)
         {
-            timer = 0;
-            gbCore.update();
-            glfwPollEvents();
-            render();
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            double fps = frameCount / fpsTimer;
+            FPS_text = "FPS: " + std::format("{:.2f}", fps);
+
+            frameCount = 0;
+            fpsTimer = 0;
         }
 
+        frameCount++;
         lastFrameTime = currentFrameTime;
     }
 
-	return 1;
+    return 1;
 }

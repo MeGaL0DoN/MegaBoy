@@ -3,6 +3,10 @@
 #include "instructionsEngine.h"
 #include "GBCore.h"
 
+#include <iostream>
+#include <fstream>
+#include <string>
+
 InstructionsEngine instructions;
 
 CPU::CPU(GBCore& gbCore) : gbCore(gbCore)
@@ -90,8 +94,8 @@ uint8_t CPU::execute()
 		shouldSetIME = false;
 	}
 
-	if (PC >= 0xFF)
-		executingBootROM = false;
+	if (PC > 0xFF)
+		executingBootROM = false; 
 
 	return cycles;
 }

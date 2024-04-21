@@ -1,14 +1,16 @@
 #include "GBCore.h"
 
-void GBCore::update()
+void GBCore::update(double deltaTime)
 {
 	if (!mmu.ROMLoaded || paused) return;
-	int totalCycles {0};
 
-	while (totalCycles < CYCLES_PER_FRAME)
+	const int cyclesToExecute { static_cast<int>((CYCLES_PER_FRAME * (deltaTime / FRAME_RATE))) };
+	int currentCycles { 0 };
+
+	while (currentCycles < cyclesToExecute)
 	{
-		totalCycles += cpu.execute();
-		totalCycles += cpu.handleInterrupts();
+		currentCycles += cpu.execute();
+		currentCycles += cpu.handleInterrupts();
 	}
 }
 

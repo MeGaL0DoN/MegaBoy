@@ -26,10 +26,10 @@ public:
 
 	void resetMEM();
 	void write8(memoryAddress addr, uint8_t val);
-    uint8_t read8(memoryAddress addr);
+    uint8_t read8(memoryAddress addr) const;
 
 	constexpr void directWrite(uint16_t addr, uint8_t val) { MEM[addr] = val; }
-	constexpr uint8_t directRead(uint16_t addr) { return MEM[addr]; }
+	constexpr uint8_t directRead(uint16_t addr) const { return MEM[addr]; }
 
 	inline void loadROM(const wchar_t* path)
 	{
@@ -43,7 +43,7 @@ public:
 	}
 
 private:
-	uint8_t MEM[0xFFFF + 1]{};
+	uint8_t MEM[0xFFFF]{};
 	uint8_t bootROM[256]{};
 	GBCore& gbCore;
 

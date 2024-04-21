@@ -142,12 +142,13 @@
   <ItemGroup>
     <ClCompile Include="CPU.cpp" />
     <ClCompile Include="CPU_interrupts.cpp" />
+    <ClCompile Include="debugUI.cpp" />
     <ClCompile Include="GBCore.cpp" />
+    <ClCompile Include="glFunctions.cpp" />
     <ClCompile Include="inputManager.cpp" />
     <ClCompile Include="PPU.cpp" />
     <ClCompile Include="Libs\glad\glad.c" />
     <ClCompile Include="Libs\ImGUI\imgui.cpp" />
-    <ClCompile Include="Libs\ImGUI\imgui_demo.cpp" />
     <ClCompile Include="Libs\ImGUI\imgui_draw.cpp" />
     <ClCompile Include="Libs\ImGUI\imgui_impl_glfw.cpp" />
     <ClCompile Include="Libs\ImGUI\imgui_impl_opengl3.cpp" />
@@ -160,7 +161,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CPU.h" />
+    <ClInclude Include="debugUI.h" />
     <ClInclude Include="GBCore.h" />
+    <ClInclude Include="glFunctions.h" />
     <ClInclude Include="inputManager.h" />
     <ClInclude Include="PPU.h" />
     <ClInclude Include="instructionsEngine.h" />
@@ -173,7 +176,6 @@
     <ClInclude Include="Libs\ImGUI\imstb_rectpack.h" />
     <ClInclude Include="Libs\ImGUI\imstb_textedit.h" />
     <ClInclude Include="Libs\ImGUI\imstb_truetype.h" />
-    <ClInclude Include="Libs\nlohmann\json.hpp" />
     <ClInclude Include="MMU.h" />
     <ClInclude Include="serialPort.h" />
     <ClInclude Include="Shader.h" />
