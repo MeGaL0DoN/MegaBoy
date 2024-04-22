@@ -5,15 +5,8 @@
 #include <array>
 #include <bitset>
 
-struct color
-{
-	uint8_t R, G, B;
-
-	bool operator ==(color other)
-	{
-		return R == other.R && G == other.G && B == other.B;
-	}
-};
+#include "pixelOps.h"
+using color = PixelOps::color;
 
 enum class PPUMode : uint8_t
 {
@@ -23,19 +16,38 @@ enum class PPUMode : uint8_t
 	PixelTransfer = 3,
 };
 
+struct pixelInfo
+{
+	bool isSet;
+	color data;
+};
+
 class debugUI;
 
 class PPU
 {
 public:
-	friend MMU;
-	friend debugUI;
-
 	static constexpr uint8_t SCR_WIDTH = 160;
 	static constexpr uint8_t SCR_HEIGHT = 144;
-	static constexpr uint32_t FRAMEBUFFER_SIZE = SCR_WIDTH * SCR_HEIGHT * 3;
+	static constexpr uint16_t TILES_SIZE = 32 * 8;
 
-	PPU(MMU& mmu, CPU& cpu) : mmu(mmu), cpu(cpu), currentBuffer(framebuffer)
+	static constexpr uint32_t FRAMEBUFFER_SIZE = SCR_WIDTH * SCR_HEIGHT * 3;
+	static constexpr uint32_t TILEDATA_FRAMEBUFFER_SIZE = TILES_SIZE * TILES_SIZE * 3;
+
+	void (*onBackgroundRender)(const std::array<uint8_t, FRAMEBUFFER_SIZE>& buffer, uint8_t LY);
+	void (*onWindowRender)(const std::array<pixelInfo, SCR_WIDTH>& updatedPixels, uint8_t LY);
+	void (*onOAMRender)(const std::array<pixelInfo, SCR_WIDTH>& updatedPixels, uint8_t LY);
+
+	constexpr void resetCallbacks()
+	{
+		onBackgroundRender = nullptr;
+		onWindowRender = nullptr;
+		onOAMRender = nullptr;
+	}
+
+	friend MMU;
+
+	PPU(MMU& mmu, CPU& cpu) : mmu(mmu), cpu(cpu)
 	{
 		setColorsPalette(BGB_GREEN_PALETTE);
 		reset();
@@ -43,11 +55,10 @@ public:
 
 	void execute();
 	void reset();
-	void clearBuffer();
+	constexpr void clearBuffer() { PixelOps::clearBuffer(framebuffer.data(), SCR_WIDTH, SCR_HEIGHT, colors[0]); }
 
-	constexpr const uint8_t* getFrameBuffer() { return framebuffer; }
-	constexpr void bindFrameBuffer(uint8_t* buffer) { currentBuffer = buffer; }
-	constexpr void unbindFrameBuffer() { currentBuffer = framebuffer; }
+	constexpr const uint8_t* getFrameBuffer() { return framebuffer.data(); }
+	void renderTileData(uint8_t* buffer);
 
 	static constexpr std::array<color, 4> GRAY_PALETTE = { color {255, 255, 255}, color {169, 169, 169}, color {84, 84, 84}, color {0, 0, 0} };
 	static constexpr std::array<color, 4> CLASSIC_PALETTE = { color {155, 188, 15}, color {139, 172, 15}, color {48, 98, 48}, color {15, 56, 15} };
@@ -65,10 +76,12 @@ private:
 	uint8_t LY;
 	uint8_t WLY;
 
-	uint8_t* currentBuffer;
-	uint8_t framebuffer[FRAMEBUFFER_SIZE];
-
+	std::array<uint8_t, FRAMEBUFFER_SIZE> framebuffer;
 	std::bitset<SCR_WIDTH> opaqueBackgroundPixels{};
+
+	std::array<pixelInfo, SCR_WIDTH> updatedWindowPixels;
+	std::array<pixelInfo, SCR_WIDTH> updatedOAMPixels;
+	std::array<pixelInfo, SCR_WIDTH> updatedBGPixels;
 
 	bool dmaTransfer;
 	uint8_t dmaCycles;
@@ -83,25 +96,8 @@ private:
 	std::array<color, 4> colors;
 	constexpr color getColor(uint8_t ind) { return colors[ind]; }
 
-	constexpr void setPixel(uint8_t x, uint8_t y, color c)
-	{
-		uint32_t baseInd = (y * SCR_WIDTH * 3) + (x * 3);
-
-		currentBuffer[baseInd] = c.R; 
-		currentBuffer[baseInd + 1] = c.G;
-		currentBuffer[baseInd + 2] = c.B;
-	}
-	constexpr color getPixel(uint8_t x, uint8_t y)
-	{
-		uint32_t baseInd = (y * SCR_WIDTH * 3) + (x * 3);
-
-		return color
-		{
-			currentBuffer[baseInd],
-			currentBuffer[baseInd + 1],
-			currentBuffer[baseInd + 2]
-		};
-	}
+	constexpr void setPixel(uint8_t x, uint8_t y, color c) { PixelOps::setPixel(framebuffer.data(), SCR_WIDTH, x, y, c); }
+	constexpr color getPixel(uint8_t x, uint8_t y) { return PixelOps::getPixel(framebuffer.data(), SCR_WIDTH, x, y); }
 
 	std::array<uint8_t, 4> BGpalette;
 	std::array<uint8_t, 4> OBP0palette;
@@ -120,16 +116,14 @@ private:
 	void handlePixelTransfer();
 
 	void renderScanLine();
-	void renderBackground(uint8_t LY, bool saveTransparencyValues);
-	void renderWindow(uint8_t LY, uint8_t& WLY, bool saveTransparencyValues);
-	void renderOAM(uint8_t LY, bool checkBgTransparency);
+	void renderBackground();
+	void renderWindow();
+	void renderOAM();
 	void renderBlank();
 
-	void renderTileMap(uint8_t* buffer);
-
 	inline uint16_t getBGTileAddr(uint8_t tileInd) { return BGUnsignedAddressing() ? tileInd * 16 : 0x1000 + static_cast<int8_t>(tileInd) * 16; }
-	void renderBGTile(uint16_t addr, uint8_t LY, uint8_t screenX, uint8_t scrollY, bool saveTransparencyValues);
-	void renderObjTile(uint16_t tileAddr, uint8_t LY, uint8_t attributes, int16_t objX, int16_t objY, bool checkBgTransparency);
+	void renderBGTile(uint16_t addr, uint8_t screenX, uint8_t scrollY, pixelInfo* updatedPixelsBuffer = nullptr);
+	void renderObjTile(uint16_t tileAddr, uint8_t attributes, int16_t objX, int16_t objY);
 
 	inline bool TileMapsEnable() { return getBit(mmu.directRead(0xFF40), 0); }
 	inline bool OBJEnable() { return getBit(mmu.directRead(0xFF40), 1); }

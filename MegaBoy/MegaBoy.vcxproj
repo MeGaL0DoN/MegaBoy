@@ -160,6 +160,7 @@
     <ClCompile Include="Shader.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="pixelOps.h" />
     <ClInclude Include="CPU.h" />
     <ClInclude Include="debugUI.h" />
     <ClInclude Include="GBCore.h" />

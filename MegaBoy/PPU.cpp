@@ -9,14 +9,6 @@ void PPU::reset()
 	dmaTransfer = false;
 	disableLCD(PPUMode::OAMSearch);
 }
-void PPU::clearBuffer()
-{
-	for (int x = 0; x < SCR_WIDTH; x++)
-	{
-		for (int y = 0; y < SCR_HEIGHT; y++)
-			setPixel(x, y, colors[0]);
-	}
-}
 void PPU::disableLCD(PPUMode mode)
 {
 	SetLY(0);
@@ -135,6 +127,9 @@ void PPU::handleHBlank()
 		videoCycles -= HBLANK_CYCLES;
 		SetLY(LY + 1);
 
+		std::fill(updatedOAMPixels.begin(), updatedOAMPixels.end(), pixelInfo{});
+		std::fill(updatedWindowPixels.begin(), updatedWindowPixels.end(), pixelInfo{});
+
 		if (LY == 144)
 		{
 			SetPPUMode(PPUMode::VBlank);
@@ -174,25 +169,31 @@ void PPU::renderScanLine()
 {
 	if (TileMapsEnable())
 	{
-		renderBackground(LY, true);
-		if (WindowEnable()) renderWindow(LY, WLY, true);
+		renderBackground(); 
+		if (WindowEnable()) renderWindow();
 	}
 	else
 		renderBlank();
 
-	if (OBJEnable()) renderOAM(LY, true);
+	if (OBJEnable()) renderOAM();
 }
 
 void PPU::renderBlank()
 {
 	for (int x = 0; x < SCR_WIDTH; x++)
 	{
-		setPixel(x, LY, getColor(BGpalette[0]));
+		auto color = getColor(BGpalette[0]);
+		setPixel(x, LY, color);
+
 		opaqueBackgroundPixels[x] = true;
+		updatedBGPixels[x] = { true, color };
 	}
+
+	if (onBackgroundRender != nullptr)
+		onBackgroundRender(framebuffer, LY);
 }
 
-void PPU::renderBackground(uint8_t LY, bool saveTransparencyValues)
+void PPU::renderBackground()
 {
 	// TODO: check horizontal scrolling.
 
@@ -204,10 +205,13 @@ void PPU::renderBackground(uint8_t LY, bool saveTransparencyValues)
 	{
 		uint16_t tileXInd = (tileX + scrollX / 8) % 32; // To check
 		uint8_t tileIndex = VRAM[bgTileAddr + tileYInd + tileXInd];
-		renderBGTile(getBGTileAddr(tileIndex), LY, tileX * 8 - scrollX % 8, SCY(), saveTransparencyValues);
+		renderBGTile(getBGTileAddr(tileIndex), tileX * 8 - scrollX % 8, SCY(), nullptr);
 	}
+
+	if (onBackgroundRender != nullptr)
+		onBackgroundRender(framebuffer, LY);
 }
-void PPU::renderWindow(uint8_t LY, uint8_t& WLY, bool saveTransparencyValues)
+void PPU::renderWindow()
 {
 	int16_t wx = static_cast<int16_t>(WX()) - 7;
 	uint8_t wy = WY();
@@ -220,13 +224,16 @@ void PPU::renderWindow(uint8_t LY, uint8_t& WLY, bool saveTransparencyValues)
 	for (uint8_t tileX = 0; tileX < winTileXEnd; tileX++)
 	{
 		uint8_t tileIndex = VRAM[winTileAddr + tileYInd + tileX];
-		renderBGTile(getBGTileAddr(tileIndex), LY, wx + tileX * 8, 0, saveTransparencyValues);
+		renderBGTile(getBGTileAddr(tileIndex), wx + tileX * 8, 0, updatedWindowPixels.data());
 	};
 
 	WLY++;
+
+	if (onWindowRender != nullptr)
+		onWindowRender(updatedWindowPixels, LY);
 }
 
-void PPU::renderBGTile(uint16_t addr, uint8_t LY, uint8_t screenX, uint8_t scrollY, bool saveTransparencyValues)
+void PPU::renderBGTile(uint16_t addr, uint8_t screenX, uint8_t scrollY, pixelInfo* updatedPixelsBuffer)
 {
 	uint8_t lineOffset = 2 * ((LY + scrollY) % 8);
 	uint8_t lsbLineByte = VRAM[addr + lineOffset];
@@ -238,13 +245,16 @@ void PPU::renderBGTile(uint16_t addr, uint8_t LY, uint8_t screenX, uint8_t scrol
 		int16_t xPos = 7 - x + screenX;
 		if (xPos >= 0 && xPos < SCR_WIDTH)
 		{
+			auto color = getColor(BGpalette[colorId]);
 			setPixel(xPos, LY, getColor(BGpalette[colorId]));
-			if (saveTransparencyValues) opaqueBackgroundPixels[xPos] = (colorId == 0);
+
+			opaqueBackgroundPixels[xPos] = (colorId == 0);
+			if (updatedPixelsBuffer != nullptr) updatedPixelsBuffer[xPos] = { true, color };
 		}
 	}
 }
 
-void PPU::renderObjTile(uint16_t tileAddr, uint8_t LY, uint8_t attributes, int16_t objX, int16_t objY, bool checkBgTransparency)
+void PPU::renderObjTile(uint16_t tileAddr, uint8_t attributes, int16_t objX, int16_t objY)
 {
 	const bool xFlip = getBit(attributes, 5);
 	const bool yFlip = getBit(attributes, 6);
@@ -264,8 +274,12 @@ void PPU::renderObjTile(uint16_t tileAddr, uint8_t LY, uint8_t attributes, int16
 
 			if (xPos >= 0 && xPos < SCR_WIDTH)
 			{
-				if (colorId != 0 && (!checkBgTransparency || (priority == 0 || opaqueBackgroundPixels[xPos])))
-					setPixel(xPos, LY, getColor(palette[colorId]));
+				if (colorId != 0 && (priority == 0 || opaqueBackgroundPixels[xPos]))
+				{
+					auto color = getColor(palette[colorId]);
+					setPixel(xPos, LY, color);
+					updatedOAMPixels[xPos] = { true, color };
+				}
 			}
 		}
 	}
@@ -289,7 +303,7 @@ bool objComparator(const object& obj1, const object& obj2)
 	return obj1.tileAddr < obj2.tileAddr;
 }
 
-void PPU::renderOAM(uint8_t LY, bool checkBgTransparency)
+void PPU::renderOAM()
 {
 	bool doubleObj = DoubleOBJSize();
 
@@ -335,11 +349,30 @@ void PPU::renderOAM(uint8_t LY, bool checkBgTransparency)
 	std::sort(selectedObjects, selectedObjects + objCount, objComparator);
 
 	for (int i = 0; i < objCount; i++)
-		renderObjTile(selectedObjects[i].tileAddr, LY, selectedObjects[i].attributes, selectedObjects[i].X, selectedObjects[i].Y, checkBgTransparency);
+		renderObjTile(selectedObjects[i].tileAddr, selectedObjects[i].attributes, selectedObjects[i].X, selectedObjects[i].Y);
+
+	if (onOAMRender != nullptr)
+		onOAMRender(updatedOAMPixels, LY);
 }
 
 
-void PPU::renderTileMap(uint8_t* buffer)
+void PPU::renderTileData(uint8_t* buffer) // TODO
 {
+	//for (int x = 0; x < 32; x++)
+	//{
+	//	for (int y = 0; y < 32; y++)
+	//	{
+	//		uint8_t tileAddr = x * y;
+	//		uint8_t lineOffset = 2 * y;
 
+	//		uint8_t lsbLineByte = VRAM[tileAddr * 32 + lineOffset];
+	//		uint8_t msbLineByte = VRAM[tileAddr * 32 + lineOffset + 1];
+
+	//		for (int x = 7; x >= 0; x--)
+	//		{
+	//			uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
+	//			PixelOps::setPixel(buffer, TILES_SIZE,  7 - x, LY, colors[colorId]);
+	//		}
+	//	}
+	//}
 }

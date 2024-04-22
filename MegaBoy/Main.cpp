@@ -31,20 +31,28 @@ constexpr nfdnfilteritem_t filterItem[] = { {L"Game ROM", L"gb,bin"} };
 GBCore gbCore{};
 std::string FPS_text{ "FPS: 00.00" };
 
+template <typename T>
+void loadBase(T path)
+{
+    gbCore.mmu.loadROM(path);
+    debugUI::clearBGBuffer();
+    debugUI::clearTileDataBuffer();
+}
+
 std::wstring currentROMPAth{};
-void loadROM(const wchar_t* path)
+inline void loadROM(const wchar_t* path)
 {
     if (std::filesystem::exists(path))
     {
-        gbCore.mmu.loadROM(path);
+        loadBase(path);
         currentROMPAth = path;
     }
 }
-void loadROM(const char* path)
+inline void loadROM(const char* path)
 {
     if (std::filesystem::exists(path))
     {
-        gbCore.mmu.loadROM(path);
+        loadBase(path);
         currentROMPAth = std::wstring(path, path + strlen(path));
     }
 }
