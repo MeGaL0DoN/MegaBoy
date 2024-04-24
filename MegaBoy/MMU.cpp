@@ -105,7 +105,7 @@ uint8_t MMU::read8(memoryAddress addr) const
 	case 0xFF01:
 		return gbCore.serial.serial_reg;
 	case 0xFF02:
-		return gbCore.serial.serial_control;
+		return gbCore.serial.serial_control;// 0b01111100;
 	case 0xFF44:
 		return gbCore.ppu.LY;
 	case 0xFF0F:

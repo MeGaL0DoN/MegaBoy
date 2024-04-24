@@ -146,7 +146,7 @@ void PPU::handleVBlank()
 		videoCycles -= VBLANK_CYCLES;
 		SetLY(LY + 1);
 
-		if (LY == 153)
+		if (LY == 154)
 		{
 			SetLY(0);
 			WLY = 0;
@@ -195,17 +195,15 @@ void PPU::renderBlank()
 
 void PPU::renderBackground()
 {
-	// TODO: check horizontal scrolling.
-
 	uint16_t bgTileAddr = BGTileAddr();
 	uint16_t tileYInd = (static_cast<uint8_t>(LY + SCY()) / 8) * 32;
 	uint8_t scrollX = SCX();
 
-	for (uint8_t tileX = 0; tileX < 20; tileX++)
+	for (uint8_t tileX = 0; tileX < 21; tileX++)
 	{
-		uint16_t tileXInd = (tileX + scrollX / 8) % 32; // To check
+		uint16_t tileXInd = (tileX + scrollX / 8) % 32; 
 		uint8_t tileIndex = VRAM[bgTileAddr + tileYInd + tileXInd];
-		renderBGTile(getBGTileAddr(tileIndex), tileX * 8 - scrollX % 8, SCY(), nullptr);
+		renderBGTile(getBGTileAddr(tileIndex), (tileX * 8 - scrollX % 8), SCY());
 	}
 
 	if (onBackgroundRender != nullptr)
@@ -218,13 +216,13 @@ void PPU::renderWindow()
 	if (LY < wy || wx < 0 || wx >= SCR_WIDTH) return;
 
 	uint16_t winTileAddr = WindowTileAddr();
-	uint16_t tileYInd = (WLY) / 8 * 32;
+	uint16_t tileYInd = WLY / 8 * 32;
 	uint8_t winTileXEnd = 32 - (wx / 8);
 
 	for (uint8_t tileX = 0; tileX < winTileXEnd; tileX++)
 	{
 		uint8_t tileIndex = VRAM[winTileAddr + tileYInd + tileX];
-		renderBGTile(getBGTileAddr(tileIndex), wx + tileX * 8, 0, updatedWindowPixels.data());
+		renderBGTile(getBGTileAddr(tileIndex), wx + tileX * 8, WLY - LY, updatedWindowPixels.data());
 	};
 
 	WLY++;
@@ -233,7 +231,7 @@ void PPU::renderWindow()
 		onWindowRender(updatedWindowPixels, LY);
 }
 
-void PPU::renderBGTile(uint16_t addr, uint8_t screenX, uint8_t scrollY, pixelInfo* updatedPixelsBuffer)
+void PPU::renderBGTile(uint16_t addr, int16_t screenX, uint8_t scrollY, pixelInfo* updatedPixelsBuffer)
 {
 	uint8_t lineOffset = 2 * ((LY + scrollY) % 8);
 	uint8_t lsbLineByte = VRAM[addr + lineOffset];
@@ -358,21 +356,4 @@ void PPU::renderOAM()
 
 void PPU::renderTileData(uint8_t* buffer) // TODO
 {
-	//for (int x = 0; x < 32; x++)
-	//{
-	//	for (int y = 0; y < 32; y++)
-	//	{
-	//		uint8_t tileAddr = x * y;
-	//		uint8_t lineOffset = 2 * y;
-
-	//		uint8_t lsbLineByte = VRAM[tileAddr * 32 + lineOffset];
-	//		uint8_t msbLineByte = VRAM[tileAddr * 32 + lineOffset + 1];
-
-	//		for (int x = 7; x >= 0; x--)
-	//		{
-	//			uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
-	//			PixelOps::setPixel(buffer, TILES_SIZE,  7 - x, LY, colors[colorId]);
-	//		}
-	//	}
-	//}
 }

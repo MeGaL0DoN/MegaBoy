@@ -65,6 +65,8 @@ public:
 	static constexpr std::array<color, 4> BGB_GREEN_PALETTE = { color {224, 248, 208}, color {136, 192, 112 }, color {52, 104, 86}, color{8, 24, 32} };
 
 	constexpr void setColorsPalette(const std::array<color, 4>& newColors) { colors = newColors; }
+	constexpr const std::array<color, 4> getCurrentPalette() { return colors; }
+
 	void updateScreenColors(const std::array<color, 4>& newColors);
 private:
 	MMU& mmu;
@@ -122,7 +124,7 @@ private:
 	void renderBlank();
 
 	inline uint16_t getBGTileAddr(uint8_t tileInd) { return BGUnsignedAddressing() ? tileInd * 16 : 0x1000 + static_cast<int8_t>(tileInd) * 16; }
-	void renderBGTile(uint16_t addr, uint8_t screenX, uint8_t scrollY, pixelInfo* updatedPixelsBuffer = nullptr);
+	void renderBGTile(uint16_t addr, int16_t screenX, uint8_t scrollY, pixelInfo* updatedPixelsBuffer = nullptr);
 	void renderObjTile(uint16_t tileAddr, uint8_t attributes, int16_t objX, int16_t objY);
 
 	inline bool TileMapsEnable() { return getBit(mmu.directRead(0xFF40), 0); }

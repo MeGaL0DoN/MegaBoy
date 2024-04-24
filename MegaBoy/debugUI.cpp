@@ -2,24 +2,38 @@
 #include <ImGUI/imgui.h>
 #include "glFunctions.h"
 
-void OAM_Window_renderEvent(const std::array<pixelInfo, PPU::SCR_WIDTH>& updatedPixels, uint8_t LY)
+void backgroundRenderEvent(const std::array<uint8_t, PPU::FRAMEBUFFER_SIZE>& buffer, uint8_t LY)
 {
-    debugUI::clearBGScanline(LY);
+    if (!debugUI::BGFrameBuffer) return;
+
+    for (int x = 0; x < PPU::SCR_WIDTH; x++)
+        PixelOps::setPixel(debugUI::BGFrameBuffer.get(), PPU::SCR_WIDTH, x, LY, PixelOps::getPixel(buffer.data(), PPU::SCR_WIDTH, x, LY));
+}
+
+void OAM_renderEvent(const std::array<pixelInfo, PPU::SCR_WIDTH>& updatedPixels, uint8_t LY)
+{
+    if (!debugUI::OAMFrameBuffer) return;
+    debugUI::clearBGScanline(debugUI::OAMFrameBuffer.get(), LY);
 
     for (int x = 0; x < PPU::SCR_WIDTH; x++)
     {
         if (updatedPixels[x].isSet)
-            debugUI::setBGPixel(x, LY, updatedPixels[x].data);
+            PixelOps::setPixel(debugUI::OAMFrameBuffer.get(), PPU::SCR_WIDTH, x, LY, updatedPixels[x].data);
+    }
+}
+void windowRenderEvent(const std::array<pixelInfo, PPU::SCR_WIDTH>& updatedPixels, uint8_t LY)
+{
+    if (!debugUI::windowFrameBuffer) return;
+    debugUI::clearBGScanline(debugUI::windowFrameBuffer.get(), LY);
+
+    for (int x = 0; x < PPU::SCR_WIDTH; x++)
+    {
+        if (updatedPixels[x].isSet)
+            PixelOps::setPixel(debugUI::windowFrameBuffer.get(), PPU::SCR_WIDTH, x, LY, updatedPixels[x].data);
     }
 }
 
-void backgroundRenderEvent(const std::array<uint8_t, PPU::FRAMEBUFFER_SIZE>& buffer, uint8_t LY)
-{
-    for (int x = 0; x < PPU::SCR_WIDTH; x++)
-        debugUI::setBGPixel(x, LY, PixelOps::getPixel(buffer.data(), PPU::SCR_WIDTH, x, LY));
-}
-
-void debugUI::updateMenu(GBCore& gbCore)
+void debugUI::updateMenu()
 {
     if (ImGui::BeginMenu("Debug"))
     {
@@ -27,27 +41,25 @@ void debugUI::updateMenu(GBCore& gbCore)
         {
             showMemoryView = !showMemoryView;
 
-            if (firstMemoryViewOpen)
-            {
+            if (memoryData == nullptr)
                 memoryData = std::make_unique<std::string[]>(4096);
-                firstMemoryViewOpen = false;
-            }
             else
                 std::fill(memoryData.get(), memoryData.get() + 4096, "");
         }
         if (ImGui::MenuItem("VRAM View"))
         {
-            if (firstVRAMViewOpen)
-            {
+            if (backgroundTexture == 0)
                 OpenGL::createTexture(backgroundTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
-                BGFrameBuffer = std::make_unique<uint8_t[]>(PPU::FRAMEBUFFER_SIZE);
-                clearBGBuffer();
-                firstVRAMViewOpen = false;
-            }
 
             showVRAMView = !showVRAMView;
 
-            if (!showVRAMView)
+            if (showVRAMView)
+            {
+                gbCore.ppu.onBackgroundRender = backgroundRenderEvent;
+                gbCore.ppu.onWindowRender = windowRenderEvent;
+                gbCore.ppu.onOAMRender = OAM_renderEvent;
+            }
+            else
                 gbCore.ppu.resetCallbacks();
         }
 
@@ -94,20 +106,11 @@ inline void displayImage(uint32_t texture, uint8_t* data, uint16_t width = PPU::
     ImGui::Image((void*)texture, ImGui::GetContentRegionAvail());
 }
 
-enum VRAMTab
-{
-    Background,
-    Window,
-    OAM,
-    TileData
-};
-
-VRAMTab currentVramTab;
-
-void debugUI::updateWindows(GBCore& gbCore)
+void debugUI::updateWindows()
 {
     if (showMemoryView)
     {
+        ImGui::SetNextWindowSizeConstraints(ImVec2(-1.f, ImGui::GetFontSize() * 12.0f), ImVec2(INFINITY, INFINITY));
         ImGui::Begin("Memory View", &showMemoryView);
 
         ImGui::BeginDisabled(realTimeMemView);
@@ -148,27 +151,31 @@ void debugUI::updateWindows(GBCore& gbCore)
 
     if (showVRAMView)
     {
+        ImGui::SetNextWindowSizeConstraints(ImVec2(PPU::SCR_WIDTH * 3, PPU::SCR_HEIGHT * 3 + ImGui::GetFrameHeight()), ImVec2(FLT_MAX, FLT_MAX));
         ImGui::Begin("VRAM View", &showVRAMView);
-        gbCore.ppu.resetCallbacks();
 
         if (ImGui::BeginTabBar("tabbar"))
         {
             if (ImGui::BeginTabItem("Background"))
             {
-                gbCore.ppu.onBackgroundRender = backgroundRenderEvent;
-                if (currentVramTab != VRAMTab::Background) clearBGBuffer();
+                if (BGFrameBuffer == nullptr)
+                {
+                    BGFrameBuffer = std::make_unique<uint8_t[]>(PPU::FRAMEBUFFER_SIZE);
+                    clearBGBuffer(BGFrameBuffer.get());
+                }
 
                 displayImage(backgroundTexture, BGFrameBuffer.get());
                 ImGui::EndTabItem();
-                currentVramTab = VRAMTab::Background;
             }
             if (ImGui::BeginTabItem("Window"))
             {
-                gbCore.ppu.onWindowRender = OAM_Window_renderEvent;
-                if (currentVramTab != VRAMTab::Window) clearBGBuffer();
+                if (windowFrameBuffer == nullptr)
+                {
+                    windowFrameBuffer = std::make_unique<uint8_t[]>(PPU::FRAMEBUFFER_SIZE);
+                    clearBGBuffer(windowFrameBuffer.get());
+                }
 
-                displayImage(backgroundTexture, BGFrameBuffer.get());
-                currentVramTab = VRAMTab::Window;
+                displayImage(backgroundTexture, windowFrameBuffer.get());
                 ImGui::EndTabItem();
             }
             if (ImGui::BeginTabItem("OAM"))
@@ -193,29 +200,28 @@ void debugUI::updateWindows(GBCore& gbCore)
                 }
                 else
                 {
-                    gbCore.ppu.onOAMRender = OAM_Window_renderEvent;
-                    if (currentVramTab != VRAMTab::OAM) clearBGBuffer();
+                    if (OAMFrameBuffer == nullptr)
+                    {
+                        OAMFrameBuffer = std::make_unique<uint8_t[]>(PPU::FRAMEBUFFER_SIZE);
+                        clearBGBuffer(OAMFrameBuffer.get());
+                    }
 
-                    displayImage(backgroundTexture, BGFrameBuffer.get());
-                    currentVramTab = VRAMTab::OAM;
+                    displayImage(backgroundTexture, OAMFrameBuffer.get());
                 }
 
                 ImGui::EndTabItem();
             }
             if (ImGui::BeginTabItem("Tile Data"))
             {
-                if (firstVRAMTileDataOpen)
+                if (tileDataFrameBuffer == nullptr)
                 {
                     OpenGL::createTexture(tileDataTexture, 32 * 8, 32 * 8);
                     tileDataFrameBuffer = std::make_unique<uint8_t[]>(PPU::TILEDATA_FRAMEBUFFER_SIZE);
                     clearTileDataBuffer();
-                    firstVRAMTileDataOpen = false;
                 }
 
                 gbCore.ppu.renderTileData(tileDataFrameBuffer.get());
                 displayImage(tileDataTexture, tileDataFrameBuffer.get(), PPU::TILES_SIZE, PPU::TILES_SIZE);
-
-                currentVramTab = VRAMTab::TileData;
                 ImGui::EndTabItem();
             }
 

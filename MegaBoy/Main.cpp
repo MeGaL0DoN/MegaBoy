@@ -9,6 +9,7 @@
 #include <iostream>
 #include <thread>
 #include <filesystem>
+#include <chrono>
 
 #include "GBCore.h"
 #include "Shader.h"
@@ -16,6 +17,11 @@
 #include "glFunctions.h"
 
 GLFWwindow* window;
+
+bool fpsLock{ true };
+bool vsync { true };
+int vsyncCPUCycles;
+
 int menuBarHeight;
 int viewport_width, viewport_height;
 
@@ -28,15 +34,14 @@ uint32_t gbFramebufferTexture;
 const std::wstring defaultPath{ std::filesystem::current_path().wstring() };
 constexpr nfdnfilteritem_t filterItem[] = { {L"Game ROM", L"gb,bin"} };
 
-GBCore gbCore{};
+extern GBCore gbCore;
 std::string FPS_text{ "FPS: 00.00" };
 
 template <typename T>
 void loadBase(T path)
 {
     gbCore.mmu.loadROM(path);
-    debugUI::clearBGBuffer();
-    debugUI::clearTileDataBuffer();
+    debugUI::clearBuffers();
 }
 
 std::wstring currentROMPAth{};
@@ -145,11 +150,18 @@ void renderImGUI()
         }
         if (ImGui::BeginMenu("Graphics"))
         {
-            static bool vsync{ true };
             static bool upscaling{ false };
 
             if (ImGui::Checkbox("VSync", &vsync))
                 glfwSwapInterval(vsync ? 1 : 0);
+
+            if (!vsync)
+            {
+                ImGui::Spacing();
+                ImGui::Separator();
+                ImGui::Spacing();
+                ImGui::Checkbox("FPS Lock", &fpsLock);
+            }
 
             ImGui::SeparatorText("UI");
 
@@ -200,7 +212,7 @@ void renderImGUI()
             ImGui::EndMenu();
         }
 
-        debugUI::updateMenu(gbCore);
+        debugUI::updateMenu();
 
         if (gbCore.paused)
         {
@@ -221,7 +233,7 @@ void renderImGUI()
         ImGui::EndMainMenuBar();
     }
 
-    debugUI::updateWindows(gbCore);
+    debugUI::updateWindows();
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -296,6 +308,7 @@ bool setGLFW()
 
     glClearColor(PPU::BGB_GREEN_PALETTE[0].R, PPU::BGB_GREEN_PALETTE[0].G, PPU::BGB_GREEN_PALETTE[0].B, 0);
     glClear(GL_COLOR_BUFFER_BIT);
+    glfwSwapBuffers(window);
 
     return true;
 }
@@ -318,7 +331,12 @@ void setWindowSize()
 
     glfwSetWindowSize(window, viewport_width, viewport_height + menuBarHeight);
     glfwSetWindowAspectRatio(window, viewport_width, viewport_height);
+
+    uint16_t maxHeight = mode->height - mode->height / 11.0;
+    glfwSetWindowSizeLimits(window, PPU::SCR_WIDTH * 2, PPU::SCR_HEIGHT * 2, maxHeight * (PPU::SCR_WIDTH / PPU::SCR_HEIGHT), maxHeight);
     glViewport(0, 0, viewport_width, viewport_height);
+
+    vsyncCPUCycles = GBCore::GetCycles(1.0 / mode->refreshRate);
 }
 
 void setImGUI()
@@ -345,6 +363,7 @@ int main()
     setBuffers();
 
     double lastFrameTime = glfwGetTime();
+    double timer{};
     double fpsTimer{};
     int frameCount{};
 
@@ -353,13 +372,24 @@ int main()
         double currentFrameTime = glfwGetTime();
         double deltaTime = currentFrameTime - lastFrameTime;
 
+        timer += deltaTime;
         fpsTimer += deltaTime;
 
-        constexpr double maxDeltaTime = 1.0 / 5.0;
-        if (deltaTime < maxDeltaTime) gbCore.update(deltaTime); // So holding the window down and then releasing doesn't block emulator by executing a bunch of instructions... 
+        constexpr double maxDeltaTime = 1.0 / 5.0; // So holding the window down and then releasing doesn't block emulator by executing a bunch of instructions... 
+        const bool shouldUpdate = vsync || (fpsLock && timer >= GBCore::FRAME_RATE) || (!fpsLock && deltaTime < maxDeltaTime);
 
-        glfwPollEvents();
-        render();
+        if (shouldUpdate)
+        {
+            if (!vsync && !fpsLock)
+                gbCore.update(GBCore::GetCycles(deltaTime));
+            else
+                gbCore.update(vsync ? vsyncCPUCycles : GBCore::CYCLES_PER_FRAME);
+
+            glfwPollEvents();
+            render();
+            frameCount++;
+            timer = 0;
+        }
 
         if (fpsTimer >= 1.0)
         {
@@ -370,7 +400,6 @@ int main()
             fpsTimer = 0;
         }
 
-        frameCount++;
         lastFrameTime = currentFrameTime;
     }
 

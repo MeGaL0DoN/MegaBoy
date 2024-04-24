@@ -1,10 +1,17 @@
 #include "GBCore.h"
 
-void GBCore::update(double deltaTime)
+GBCore gbCore{};
+
+GBCore::GBCore()
+{
+	if (std::filesystem::exists("data/boot_rom.bin"))
+		runBootROM = true;
+}
+
+void GBCore::update(int cyclesToExecute)
 {
 	if (!mmu.ROMLoaded || paused) return;
 
-	const int cyclesToExecute { static_cast<int>((CYCLES_PER_FRAME * (deltaTime / FRAME_RATE))) };
 	int currentCycles { 0 };
 
 	while (currentCycles < cyclesToExecute)
