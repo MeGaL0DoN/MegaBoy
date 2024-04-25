@@ -29,10 +29,12 @@ class PPU
 public:
 	static constexpr uint8_t SCR_WIDTH = 160;
 	static constexpr uint8_t SCR_HEIGHT = 144;
-	static constexpr uint16_t TILES_SIZE = 32 * 8;
+
+	static constexpr uint16_t TILES_WIDTH = 16 * 8;
+	static constexpr uint16_t TILES_HEIGHT = 24 * 8;
 
 	static constexpr uint32_t FRAMEBUFFER_SIZE = SCR_WIDTH * SCR_HEIGHT * 3;
-	static constexpr uint32_t TILEDATA_FRAMEBUFFER_SIZE = TILES_SIZE * TILES_SIZE * 3;
+	static constexpr uint32_t TILEDATA_FRAMEBUFFER_SIZE = TILES_WIDTH * TILES_HEIGHT * 3;
 
 	void (*onBackgroundRender)(const std::array<uint8_t, FRAMEBUFFER_SIZE>& buffer, uint8_t LY);
 	void (*onWindowRender)(const std::array<pixelInfo, SCR_WIDTH>& updatedPixels, uint8_t LY);
@@ -83,7 +85,6 @@ private:
 
 	std::array<pixelInfo, SCR_WIDTH> updatedWindowPixels;
 	std::array<pixelInfo, SCR_WIDTH> updatedOAMPixels;
-	std::array<pixelInfo, SCR_WIDTH> updatedBGPixels;
 
 	bool dmaTransfer;
 	uint8_t dmaCycles;

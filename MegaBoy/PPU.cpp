@@ -182,11 +182,8 @@ void PPU::renderBlank()
 {
 	for (int x = 0; x < SCR_WIDTH; x++)
 	{
-		auto color = getColor(BGpalette[0]);
-		setPixel(x, LY, color);
-
+		setPixel(x, LY, getColor(BGpalette[0]));
 		opaqueBackgroundPixels[x] = true;
-		updatedBGPixels[x] = { true, color };
 	}
 
 	if (onBackgroundRender != nullptr)
@@ -353,7 +350,26 @@ void PPU::renderOAM()
 		onOAMRender(updatedOAMPixels, LY);
 }
 
-
-void PPU::renderTileData(uint8_t* buffer) // TODO
+void PPU::renderTileData(uint8_t* buffer)
 {
+	for (int addr = 0; addr < 0x17FF; addr += 16)
+	{
+		uint16_t tileInd = addr / 16;
+		uint16_t screenX = (tileInd % 16) * 8;
+		uint16_t screenY = (tileInd / 16) * 8;
+
+		for (int y = 0; y < 8; y++)
+		{
+			uint16_t yPos = y + screenY;
+			uint8_t lsbLineByte = VRAM[addr + y * 2];
+			uint8_t msbLineByte = VRAM[addr + y * 2 + 1];
+
+			for (int x = 7; x >= 0; x--)
+			{
+				uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
+				uint16_t xPos = 7 - x + screenX;
+				PixelOps::setPixel(buffer, TILES_WIDTH, xPos, yPos, colors[colorId]);
+			}
+		}
+	}
 }

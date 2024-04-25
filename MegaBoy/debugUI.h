@@ -14,10 +14,10 @@ public:
 
 	static constexpr void clearBuffers()
 	{
-		clearTileDataBuffer();
 		clearBGBuffer(BGFrameBuffer.get());
 		clearBGBuffer(windowFrameBuffer.get());
 		clearBGBuffer(OAMFrameBuffer.get());
+		clearTileDataBuffer();
 	}
 private:
 	static inline bool showMemoryView { false };
@@ -34,7 +34,7 @@ private:
 	static inline uint32_t tileDataTexture {0};
 
 	static constexpr void clearBGBuffer(uint8_t* buffer) { PixelOps::clearBuffer(buffer, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu.getCurrentPalette()[0]); }
-	static constexpr void clearTileDataBuffer() { PixelOps::clearBuffer(tileDataFrameBuffer.get(), PPU::TILES_SIZE, PPU::TILES_SIZE, gbCore.ppu.getCurrentPalette()[0]); }
+	static constexpr void clearTileDataBuffer() { PixelOps::clearBuffer(tileDataFrameBuffer.get(), PPU::TILES_WIDTH, PPU::TILES_HEIGHT, gbCore.ppu.getCurrentPalette()[0]); }
 
 	static constexpr void clearBGScanline(uint8_t* buffer, uint8_t LY)
 	{
@@ -42,7 +42,7 @@ private:
 			PixelOps::setPixel(buffer, PPU::SCR_WIDTH, x, LY ,gbCore.ppu.getCurrentPalette()[0]);
 	}
 
-	friend void backgroundRenderEvent(const std::array<uint8_t, PPU::FRAMEBUFFER_SIZE>& buffer, uint8_t LY);
-	friend void OAM_renderEvent(const std::array<pixelInfo, PPU::SCR_WIDTH>& updatedPixels, uint8_t LY);
-	friend void windowRenderEvent(const std::array<pixelInfo, PPU::SCR_WIDTH>& updatedPixels, uint8_t LY);
+	static void backgroundRenderEvent(const std::array<uint8_t, PPU::FRAMEBUFFER_SIZE>& buffer, uint8_t LY);
+	static void OAM_renderEvent(const std::array<pixelInfo, PPU::SCR_WIDTH>& updatedPixels, uint8_t LY);
+	static void windowRenderEvent(const std::array<pixelInfo, PPU::SCR_WIDTH>& updatedPixels, uint8_t LY);
 };
