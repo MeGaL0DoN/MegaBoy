@@ -3,30 +3,37 @@
 #include "instructionsEngine.h"
 #include "GBCore.h"
 
-#include <iostream>
-#include <fstream>
-#include <string>
-
 InstructionsEngine instructions;
 
 CPU::CPU(GBCore& gbCore) : gbCore(gbCore)
 {
 	instructions = { this };
+	reset();
 }
 
 void CPU::reset()
 {
 	registers.resetRegisters();
+	cycles = 0;
 	PC = 0x0100;
 	SP = 0xFFFE;
-	DIV = 0;
-	TIMA = 0;
 	IME = false;
 	shouldSetIME = false;
 	halted = false;
 	stopped = false;
 	halt_bug = false;
 	executingBootROM = false;
+
+	DIV_COUNTER = 0;
+	TIMA_COUNTER = 0;
+
+	DIV_reg = 0xAB;
+	TIMA_reg = 0x00;
+	TMA_reg = 0x00;
+	TAC_reg = 0xF8;
+
+	IF = 0xE1;
+	IE = 0x00;
 }
 
 void CPU::addCycle()
@@ -100,8 +107,24 @@ uint8_t CPU::execute()
 	return cycles;
 }
 
+//std::ofstream outs("results.txt");
+//int i = 0;
+
 void CPU::executeMain()
 {
+	//if (i < 100000)
+	//{
+	//	outs << "A: " << +registers.A.val << " B: " << +registers.B.val << " C: " << +registers.C.val << " D: " << +registers.D.val << " E: " << +registers.E.val
+	//		<< " H: " << +registers.H.val << " L: " << +registers.L.val << " F: " << +registers.F.val << " PC: " << PC << " SP: " << SP.val <<
+	//		" LCDC: " << +gbCore.ppu.LCDC << "\n";
+	//}
+	//else if (i == 100000)
+	//{
+	//	outs.close();
+	//}
+
+	//i++;
+ 
 	uint8_t outRegInd = opcode & 0x07;
 	uint8_t inRegInd = (opcode >> 3) & 0x07;
 

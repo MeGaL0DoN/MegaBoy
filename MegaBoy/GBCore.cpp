@@ -8,9 +8,19 @@ GBCore::GBCore()
 		runBootROM = true;
 }
 
+void GBCore::reset()
+{
+	paused = false;
+
+	input.reset();
+	serial.reset();
+	cpu.reset();
+	ppu.reset();
+}
+
 void GBCore::update(int cyclesToExecute)
 {
-	if (!mmu.ROMLoaded || paused) return;
+	if (!cartridge.ROMLoaded || paused) return;
 
 	int currentCycles { 0 };
 

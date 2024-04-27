@@ -47,40 +47,32 @@ void CPU::requestInterrupt(Interrupt interrupt)
 	IF = setBit(IF, static_cast<uint8_t>(interrupt));
 }
 
-constexpr uint16_t DIV_ADDR = 0xFF04;
-constexpr uint16_t TIMA_ADDR = 0xFF05;
-constexpr uint16_t TMA_ADDR = 0xFF06;
-constexpr uint16_t TAC_ADDR = 0xFF07;
-
 constexpr std::array<uint16_t, 4> TIMAcycles = { 256, 4, 16, 64 };
 
 void CPU::updateTimer()
 {
-	DIV++;
-	if (DIV >= 64)
+	DIV_COUNTER++;
+	if (DIV_COUNTER >= 64)
 	{
-		DIV -= 64;
-		gbCore.mmu.directWrite(DIV_ADDR, gbCore.mmu.directRead(DIV_ADDR) + 1);
+		DIV_COUNTER -= 64;
+		DIV_reg++;
 	}
 
-	uint8_t TAC = gbCore.mmu.directRead(TAC_ADDR);
-	if (getBit(TAC, 2))
+	if (getBit(TAC_reg, 2))
 	{
-		TIMA++;
-		uint16_t currentTIMAspeed = TIMAcycles[TAC & 0x03];
+		TIMA_COUNTER++;
+		uint16_t currentTIMAspeed = TIMAcycles[TAC_reg & 0x03];
 
-		while (TIMA >= currentTIMAspeed) 
+		while (TIMA_COUNTER >= currentTIMAspeed) 
 		{
-			TIMA -= currentTIMAspeed;
-			uint8_t tima_val = gbCore.mmu.directRead(TIMA_ADDR) + 1;
+			TIMA_COUNTER -= currentTIMAspeed;
+			TIMA_reg++;
 
-			if (tima_val == 0)
+			if (TIMA_reg == 0)
 			{
-				tima_val = gbCore.mmu.directRead(TMA_ADDR);
+				TIMA_reg = TMA_reg;
 				requestInterrupt(Interrupt::Timer);
 			}
-
-			gbCore.mmu.directWrite(TIMA_ADDR, tima_val);
 		}
 	}
 }

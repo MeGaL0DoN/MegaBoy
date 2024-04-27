@@ -9,7 +9,6 @@
 #include <iostream>
 #include <thread>
 #include <filesystem>
-#include <chrono>
 
 #include "GBCore.h"
 #include "Shader.h"
@@ -40,7 +39,7 @@ std::string FPS_text{ "FPS: 00.00" };
 template <typename T>
 void loadBase(T path)
 {
-    gbCore.mmu.loadROM(path);
+    gbCore.cartridge.loadROM(path);
     debugUI::clearBuffers();
 }
 
@@ -195,7 +194,7 @@ void renderImGUI()
             if (ImGui::ListBox("Palette", &palette, palettes, 3))
             {
                 auto colors = palette == 0 ? PPU::BGB_GREEN_PALETTE : palette == 1 ? PPU::GRAY_PALETTE : PPU::CLASSIC_PALETTE;
-                if (gbCore.paused || !gbCore.mmu.ROMLoaded) gbCore.ppu.updateScreenColors(colors);
+                if (gbCore.paused || !gbCore.cartridge.ROMLoaded) gbCore.ppu.updateScreenColors(colors);
                 gbCore.ppu.setColorsPalette(colors);
             }
 
@@ -336,7 +335,7 @@ void setWindowSize()
     glfwSetWindowSizeLimits(window, PPU::SCR_WIDTH * 2, PPU::SCR_HEIGHT * 2, maxHeight * (PPU::SCR_WIDTH / PPU::SCR_HEIGHT), maxHeight);
     glViewport(0, 0, viewport_width, viewport_height);
 
-    vsyncCPUCycles = GBCore::GetCycles(1.0 / mode->refreshRate);
+    vsyncCPUCycles = GBCore::getCycles(1.0 / mode->refreshRate);
 }
 
 void setImGUI()
@@ -354,6 +353,41 @@ void setImGUI()
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330");
 }
+
+//void compareFiles()
+//{
+//    std::ifstream newV("results.txt");
+//    std::ifstream oldV("resultsOld.txt");
+//
+//    std::vector<std::string> newLines;
+//    std::vector<std::string> oldLines;
+//
+//    newLines.reserve(100000);
+//    oldLines.reserve(100000);
+//
+//    std::string line;
+//
+//    while (std::getline(newV, line))
+//    {
+//        newLines.push_back(line);
+//    }
+//
+//    while (std::getline(oldV, line))
+//    {
+//        oldLines.push_back(line);
+//    }
+//
+//    for (int i = 0; i < 100000; i++)
+//    {
+//        if (newLines[i] != oldLines[i])
+//        {
+//            std::cout << "Difference at line " << i + 1 << "\n";
+//            return;
+//        }
+//    }
+//
+//    std::cout << "No differences! \n";
+//}
 
 int main()
 {
@@ -381,7 +415,7 @@ int main()
         if (shouldUpdate)
         {
             if (!vsync && !fpsLock)
-                gbCore.update(GBCore::GetCycles(deltaTime));
+                gbCore.update(GBCore::getCycles(deltaTime));
             else
                 gbCore.update(vsync ? vsyncCPUCycles : GBCore::CYCLES_PER_FRAME);
 

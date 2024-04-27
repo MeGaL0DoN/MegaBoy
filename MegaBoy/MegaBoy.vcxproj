@@ -140,12 +140,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Cartridge.cpp" />
     <ClCompile Include="CPU.cpp" />
     <ClCompile Include="CPU_interrupts.cpp" />
     <ClCompile Include="debugUI.cpp" />
     <ClCompile Include="GBCore.cpp" />
     <ClCompile Include="glFunctions.cpp" />
     <ClCompile Include="inputManager.cpp" />
+    <ClCompile Include="MBC.h" />
     <ClCompile Include="PPU.cpp" />
     <ClCompile Include="Libs\glad\glad.c" />
     <ClCompile Include="Libs\ImGUI\imgui.cpp" />
@@ -160,6 +162,8 @@
     <ClCompile Include="Shader.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Cartridge.h" />
+    <ClInclude Include="NoMBC.h" />
     <ClInclude Include="pixelOps.h" />
     <ClInclude Include="CPU.h" />
     <ClInclude Include="debugUI.h" />

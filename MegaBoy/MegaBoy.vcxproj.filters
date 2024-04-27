@@ -28,6 +28,12 @@
     <Filter Include="data\shaders">
       <UniqueIdentifier>{73d07796-dcb3-4c93-bb47-d6576ada369c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\Mappers">
+      <UniqueIdentifier>{900ce597-3002-4b06-afb5-4303f019c9e3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Mappers">
+      <UniqueIdentifier>{8d81a30c-7a6f-4c96-aa70-b1c924a466d4}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Main.cpp">
@@ -82,6 +88,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="glFunctions.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="MBC.h">
+      <Filter>Header Files\Mappers</Filter>
+    </ClCompile>
+    <ClCompile Include="Cartridge.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -145,6 +157,12 @@
     </ClInclude>
     <ClInclude Include="pixelOps.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Cartridge.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="NoMBC.h">
+      <Filter>Header Files\Mappers</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

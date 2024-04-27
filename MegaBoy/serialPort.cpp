@@ -1,9 +1,5 @@
 #include "serialPort.h"
 
-void serialPort::writeSerialReg(uint8_t val)
-{
-    serial_reg = val;
-}
 void serialPort::writeSerialControl(uint8_t val)
 {
     serial_control = val;

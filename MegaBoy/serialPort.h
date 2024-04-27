@@ -5,11 +5,10 @@ class serialPort
 {
 public:
 	serialPort(CPU& cpu) : cpu(cpu) { reset(); }
-	void writeSerialReg(uint8_t val);
 	void writeSerialControl(uint8_t val);
 	void execute();
 
-	inline void reset() { serial_reg = 0x0; serial_control = 0x0; serialCycles = 0; transferredBits = 0; }
+	constexpr void reset() { serial_reg = 0x0; serial_control = 0x7E; serialCycles = 0; transferredBits = 0; }
 	uint8_t serial_control;
 	uint8_t serial_reg;
 private:

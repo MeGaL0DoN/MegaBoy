@@ -216,8 +216,6 @@ void debugUI::updateWindows()
                 static bool showOAMMem {false};
                 ImGui::Checkbox("MEM View", &showOAMMem);
                 ImGui::Spacing();
-                ImGui::Separator();
-                ImGui::Spacing();
 
                 if (showOAMMem)
                 {
@@ -228,7 +226,7 @@ void debugUI::updateWindows()
                         std::string oamEntry = "0x" + to_hex_str(static_cast<uint16_t>(0xFE00 + i * 16)) + " ";
 
                         for (int j = 0; j < 16; j++)
-                            oamEntry += to_hex_str(gbCore.mmu.directRead(0xFE00 + i * 16 + j)) + " ";
+                            oamEntry += to_hex_str(gbCore.ppu.getOAM()[i * 16 + j]) + " ";
 
                         ImGui::Text(oamEntry.data());
                     }

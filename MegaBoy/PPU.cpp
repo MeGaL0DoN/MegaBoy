@@ -5,9 +5,21 @@
 
 void PPU::reset()
 {
-	std::memset(VRAM, 0, sizeof(VRAM));
+	std::memset(VRAM.data(), 0, sizeof(VRAM));
 	dmaTransfer = false;
 	disableLCD(PPUMode::OAMSearch);
+
+	LCDC = 0x91;
+	STAT = 0x85;
+	SCY = 0x00;
+	SCX = 0x00;
+	LYC = 0x00;
+	DMA = 0xFF;
+	WY = 0;
+	WX = 0;
+
+	BGP = 0xFC;
+	updatePalette(BGP, BGpalette);
 }
 void PPU::disableLCD(PPUMode mode)
 {
@@ -18,11 +30,11 @@ void PPU::disableLCD(PPUMode mode)
 	SetPPUMode(mode);
 }
 
-void PPU::startDMATransfer(uint16_t sourceAddr)
+void PPU::startDMATransfer()
 {
 	dmaTransfer = true;
 	dmaCycles = 0;
-	dmaSourceAddr = sourceAddr;
+	dmaSourceAddr = DMA * 0x100;
 }
 
 void PPU::updatePalette(uint8_t val, std::array<uint8_t, 4>& palette)
@@ -48,9 +60,9 @@ void PPU::SetLY(uint8_t val)
 {
 	LY = val;
 
-	if (LY == LYC())
+	if (LY == LYC)
 	{
-		mmu.directWrite(0xFF41, setBit(mmu.directRead(0xFF41), 2));
+		STAT = setBit(STAT, 2);
 
 		if (LYC_STAT())
 			cpu.requestInterrupt(Interrupt::STAT);
@@ -59,11 +71,9 @@ void PPU::SetLY(uint8_t val)
 
 void PPU::SetPPUMode(PPUMode ppuState)
 {
-	uint8_t lcdS = mmu.directRead(0xFF41);
-	lcdS = setBit(lcdS, 1, static_cast<uint8_t>(ppuState) & 0x2);
-	lcdS = setBit(lcdS, 0, static_cast<uint8_t>(ppuState) & 0x1);
+	STAT = setBit(STAT, 1, static_cast<uint8_t>(ppuState) & 0x2);
+	STAT = setBit(STAT, 0, static_cast<uint8_t>(ppuState) & 0x1);
 
-	mmu.directWrite(0xFF41, lcdS);
 	state = ppuState;
 
 	switch (state)
@@ -84,9 +94,7 @@ void PPU::execute()
 {
 	if (dmaTransfer)
 	{
-		uint16_t destinationAddr = 0xFE00 + dmaCycles;
-		mmu.directWrite(destinationAddr, mmu.directRead(dmaSourceAddr++));
-		dmaCycles++;
+		OAM[dmaCycles++] = mmu.read8(dmaSourceAddr++);
 
 		if (dmaCycles >= DMA_CYCLES)
 			dmaTransfer = false;
@@ -193,14 +201,13 @@ void PPU::renderBlank()
 void PPU::renderBackground()
 {
 	uint16_t bgTileAddr = BGTileAddr();
-	uint16_t tileYInd = (static_cast<uint8_t>(LY + SCY()) / 8) * 32;
-	uint8_t scrollX = SCX();
+	uint16_t tileYInd = (static_cast<uint8_t>(LY + SCY) / 8) * 32;
 
 	for (uint8_t tileX = 0; tileX < 21; tileX++)
 	{
-		uint16_t tileXInd = (tileX + scrollX / 8) % 32; 
+		uint16_t tileXInd = (tileX + SCX / 8) % 32; 
 		uint8_t tileIndex = VRAM[bgTileAddr + tileYInd + tileXInd];
-		renderBGTile(getBGTileAddr(tileIndex), (tileX * 8 - scrollX % 8), SCY());
+		renderBGTile(getBGTileAddr(tileIndex), (tileX * 8 - SCX % 8), SCY);
 	}
 
 	if (onBackgroundRender != nullptr)
@@ -208,9 +215,8 @@ void PPU::renderBackground()
 }
 void PPU::renderWindow()
 {
-	int16_t wx = static_cast<int16_t>(WX()) - 7;
-	uint8_t wy = WY();
-	if (LY < wy || wx < 0 || wx >= SCR_WIDTH) return;
+	int16_t wx = static_cast<int16_t>(WX) - 7;
+	if (LY < WY || wx < 0 || wx >= SCR_WIDTH) return;
 
 	uint16_t winTileAddr = WindowTileAddr();
 	uint16_t tileYInd = WLY / 8 * 32;
@@ -305,12 +311,12 @@ void PPU::renderOAM()
 	uint8_t objCount { 0 };
 	object selectedObjects [10];
 
-	for (uint16_t OAMAddr = 0xFE00; OAMAddr < 0xFE9F; OAMAddr += 4)
+	for (uint16_t OAMAddr = 0; OAMAddr < sizeof(OAM); OAMAddr += 4)
 	{
-		const int16_t objY = static_cast<int16_t>(mmu.directRead(OAMAddr)) - 16;
-		const int16_t objX = static_cast<int16_t>(mmu.directRead(OAMAddr + 1)) - 8;
-		const uint8_t tileInd = mmu.directRead(OAMAddr + 2);
-		const uint8_t attributes = mmu.directRead(OAMAddr + 3);
+		const int16_t objY = static_cast<int16_t>(OAM[OAMAddr]) - 16;
+		const int16_t objX = static_cast<int16_t>(OAM[OAMAddr + 1]) - 8;
+		const uint8_t tileInd = OAM[OAMAddr + 2];
+		const uint8_t attributes = OAM[OAMAddr + 3];
 		const bool yFlip = getBit(attributes, 6);
 
 		if (!doubleObj)

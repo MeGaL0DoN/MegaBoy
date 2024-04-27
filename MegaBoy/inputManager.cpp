@@ -26,6 +26,7 @@ std::map<int, uint8_t> dpadKeyConfig =
 
 void inputManager::reset()
 {
+	joypadReg = 0xCF;
 	dpadState = 0xF;
 	buttonState = 0xF;
 
@@ -33,18 +34,16 @@ void inputManager::reset()
 	readButtons = false;
 }
 
-void inputManager::modeChanged(uint8_t joypadReg)
+void inputManager::modeChanged()
 {
 	readButtons = !getBit(joypadReg, 5);
 	readDpad = !getBit(joypadReg, 4);
 
 	if (readButtons) joypadReg = (joypadReg & 0xF0) | buttonState;
 	if (readDpad) joypadReg = (joypadReg & 0xF0) | dpadState;
-
-	mmu.directWrite(0xFF00, joypadReg);
 }
 
-void inputManager::updateKeyGroup(int scancode, int action, uint8_t& keyState, const std::map<int, uint8_t>& keyConfig, bool setReg, uint8_t& joypadReg)
+void inputManager::updateKeyGroup(int scancode, int action, uint8_t& keyState, const std::map<int, uint8_t>& keyConfig, bool setReg)
 {
 	auto key = keyConfig.find(scancode);
 	if (key != keyConfig.end())
@@ -60,10 +59,6 @@ void inputManager::updateKeyGroup(int scancode, int action, uint8_t& keyState, c
 
 void inputManager::update(int scancode, int action)
 {
-	uint8_t joypadReg = mmu.directRead(0xFF00);
-
-	updateKeyGroup(scancode, action, dpadState, dpadKeyConfig, readDpad, joypadReg);
-	updateKeyGroup(scancode, action, buttonState, buttonKeyConfig, readButtons, joypadReg);
-
-	mmu.directWrite(0xFF00, joypadReg);
+	updateKeyGroup(scancode, action, dpadState, dpadKeyConfig, readDpad);
+	updateKeyGroup(scancode, action, buttonState, buttonKeyConfig, readButtons);
 }

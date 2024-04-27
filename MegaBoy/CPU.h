@@ -29,6 +29,8 @@ public:
 	friend class InstructionsEngine;
 	friend class MMU;
 
+	void reset();
+
 	inline void enableBootROM()
 	{
 		PC = 0x0;
@@ -42,8 +44,6 @@ private:
 
 	static constexpr uint8_t HL_IND = 6;
 	uint8_t& getRegister(uint8_t ind);
-
-	void reset();
 
 	void addCycle();
 	inline void addCycles(uint8_t cycles)
@@ -68,24 +68,29 @@ private:
 	registerCollection registers {};
 	GBCore& gbCore;
 
-	uint8_t opcode {};
-	uint8_t cycles {};
+	uint8_t opcode;
+	uint8_t cycles;
 
-	uint16_t PC { 0x0101 };
-	Register16 SP { 0xFFFE };
+	uint16_t PC;
+	Register16 SP;
 
-	uint16_t DIV{};
-	uint16_t TIMA{};
+	uint8_t DIV_reg;
+	uint8_t TIMA_reg;
+	uint8_t TMA_reg;
+	uint8_t TAC_reg;
 
-	uint8_t IE{};
-	uint8_t IF{};
+	uint16_t DIV_COUNTER;
+	uint16_t TIMA_COUNTER;
 
-	bool stopped { false };
-	bool halted { false };
-	bool halt_bug{ false };
+	uint8_t IE;
+	uint8_t IF;
 
-	bool IME { false };
-	bool shouldSetIME { false };
+	bool stopped;
+	bool halted;
+	bool halt_bug;
 
-	bool executingBootROM { false };
+	bool IME;
+	bool shouldSetIME;
+
+	bool executingBootROM;
 };
