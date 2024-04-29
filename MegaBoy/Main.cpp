@@ -62,6 +62,7 @@ inline void loadROM(const char* path)
 void updateGBTexture(const uint8_t* framebuffer)
 {
     OpenGL::updateTexture(gbFramebufferTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
+    debugUI::updateTextures();
 }
 
 void setBuffers()
@@ -236,10 +237,16 @@ void renderImGUI()
     updateImGUIViewports();
 }
 
+void renderGameBoy()
+{
+    OpenGL::bindTexture(gbFramebufferTexture);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+}
+
 void render()
 {
     glClear(GL_COLOR_BUFFER_BIT);
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0); // gameboy screen
+    renderGameBoy();
     renderImGUI();
     glfwSwapBuffers(window);
 }

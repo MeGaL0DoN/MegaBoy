@@ -62,7 +62,7 @@ void MBC1::updateOffsets()
 	else
 	{
 		lowROMOffset = ((32 * bank2) % cartridge.romBanks) * 0x4000;
-		if (cartridge.ramBanks > 0) RAMOffset = (bank2 % cartridge.ramBanks) * 0x2000;
+		if (hasRAM) RAMOffset = (bank2 % cartridge.ramBanks) * 0x2000;
 	}
 
 	highROMOffset = (((bank2 << 5) | bank1) % cartridge.romBanks) * 0x4000;

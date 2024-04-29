@@ -22,6 +22,24 @@ struct pixelInfo
 	color data;
 };
 
+struct object
+{
+	int16_t X;
+	int16_t Y;
+	uint16_t tileAddr;
+	uint8_t attributes;
+
+	static bool objComparator(const object& obj1, const object& obj2)
+	{
+		if (obj1.X > obj2.X)
+			return true;
+		else if (obj1.X < obj2.X)
+			return false;
+
+		return obj1.tileAddr < obj2.tileAddr;
+	}
+};
+
 class PPU
 {
 public:
@@ -101,9 +119,11 @@ private:
 	std::array<uint8_t, FRAMEBUFFER_SIZE> framebuffer;
 	std::bitset<SCR_WIDTH> opaqueBackgroundPixels;
 
-
 	std::array<pixelInfo, SCR_WIDTH> updatedWindowPixels;
 	std::array<pixelInfo, SCR_WIDTH> updatedOAMPixels;
+
+	uint8_t objCount { 0 };
+	object selectedObjects[10];
 
 	bool dmaTransfer;
 	uint8_t dmaCycles;

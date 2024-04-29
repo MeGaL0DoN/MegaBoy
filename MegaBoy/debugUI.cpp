@@ -1,6 +1,5 @@
 #include "debugUI.h"
 #include <ImGUI/imgui.h>
-#include "glFunctions.h"
 
 void debugUI::backgroundRenderEvent(const std::array<uint8_t, PPU::FRAMEBUFFER_SIZE>& buffer, uint8_t LY)
 {
@@ -48,9 +47,6 @@ void debugUI::updateMenu()
         }
         if (ImGui::MenuItem("VRAM View"))
         {
-            if (backgroundTexture == 0)
-                OpenGL::createTexture(backgroundTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
-
             showVRAMView = !showVRAMView;
 
             if (showVRAMView)
@@ -58,14 +54,6 @@ void debugUI::updateMenu()
                 gbCore.ppu.onBackgroundRender = debugUI::backgroundRenderEvent;
                 gbCore.ppu.onWindowRender = debugUI::windowRenderEvent;
                 gbCore.ppu.onOAMRender = debugUI::OAM_renderEvent;
-
-                if (tileDataFrameBuffer == nullptr)
-                {
-                    OpenGL::createTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT);
-                    tileDataFrameBuffer = std::make_unique<uint8_t[]>(PPU::TILEDATA_FRAMEBUFFER_SIZE);
-                }
-
-                gbCore.ppu.renderTileData(tileDataFrameBuffer.get());
             }
             else
                 gbCore.ppu.resetCallbacks();
@@ -108,10 +96,8 @@ inline void displayMemHeader()
     ImGui::Spacing();
 }
 
-inline void displayImage(uint32_t texture, uint8_t* data, uint16_t width = PPU::SCR_WIDTH, uint16_t height = PPU::SCR_HEIGHT)
+inline void displayImage(uint32_t texture, uint16_t width = PPU::SCR_WIDTH, uint16_t height = PPU::SCR_HEIGHT)
 {
-    OpenGL::updateTexture(texture, width, height, data);
-
     const ImVec2 windowSize = ImGui::GetWindowSize();
     const ImVec2 contentSize = ImGui::GetContentRegionAvail();
     const ImVec2 contentPos = ImGui::GetCursorScreenPos();
@@ -136,6 +122,7 @@ inline void displayImage(uint32_t texture, uint8_t* data, uint16_t width = PPU::
     imagePos.y = contentPos.y + (contentSize.y - imageSize.y) * 0.5f;
 
     ImGui::SetCursorScreenPos(imagePos);
+    OpenGL::bindTexture(texture);
     ImGui::Image((void*)texture, imageSize);
 }
 
@@ -193,22 +180,28 @@ void debugUI::updateWindows()
             {
                 if (BGFrameBuffer == nullptr)
                 {
+                    OpenGL::createTexture(backgroundTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
                     BGFrameBuffer = std::make_unique<uint8_t[]>(PPU::FRAMEBUFFER_SIZE);
+
                     clearBGBuffer(BGFrameBuffer.get());
+                    OpenGL::updateTexture(backgroundTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, BGFrameBuffer.get());
                 }
 
-                displayImage(backgroundTexture, BGFrameBuffer.get());
+                displayImage(backgroundTexture);
                 ImGui::EndTabItem();
             }
             if (ImGui::BeginTabItem("Window"))
             {
                 if (windowFrameBuffer == nullptr)
                 {
+                    OpenGL::createTexture(windowTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
                     windowFrameBuffer = std::make_unique<uint8_t[]>(PPU::FRAMEBUFFER_SIZE);
+
                     clearBGBuffer(windowFrameBuffer.get());
+                    OpenGL::updateTexture(windowTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, windowFrameBuffer.get());
                 }
 
-                displayImage(backgroundTexture, windowFrameBuffer.get());
+                displayImage(windowTexture);
                 ImGui::EndTabItem();
             }
             if (ImGui::BeginTabItem("OAM"))
@@ -235,11 +228,14 @@ void debugUI::updateWindows()
                 {
                     if (OAMFrameBuffer == nullptr)
                     {
+                        OpenGL::createTexture(OAMTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
                         OAMFrameBuffer = std::make_unique<uint8_t[]>(PPU::FRAMEBUFFER_SIZE);
+
                         clearBGBuffer(OAMFrameBuffer.get());
+                        OpenGL::updateTexture(OAMTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, OAMFrameBuffer.get());
                     }
 
-                    displayImage(backgroundTexture, OAMFrameBuffer.get());
+                    displayImage(OAMTexture);
                 }
 
                 ImGui::EndTabItem();
@@ -248,14 +244,23 @@ void debugUI::updateWindows()
             {
                 ImGui::Spacing();
 
+                if (tileDataFrameBuffer == nullptr)
+                {
+                    OpenGL::createTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT);
+                    tileDataFrameBuffer = std::make_unique<uint8_t[]>(PPU::TILEDATA_FRAMEBUFFER_SIZE);                
+                }
+
                 if (ImGui::Button("Refresh"))
+                {
                     gbCore.ppu.renderTileData(tileDataFrameBuffer.get());
+                    OpenGL::updateTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileDataFrameBuffer.get());
+                }
 
                 ImGui::Spacing();
                 ImGui::Separator();
                 ImGui::Spacing();
 
-                displayImage(tileDataTexture, tileDataFrameBuffer.get(), PPU::TILES_WIDTH, PPU::TILES_HEIGHT);
+                displayImage(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT);
                 ImGui::EndTabItem();
             }
 

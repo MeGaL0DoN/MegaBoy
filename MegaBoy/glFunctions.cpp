@@ -13,9 +13,12 @@ void OpenGL::createTexture(uint32_t& textureId, uint32_t width, uint32_t height)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 }
 
-
 void OpenGL::updateTexture(uint32_t textureId, uint32_t width, uint32_t height, const uint8_t* data)
 {
     glBindTexture(GL_TEXTURE_2D, textureId);
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, data);
+}
+void OpenGL::bindTexture(uint32_t textureId)
+{
+    glBindTexture(GL_TEXTURE_2D, textureId);
 }

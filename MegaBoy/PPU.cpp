@@ -121,14 +121,6 @@ void PPU::execute()
 	}
 }
 
-void PPU::handleOAMSearch()
-{
-	if (videoCycles >= OAM_SCAN_CYCLES)
-	{
-		videoCycles -= OAM_SCAN_CYCLES;
-		SetPPUMode(PPUMode::PixelTransfer);
-	}
-}
 void PPU::handleHBlank()
 {
 	if (videoCycles >= HBLANK_CYCLES)
@@ -170,9 +162,68 @@ void PPU::handlePixelTransfer()
 	if (videoCycles >= PIXEL_TRANSFER_CYCLES)
 	{
 		videoCycles -= PIXEL_TRANSFER_CYCLES;
-	    renderScanLine();
+		renderScanLine();
 		SetPPUMode(PPUMode::HBlank);
 	}
+}
+
+void PPU::handleOAMSearch()
+{
+	if (videoCycles >= OAM_SCAN_CYCLES)
+	{
+		videoCycles -= OAM_SCAN_CYCLES;
+		objCount = 0;
+
+		const bool doubleObj = DoubleOBJSize();
+
+		for (uint16_t OAMAddr = 0; OAMAddr < sizeof(OAM); OAMAddr += 4)
+		{
+			const int16_t objY = static_cast<int16_t>(OAM[OAMAddr]) - 16;
+			const int16_t objX = static_cast<int16_t>(OAM[OAMAddr + 1]) - 8;
+			const uint8_t tileInd = OAM[OAMAddr + 2];
+			const uint8_t attributes = OAM[OAMAddr + 3];
+			const bool yFlip = getBit(attributes, 6);
+
+			if (!doubleObj)
+			{
+				if (LY >= objY && LY < objY + 8)
+				{
+					selectedObjects[objCount] = object{ objX, objY, static_cast<uint16_t>(tileInd * 16), attributes };
+					objCount++;
+				}
+			}
+			else
+			{
+				if (LY >= objY && LY < objY + 8)
+				{
+					uint16_t tileAddr = yFlip ? ((tileInd & 0xFE) + 1) * 16 : (tileInd & 0xFE) * 16;
+					selectedObjects[objCount] = object{ objX, objY, tileAddr, attributes };
+					objCount++;
+				}
+				else if (LY >= objY + 8 && LY < objY + 16)
+				{
+					uint16_t tileAddr = yFlip ? (tileInd & 0xFE) * 16 : ((tileInd & 0xFE) + 1) * 16;
+					selectedObjects[objCount] = object{ objX, objY + 8, tileAddr, attributes };
+					objCount++;
+				}
+			}
+
+			if (objCount == 10)
+				break;
+		}
+
+		std::sort(selectedObjects, selectedObjects + objCount, object::objComparator);
+		SetPPUMode(PPUMode::PixelTransfer);
+	}
+}
+
+void PPU::renderOAM()
+{
+	for (int i = 0; i < objCount; i++)
+		renderObjTile(selectedObjects[i].tileAddr, selectedObjects[i].attributes, selectedObjects[i].X, selectedObjects[i].Y);
+
+	if (onOAMRender != nullptr)
+		onOAMRender(updatedOAMPixels, LY);
 }
 
 void PPU::renderScanLine()
@@ -218,7 +269,7 @@ void PPU::renderBackground()
 void PPU::renderWindow()
 {
 	int16_t wx = static_cast<int16_t>(WX) - 7;
-	if (LY < WY || wx < 0 || wx >= SCR_WIDTH) return;
+	if (LY < WY || wx >= SCR_WIDTH) return;
 
 	uint16_t winTileAddr = WindowTileAddr();
 	uint16_t tileYInd = WLY / 8 * 32;
@@ -286,76 +337,6 @@ void PPU::renderObjTile(uint16_t tileAddr, uint8_t attributes, int16_t objX, int
 			}
 		}
 	}
-}
-
-struct object
-{
-	int16_t X;
-	int16_t Y;
-	uint16_t tileAddr;
-	uint8_t attributes;
-};
-
-bool objComparator(const object& obj1, const object& obj2)
-{
-	if (obj1.X > obj2.X)
-		return true;
-	else if (obj1.X < obj2.X)
-		return false;
-
-	return obj1.tileAddr < obj2.tileAddr;
-}
-
-void PPU::renderOAM()
-{
-	bool doubleObj = DoubleOBJSize();
-
-	uint8_t objCount { 0 };
-	object selectedObjects [10];
-
-	for (uint16_t OAMAddr = 0; OAMAddr < sizeof(OAM); OAMAddr += 4)
-	{
-		const int16_t objY = static_cast<int16_t>(OAM[OAMAddr]) - 16;
-		const int16_t objX = static_cast<int16_t>(OAM[OAMAddr + 1]) - 8;
-		const uint8_t tileInd = OAM[OAMAddr + 2];
-		const uint8_t attributes = OAM[OAMAddr + 3];
-		const bool yFlip = getBit(attributes, 6);
-
-		if (!doubleObj)
-		{
-			if (LY >= objY && LY < objY + 8)
-			{
-				selectedObjects[objCount] = object{ objX, objY, static_cast<uint16_t>(tileInd * 16), attributes };
-				objCount++;
-			}
-		}
-		else
-		{
-			if (LY >= objY && LY < objY + 8)
-			{
-				uint16_t tileAddr = yFlip ? ((tileInd & 0xFE) + 1) * 16 : (tileInd & 0xFE) * 16;
-				selectedObjects[objCount] = object { objX, objY, tileAddr, attributes };
-				objCount++;
-			}
-			else if (LY >= objY + 8 && LY < objY + 16)
-			{
-				uint16_t tileAddr = yFlip ? (tileInd & 0xFE) * 16 : ((tileInd & 0xFE) + 1) * 16;
-				selectedObjects[objCount] = object{ objX, objY + 8, tileAddr, attributes };
-				objCount++;
-			}
-		}
-
-		if (objCount == 10)
-			break;
-	}
-
-	std::sort(selectedObjects, selectedObjects + objCount, objComparator);
-
-	for (int i = 0; i < objCount; i++)
-		renderObjTile(selectedObjects[i].tileAddr, selectedObjects[i].attributes, selectedObjects[i].X, selectedObjects[i].Y);
-
-	if (onOAMRender != nullptr)
-		onOAMRender(updatedOAMPixels, LY);
 }
 
 void PPU::renderTileData(uint8_t* buffer)
