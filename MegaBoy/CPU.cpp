@@ -42,9 +42,12 @@ void CPU::addCycle()
 	gbCore.stepComponents();
 }
 
+//uint8_t lastwrite;
+
 void CPU::write8(uint16_t addr, uint8_t val)
 {
 	gbCore.mmu.write8(addr, val);
+	//lastwrite = val;
 	addCycle();
 }
 uint8_t CPU::read8(uint16_t addr)
@@ -75,8 +78,24 @@ uint8_t& CPU::getRegister(uint8_t ind)
 	}
 }
 
+//std::ofstream outs("megaboyLog.txt");
+
 uint8_t CPU::execute()
 {
+	//if (i < 400000)
+	//{
+	//	outs << "PC: " << std::format("{:05}", PC) << " A: " << std::format("{:03}", +registers.A.val) << " F: " << std::format("{:03}", registers.F.val) << " B: " << +registers.B.val << 
+	//		   " C: " << +registers.C.val << " D: " << +registers.D.val << " E: " << +registers.E.val << " H: " << +registers.H.val << " L: " << +registers.L.val << " SP: " << SP.val << 
+	//		" LCDC: " << +gbCore.ppu.LCDC << " STAT: " << +gbCore.ppu.STAT << " LY: " << +gbCore.ppu.LY << " VCYCLES: " << gbCore.ppu.videoCycles * 4 
+	//		<< " MODE: " << (int)gbCore.ppu.state << " LYC: " << +gbCore.ppu.LYC << " lastW: " << +lastwrite << "\n";
+	//}
+	//else if (i == 400000)
+	//{
+	//	outs.close();
+	//}
+
+	i++;
+
 	cycles = 0;
 
 	if (halted)
@@ -107,24 +126,9 @@ uint8_t CPU::execute()
 	return cycles;
 }
 
-//std::ofstream outs("results.txt");
-//int i = 0;
 
 void CPU::executeMain()
 {
-	//if (i < 100000)
-	//{
-	//	outs << "A: " << +registers.A.val << " B: " << +registers.B.val << " C: " << +registers.C.val << " D: " << +registers.D.val << " E: " << +registers.E.val
-	//		<< " H: " << +registers.H.val << " L: " << +registers.L.val << " F: " << +registers.F.val << " PC: " << PC << " SP: " << SP.val <<
-	//		" LCDC: " << +gbCore.ppu.LCDC << "\n";
-	//}
-	//else if (i == 100000)
-	//{
-	//	outs.close();
-	//}
-
-	//i++;
- 
 	uint8_t outRegInd = opcode & 0x07;
 	uint8_t inRegInd = (opcode >> 3) & 0x07;
 

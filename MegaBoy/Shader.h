@@ -5,6 +5,7 @@ class Shader
 {
 public:
     unsigned int ID {};
+    constexpr bool compiled() { return ID != 0; }
 
     Shader() = default;
     Shader(const char* vertexPath, const char* fragmentPath) { compile(vertexPath, fragmentPath); };

@@ -22,8 +22,6 @@ struct pixelInfo
 	color data;
 };
 
-class debugUI;
-
 class PPU
 {
 public:
@@ -39,6 +37,9 @@ public:
 	void (*onBackgroundRender)(const std::array<uint8_t, FRAMEBUFFER_SIZE>& buffer, uint8_t LY);
 	void (*onWindowRender)(const std::array<pixelInfo, SCR_WIDTH>& updatedPixels, uint8_t LY);
 	void (*onOAMRender)(const std::array<pixelInfo, SCR_WIDTH>& updatedPixels, uint8_t LY);
+
+	void (*drawCallback)(const uint8_t* framebuffer);
+	constexpr void invokeDrawCallback() { if (drawCallback != nullptr) drawCallback(framebuffer.data()); }
 
 	constexpr void resetCallbacks()
 	{
@@ -57,7 +58,6 @@ public:
 
 	void execute();
 	void reset();
-	constexpr void clearBuffer() { PixelOps::clearBuffer(framebuffer.data(), SCR_WIDTH, SCR_HEIGHT, colors[0]); }
 
 	constexpr const uint8_t* getFrameBuffer() { return framebuffer.data(); }
 	void renderTileData(uint8_t* buffer);
@@ -101,6 +101,7 @@ private:
 	std::array<uint8_t, FRAMEBUFFER_SIZE> framebuffer;
 	std::bitset<SCR_WIDTH> opaqueBackgroundPixels;
 
+
 	std::array<pixelInfo, SCR_WIDTH> updatedWindowPixels;
 	std::array<pixelInfo, SCR_WIDTH> updatedOAMPixels;
 
@@ -114,10 +115,16 @@ private:
 	static constexpr uint8_t HBLANK_CYCLES = 51;
 	static constexpr uint8_t VBLANK_CYCLES = 114;
 
+	constexpr void clearBuffer()
+	{
+		PixelOps::clearBuffer(framebuffer.data(), SCR_WIDTH, SCR_HEIGHT, colors[0]);
+		invokeDrawCallback();
+	}
+
 	std::array<color, 4> colors;
 	constexpr color getColor(uint8_t ind) { return colors[ind]; }
 
-	constexpr void setPixel(uint8_t x, uint8_t y, color c) { PixelOps::setPixel(framebuffer.data(), SCR_WIDTH, x, y, c); }
+	constexpr void setPixel(uint8_t x, uint8_t y, color c) { if (y >= SCR_WIDTH) return; PixelOps::setPixel(framebuffer.data(), SCR_WIDTH, x, y, c); }
 	constexpr color getPixel(uint8_t x, uint8_t y) { return PixelOps::getPixel(framebuffer.data(), SCR_WIDTH, x, y); }
 
 	std::array<uint8_t, 4> BGpalette;

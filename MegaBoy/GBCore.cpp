@@ -16,6 +16,7 @@ void GBCore::reset()
 	serial.reset();
 	cpu.reset();
 	ppu.reset();
+	apu.reset();
 }
 
 void GBCore::update(int cyclesToExecute)

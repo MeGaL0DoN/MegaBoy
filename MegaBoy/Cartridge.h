@@ -8,10 +8,15 @@ class GBCore;
 class Cartridge
 {
 public:
+	constexpr const std::vector<uint8_t>& getRom() const { return rom; }
+	inline MBC* getMapper() { return mapper.get(); }
+
 	Cartridge(GBCore& gbCore);
 
 	bool ROMLoaded { false };
-	std::unique_ptr<MBC> mapper;
+
+	uint16_t romBanks;
+	uint16_t ramBanks;
 
 	void loadROM(std::ifstream& ifs);
 
@@ -22,6 +27,9 @@ public:
 		loadROM(ifs);
 	}
 private:
+	void proccessCartridgeHeader();
+
+	std::unique_ptr<MBC> mapper;
 	GBCore& gbCore;
-	std::unique_ptr<uint8_t[]> data;
+	std::vector<uint8_t> rom;
 };

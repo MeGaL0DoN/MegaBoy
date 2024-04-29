@@ -7,7 +7,6 @@
 #include "nfd/nfd.hpp"
 
 #include <iostream>
-#include <thread>
 #include <filesystem>
 
 #include "GBCore.h"
@@ -26,7 +25,6 @@ int viewport_width, viewport_height;
 
 Shader regularShader;
 Shader scalingShader;
-bool scalingShaderCompiled{ false };
 
 uint32_t gbFramebufferTexture;
 
@@ -59,6 +57,11 @@ inline void loadROM(const char* path)
         loadBase(path);
         currentROMPAth = std::wstring(path, path + strlen(path));
     }
+}
+
+void updateGBTexture(const uint8_t* framebuffer)
+{
+    OpenGL::updateTexture(gbFramebufferTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
 }
 
 void setBuffers()
@@ -94,16 +97,12 @@ void setBuffers()
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
-    OpenGL::createTexture(gbFramebufferTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
-
     regularShader.compile("data/shaders/regular_vertex.glsl", "data/shaders/regular_frag.glsl");
     regularShader.use();
-}
 
-void renderGameBoy()
-{
-    OpenGL::updateTexture(gbFramebufferTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu.getFrameBuffer());
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+    OpenGL::createTexture(gbFramebufferTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
+    gbCore.ppu.drawCallback = updateGBTexture;
+    gbCore.ppu.invokeDrawCallback();
 }
 
 inline void updateImGUIViewports()
@@ -133,10 +132,7 @@ void renderImGUI()
                 nfdresult_t result = NFD::OpenDialog(outPath, filterItem, 1, defaultPath.c_str());
 
                 if (result == NFD_OKAY)
-                {
                     loadROM(outPath.get());
-                    outPath.release();
-                }
             }
 
             ImGui::EndMenu();
@@ -168,7 +164,7 @@ void renderImGUI()
             {
                 if (upscaling)
                 {
-                    if (scalingShaderCompiled)
+                    if (scalingShader.compiled())
                         scalingShader.use();
                     else
                     {
@@ -177,7 +173,6 @@ void renderImGUI()
 
                         scalingShader.setFloat2("OutputSize", PPU::SCR_WIDTH * 6, PPU::SCR_HEIGHT * 6); // 6x seems to be the best scale
                         scalingShader.setFloat2("TextureSize", PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
-                        scalingShaderCompiled = true;
                     }
                 }
                 else
@@ -195,7 +190,9 @@ void renderImGUI()
             {
                 auto colors = palette == 0 ? PPU::BGB_GREEN_PALETTE : palette == 1 ? PPU::GRAY_PALETTE : PPU::CLASSIC_PALETTE;
                 if (gbCore.paused || !gbCore.cartridge.ROMLoaded) gbCore.ppu.updateScreenColors(colors);
+
                 gbCore.ppu.setColorsPalette(colors);
+                gbCore.ppu.invokeDrawCallback();
             }
 
             ImGui::EndMenu();
@@ -242,7 +239,7 @@ void renderImGUI()
 void render()
 {
     glClear(GL_COLOR_BUFFER_BIT);
-    renderGameBoy();
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0); // gameboy screen
     renderImGUI();
     glfwSwapBuffers(window);
 }
@@ -270,7 +267,8 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         }
     }
 
-    gbCore.input.update(scancode, action);
+    if (!gbCore.paused)
+        gbCore.input.update(scancode, action);
 }
 void drop_callback(GLFWwindow* window, int count, const char** paths)
 {
@@ -307,7 +305,6 @@ bool setGLFW()
 
     glClearColor(PPU::BGB_GREEN_PALETTE[0].R, PPU::BGB_GREEN_PALETTE[0].G, PPU::BGB_GREEN_PALETTE[0].B, 0);
     glClear(GL_COLOR_BUFFER_BIT);
-    glfwSwapBuffers(window);
 
     return true;
 }
@@ -331,7 +328,7 @@ void setWindowSize()
     glfwSetWindowSize(window, viewport_width, viewport_height + menuBarHeight);
     glfwSetWindowAspectRatio(window, viewport_width, viewport_height);
 
-    uint16_t maxHeight = mode->height - mode->height / 11.0;
+    uint16_t maxHeight = mode->height - static_cast<int16_t>(mode->height / 11.0);
     glfwSetWindowSizeLimits(window, PPU::SCR_WIDTH * 2, PPU::SCR_HEIGHT * 2, maxHeight * (PPU::SCR_WIDTH / PPU::SCR_HEIGHT), maxHeight);
     glViewport(0, 0, viewport_width, viewport_height);
 
@@ -356,14 +353,14 @@ void setImGUI()
 
 //void compareFiles()
 //{
-//    std::ifstream newV("results.txt");
-//    std::ifstream oldV("resultsOld.txt");
+//    std::ifstream newV("megaboyLog.txt");
+//    std::ifstream oldV("lunaLogs.txt");
 //
 //    std::vector<std::string> newLines;
 //    std::vector<std::string> oldLines;
 //
-//    newLines.reserve(100000);
-//    oldLines.reserve(100000);
+//    newLines.reserve(400000);
+//    oldLines.reserve(400000);
 //
 //    std::string line;
 //
@@ -377,11 +374,12 @@ void setImGUI()
 //        oldLines.push_back(line);
 //    }
 //
-//    for (int i = 0; i < 100000; i++)
+//    for (int i = 0; i < 400000; i++)
 //    {
 //        if (newLines[i] != oldLines[i])
 //        {
 //            std::cout << "Difference at line " << i + 1 << "\n";
+//            std::cout << newLines[i] << "\n";
 //            return;
 //        }
 //    }

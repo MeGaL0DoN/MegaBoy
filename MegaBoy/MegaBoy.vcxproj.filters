@@ -96,6 +96,15 @@
     <ClCompile Include="Cartridge.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="MBC1.cpp">
+      <Filter>Source Files\Mappers</Filter>
+    </ClCompile>
+    <ClCompile Include="MBC.cpp">
+      <Filter>Source Files\Mappers</Filter>
+    </ClCompile>
+    <ClCompile Include="APU.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Libs\ImGUI\imconfig.h">
@@ -161,7 +170,16 @@
     <ClInclude Include="Cartridge.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="NoMBC.h">
+    <ClInclude Include="RomOnlyMBC.h">
+      <Filter>Header Files\Mappers</Filter>
+    </ClInclude>
+    <ClInclude Include="MBC1.h">
+      <Filter>Header Files\Mappers</Filter>
+    </ClInclude>
+    <ClInclude Include="APU.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="EmptyMBC.h">
       <Filter>Header Files\Mappers</Filter>
     </ClInclude>
   </ItemGroup>

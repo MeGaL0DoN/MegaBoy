@@ -3,6 +3,7 @@
 #include "MMU.h"
 #include "CPU.h"
 #include "PPU.h"
+#include "APU.h"
 #include "inputManager.h"
 #include "serialPort.h"
 #include "Cartridge.h"
@@ -15,7 +16,7 @@ public:
 
 	GBCore();
 
-	static constexpr int getCycles(double deltaTime) { return static_cast<int>((GBCore::CYCLES_PER_FRAME * (deltaTime / GBCore::FRAME_RATE))); }
+	static constexpr int getCycles(double deltaTime) { return static_cast<int>((CYCLES_PER_FRAME * (deltaTime / FRAME_RATE))); }
 
 	void update(int cyclesToExecute = CYCLES_PER_FRAME);
 	void stepComponents();
@@ -27,6 +28,7 @@ public:
 	MMU mmu { *this };
 	CPU cpu { *this };
 	PPU ppu{ mmu, cpu };
+	APU apu{};
 	inputManager input { mmu, cpu };
 	serialPort serial { cpu };
 	Cartridge cartridge { *this };

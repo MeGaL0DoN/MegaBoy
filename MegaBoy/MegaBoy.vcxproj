@@ -140,6 +140,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="APU.cpp" />
     <ClCompile Include="Cartridge.cpp" />
     <ClCompile Include="CPU.cpp" />
     <ClCompile Include="CPU_interrupts.cpp" />
@@ -147,7 +148,9 @@
     <ClCompile Include="GBCore.cpp" />
     <ClCompile Include="glFunctions.cpp" />
     <ClCompile Include="inputManager.cpp" />
+    <ClCompile Include="MBC.cpp" />
     <ClCompile Include="MBC.h" />
+    <ClCompile Include="MBC1.cpp" />
     <ClCompile Include="PPU.cpp" />
     <ClCompile Include="Libs\glad\glad.c" />
     <ClCompile Include="Libs\ImGUI\imgui.cpp" />
@@ -162,8 +165,11 @@
     <ClCompile Include="Shader.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="APU.h" />
     <ClInclude Include="Cartridge.h" />
-    <ClInclude Include="NoMBC.h" />
+    <ClInclude Include="EmptyMBC.h" />
+    <ClInclude Include="MBC1.h" />
+    <ClInclude Include="RomOnlyMBC.h" />
     <ClInclude Include="pixelOps.h" />
     <ClInclude Include="CPU.h" />
     <ClInclude Include="debugUI.h" />

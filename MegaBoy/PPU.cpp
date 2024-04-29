@@ -59,6 +59,7 @@ void PPU::updateScreenColors(const std::array<color, 4>& newColors)
 void PPU::SetLY(uint8_t val)
 {
 	LY = val;
+	STAT = resetBit(STAT, 2);
 
 	if (LY == LYC)
 	{
@@ -142,6 +143,7 @@ void PPU::handleHBlank()
 		{
 			SetPPUMode(PPUMode::VBlank);
 			cpu.requestInterrupt(Interrupt::VBlank);
+			invokeDrawCallback();
 		}
 		else
 			SetPPUMode(PPUMode::OAMSearch);
