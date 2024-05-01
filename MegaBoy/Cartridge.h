@@ -15,19 +15,26 @@ public:
 
 	bool ROMLoaded { false };
 
-	uint16_t romBanks;
-	uint16_t ramBanks;
+	bool hasRAM{ false };
+	bool hasBattery { false };
+	uint16_t romBanks{0};
+	uint16_t ramBanks{0};
 
-	void loadROM(std::ifstream& ifs);
+	bool loadROM(std::ifstream& ifs);
 
 	template <typename T>
-	inline void loadROM(T path)
+	inline bool loadROM(T path)
 	{
 		std::ifstream ifs(path, std::ios::binary | std::ios::ate);
-		loadROM(ifs);
+		return loadROM(ifs);
 	}
 private:
-	void proccessCartridgeHeader();
+	static constexpr const char* SAVE_FILE_SIGNATURE = "MegaBoy Emulator Save File";
+
+	bool loadGameROM();
+	bool loadSaveFile();
+
+	bool proccessCartridgeHeader(const std::vector<uint8_t>& buffer);
 
 	std::unique_ptr<MBC> mapper;
 	GBCore& gbCore;

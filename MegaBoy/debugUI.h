@@ -1,7 +1,7 @@
 #pragma once
-#include <array>
 #include <string>
 #include <memory>
+#include <vector>
 #include "GBCore.h"
 #include "glFunctions.h"
 
@@ -11,14 +11,13 @@ class debugUI
 {
 public:
 	static void updateMenu();
-	static void updateWindows();
+	static void updateWindows(float scaleFactor);
 
 	static constexpr void clearBuffers()
 	{
 		clearBGBuffer(BGFrameBuffer.get());
 		clearBGBuffer(windowFrameBuffer.get());
 		clearBGBuffer(OAMFrameBuffer.get());
-		clearTileDataBuffer();
 	}
 
 	static constexpr void updateTextures()
@@ -44,7 +43,12 @@ private:
 	static inline uint32_t tileDataTexture {0};
 
 	static constexpr void clearBGBuffer(uint8_t* buffer) { PixelOps::clearBuffer(buffer, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu.getCurrentPalette()[0]); }
-	static constexpr void clearTileDataBuffer() { PixelOps::clearBuffer(tileDataFrameBuffer.get(), PPU::TILES_WIDTH, PPU::TILES_HEIGHT, gbCore.ppu.getCurrentPalette()[0]); }
+
+	static inline void updateTileData()
+	{
+		gbCore.ppu.renderTileData(tileDataFrameBuffer.get());
+		OpenGL::updateTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileDataFrameBuffer.get());
+	}
 
 	static constexpr void clearBGScanline(uint8_t* buffer, uint8_t LY)
 	{
@@ -52,7 +56,7 @@ private:
 			PixelOps::setPixel(buffer, PPU::SCR_WIDTH, x, LY ,gbCore.ppu.getCurrentPalette()[0]);
 	}
 
-	static void backgroundRenderEvent(const std::array<uint8_t, PPU::FRAMEBUFFER_SIZE>& buffer, uint8_t LY);
-	static void OAM_renderEvent(const std::array<pixelInfo, PPU::SCR_WIDTH>& updatedPixels, uint8_t LY);
-	static void windowRenderEvent(const std::array<pixelInfo, PPU::SCR_WIDTH>& updatedPixels, uint8_t LY);
+	static void backgroundRenderEvent(const uint8_t* buffer, uint8_t LY);
+	static void OAM_renderEvent(const uint8_t* buffer, const std::vector<uint8_t>& updatedPixels, uint8_t LY);
+	static void windowRenderEvent(const uint8_t* buffer, const std::vector<uint8_t>& updatedPixels, uint8_t LY);
 };

@@ -83,7 +83,7 @@ struct registerCollection
 	{
 		F = setBit(F.val, flag, value);
 	}
-	constexpr void resetFlags()
+	inline void resetFlags()
 	{
 		F.val &= 0x0F;
 	}

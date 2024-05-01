@@ -3,6 +3,7 @@
 #include "CPU.h"
 #include "bitOps.h"
 #include <array>
+#include <vector>
 #include <bitset>
 
 #include "pixelOps.h"
@@ -14,12 +15,6 @@ enum class PPUMode : uint8_t
 	VBlank = 1,
 	OAMSearch = 2,
 	PixelTransfer = 3,
-};
-
-struct pixelInfo
-{
-	bool isSet;
-	color data;
 };
 
 struct object
@@ -52,9 +47,9 @@ public:
 	static constexpr uint32_t FRAMEBUFFER_SIZE = SCR_WIDTH * SCR_HEIGHT * 3;
 	static constexpr uint32_t TILEDATA_FRAMEBUFFER_SIZE = TILES_WIDTH * TILES_HEIGHT * 3;
 
-	void (*onBackgroundRender)(const std::array<uint8_t, FRAMEBUFFER_SIZE>& buffer, uint8_t LY);
-	void (*onWindowRender)(const std::array<pixelInfo, SCR_WIDTH>& updatedPixels, uint8_t LY);
-	void (*onOAMRender)(const std::array<pixelInfo, SCR_WIDTH>& updatedPixels, uint8_t LY);
+	void (*onBackgroundRender)(const uint8_t* buffer, uint8_t LY);
+	void (*onWindowRender)(const uint8_t*, const std::vector<uint8_t>& updatedPixels, uint8_t LY);
+	void (*onOAMRender)(const uint8_t* buffer, const std::vector<uint8_t>& updatedPixels, uint8_t LY);
 
 	void (*drawCallback)(const uint8_t* framebuffer);
 	constexpr void invokeDrawCallback() { if (drawCallback != nullptr) drawCallback(framebuffer.data()); }
@@ -103,7 +98,6 @@ private:
 	uint8_t SCY;
 	uint8_t SCX;
 	uint8_t LYC;
-	uint8_t DMA;
 	uint8_t BGP;
 	uint8_t OBP0;
 	uint8_t OBP1;
@@ -119,17 +113,12 @@ private:
 	std::array<uint8_t, FRAMEBUFFER_SIZE> framebuffer;
 	std::bitset<SCR_WIDTH> opaqueBackgroundPixels;
 
-	std::array<pixelInfo, SCR_WIDTH> updatedWindowPixels;
-	std::array<pixelInfo, SCR_WIDTH> updatedOAMPixels;
+	std::vector<uint8_t> updatedWindowPixels;
+	std::vector<uint8_t> updatedOAMPixels;
 
 	uint8_t objCount { 0 };
 	object selectedObjects[10];
 
-	bool dmaTransfer;
-	uint8_t dmaCycles;
-	uint16_t dmaSourceAddr;
-
-	static constexpr uint8_t DMA_CYCLES = 160;
 	static constexpr uint8_t OAM_SCAN_CYCLES = 20;
 	static constexpr uint8_t PIXEL_TRANSFER_CYCLES = 43;
 	static constexpr uint8_t HBLANK_CYCLES = 51;
@@ -152,7 +141,6 @@ private:
 	std::array<uint8_t, 4> OBP1palette;
 
 	void updatePalette(uint8_t val, std::array<uint8_t, 4>& palette);
-	void startDMATransfer();
 
 	void SetLY(uint8_t val);
 	void SetPPUMode(PPUMode ppuState);
@@ -170,7 +158,9 @@ private:
 	void renderBlank();
 
 	inline uint16_t getBGTileAddr(uint8_t tileInd) { return BGUnsignedAddressing() ? tileInd * 16 : 0x1000 + static_cast<int8_t>(tileInd) * 16; }
-	void renderBGTile(uint16_t addr, int16_t screenX, uint8_t scrollY, pixelInfo* updatedPixelsBuffer = nullptr);
+
+	template <bool updateWindowChangesBuffer>
+	void renderBGTile(uint16_t addr, int16_t screenX, uint8_t scrollY);
 	void renderObjTile(uint16_t tileAddr, uint8_t attributes, int16_t objX, int16_t objY);
 
 	inline bool TileMapsEnable() { return getBit(LCDC, 0); }

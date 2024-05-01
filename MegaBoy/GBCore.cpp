@@ -16,6 +16,7 @@ void GBCore::reset()
 	serial.reset();
 	cpu.reset();
 	ppu.reset();
+	mmu.reset();
 	apu.reset();
 }
 
@@ -35,6 +36,7 @@ void GBCore::update(int cyclesToExecute)
 void GBCore::stepComponents()
 {
 	cpu.updateTimer();
+	mmu.executeDMA();
 	ppu.execute();
 	serial.execute();
 }

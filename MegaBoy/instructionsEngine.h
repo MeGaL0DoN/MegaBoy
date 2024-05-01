@@ -135,10 +135,11 @@ public:
 	InstructionsEngine() = default;
 	InstructionsEngine(CPU* cp) : cpu(cp) {};
 
-	void INCR(Register16& reg, bool step = true)
+	template <bool step = true>
+	void INCR(Register16& reg)
 	{
 		reg.val++;
-		if (step) cpu->addCycle();
+		if constexpr (step) cpu->addCycle();
 		cpu->PC++;
 	}
 	void INCR(uint8_t& reg)
@@ -164,7 +165,7 @@ public:
 		uint8_t& reg = cpu->getRegister(regInd);
 		add8_base(cpu->registers.A, reg, 0);
 
-		if (regInd == cpu->HL_IND) cpu->addCycle(); //cpu->write8(cpu->registers.HL.val, reg);
+		if (regInd == cpu->HL_IND) cpu->addCycle();
 		cpu->PC++;
 	}
 	void ADD(Register8& reg, uint8_t val)
@@ -182,7 +183,7 @@ public:
 		uint8_t& reg = cpu->getRegister(regInd);
 		add8_base(cpu->registers.A, reg, cpu->registers.getFlag(Carry));
 
-		if (regInd == cpu->HL_IND) cpu->addCycle();// cpu->write8(cpu->registers.HL.val, reg);
+		if (regInd == cpu->HL_IND) cpu->addCycle();
 		cpu->PC++;
 	}
 
@@ -218,10 +219,12 @@ public:
 
 		cpu->PC++;
 	}
-    void DECR(Register16& reg, bool step = true)
+
+	template<bool step = true>
+    void DECR(Register16& reg)
 	{
 		reg.val--;
-		if (step) cpu->addCycle();
+		if constexpr (step) cpu->addCycle();
 		cpu->PC++;
 	}
 	void DECR_HL()
@@ -236,7 +239,7 @@ public:
 		uint8_t& reg = cpu->getRegister(regInd);
 		cpu->registers.A = cp_base(cpu->registers.A.val, reg, 0);
 
-		if (regInd == cpu->HL_IND) cpu->addCycle(); //cpu->write8(cpu->registers.HL.val, reg);
+		if (regInd == cpu->HL_IND) cpu->addCycle();
 		cpu->PC++;
 	}
 	void SUB(Register8& reg, uint8_t val)
@@ -249,7 +252,6 @@ public:
 		uint8_t& reg = cpu->getRegister(regInd);
 		cp_base(cpu->registers.A.val, reg, 0);
 
-		//if (regInd == cpu->HL_IND) cpu->write8(cpu->registers.HL.val, reg);
 		if (regInd == cpu->HL_IND) cpu->addCycle();
 		cpu->PC++;
 	}
@@ -268,7 +270,7 @@ public:
 		uint8_t& reg = cpu->getRegister(regInd);
 		cpu->registers.A = cp_base(cpu->registers.A.val, reg, cpu->registers.getFlag(Carry));
 
-		if (regInd == cpu->HL_IND) cpu->addCycle();// cpu->write8(cpu->registers.HL.val, reg);
+		if (regInd == cpu->HL_IND) cpu->addCycle();
 		cpu->PC += 1;
 	}
 
@@ -282,7 +284,7 @@ public:
 		uint8_t& reg = cpu->getRegister(regInd);
 		and_base(cpu->registers.A.val, reg);
 
-		if (regInd == cpu->HL_IND) cpu->addCycle();// cpu->write8(cpu->registers.HL.val, reg);
+		if (regInd == cpu->HL_IND) cpu->addCycle();
 		cpu->PC++;
 	}
 
@@ -296,7 +298,7 @@ public:
 		uint8_t& reg = cpu->getRegister(regInd);
 		xor_base(cpu->registers.A.val, reg);
 
-		if (regInd == cpu->HL_IND) cpu->addCycle(); //cpu->write8(cpu->registers.HL.val, reg);
+		if (regInd == cpu->HL_IND) cpu->addCycle();
 		cpu->PC++;
 	}
 
@@ -310,7 +312,7 @@ public:
 		uint8_t& reg = cpu->getRegister(regInd);
 		or_base(cpu->registers.A.val, reg);
 
-		if (regInd == cpu->HL_IND) cpu->addCycle(); //cpu->write8(cpu->registers.HL.val, reg);
+		if (regInd == cpu->HL_IND) cpu->addCycle();
 		cpu->PC++;
 	}
 
@@ -410,26 +412,26 @@ public:
 	void LD_HLI_A()
 	{
 		loadToAddr(cpu->registers.HL, cpu->registers.A);
-		INCR(cpu->registers.HL, false);
+		INCR<false>(cpu->registers.HL);
 		cpu->PC--;
 	}
 	void LD_HLD_A()
 	{
 		loadToAddr(cpu->registers.HL, cpu->registers.A);
-		DECR(cpu->registers.HL, false);
+		DECR<false>(cpu->registers.HL);
 		cpu->PC--;
 	}
 
 	void LD_A_HLI()
 	{
 		loadToReg(cpu->registers.A, cpu->registers.HL);
-		INCR(cpu->registers.HL, false);
+		INCR<false>(cpu->registers.HL);
 		cpu->PC--;
 	}
 	void LD_A_HLD()
 	{
 		loadToReg(cpu->registers.A, cpu->registers.HL);
-		DECR(cpu->registers.HL, false);
+		DECR<false>(cpu->registers.HL);
 		cpu->PC--;
 	}
 

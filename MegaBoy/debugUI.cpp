@@ -1,34 +1,34 @@
 #include "debugUI.h"
 #include <ImGUI/imgui.h>
 
-void debugUI::backgroundRenderEvent(const std::array<uint8_t, PPU::FRAMEBUFFER_SIZE>& buffer, uint8_t LY)
+void debugUI::backgroundRenderEvent(const uint8_t* buffer, uint8_t LY)
 {
     if (!BGFrameBuffer) return;
 
     for (int x = 0; x < PPU::SCR_WIDTH; x++)
-        PixelOps::setPixel(BGFrameBuffer.get(), PPU::SCR_WIDTH, x, LY, PixelOps::getPixel(buffer.data(), PPU::SCR_WIDTH, x, LY));
+        PixelOps::setPixel(BGFrameBuffer.get(), PPU::SCR_WIDTH, x, LY, PixelOps::getPixel(buffer, PPU::SCR_WIDTH, x, LY));
 }
 
-void debugUI::OAM_renderEvent(const std::array<pixelInfo, PPU::SCR_WIDTH>& updatedPixels, uint8_t LY)
+void debugUI::OAM_renderEvent(const uint8_t* buffer, const std::vector<uint8_t>& updatedPixels, uint8_t LY)
 {
     if (!OAMFrameBuffer) return;
     clearBGScanline(OAMFrameBuffer.get(), LY);
 
-    for (int x = 0; x < PPU::SCR_WIDTH; x++)
+    for (int i = 0; i < updatedPixels.size(); i++)
     {
-        if (updatedPixels[x].isSet)
-            PixelOps::setPixel(OAMFrameBuffer.get(), PPU::SCR_WIDTH, x, LY, updatedPixels[x].data);
+        uint8_t x = updatedPixels[i];
+        PixelOps::setPixel(OAMFrameBuffer.get(), PPU::SCR_WIDTH, x, LY, PixelOps::getPixel(buffer, PPU::SCR_WIDTH, x, LY));
     }
 }
-void debugUI::windowRenderEvent(const std::array<pixelInfo, PPU::SCR_WIDTH>& updatedPixels, uint8_t LY)
+void debugUI::windowRenderEvent(const uint8_t* buffer, const std::vector<uint8_t>& updatedPixels, uint8_t LY)
 {
     if (!windowFrameBuffer) return;
     clearBGScanline(windowFrameBuffer.get(), LY);
 
-    for (int x = 0; x < PPU::SCR_WIDTH; x++)
+    for (int i = 0; i < updatedPixels.size(); i++)
     {
-        if (updatedPixels[x].isSet)
-            PixelOps::setPixel(windowFrameBuffer.get(), PPU::SCR_WIDTH, x, LY, updatedPixels[x].data);
+        uint8_t x = updatedPixels[i];
+        PixelOps::setPixel(windowFrameBuffer.get(), PPU::SCR_WIDTH, x, LY, PixelOps::getPixel(buffer, PPU::SCR_WIDTH, x, LY));
     }
 }
 
@@ -126,11 +126,11 @@ inline void displayImage(uint32_t texture, uint16_t width = PPU::SCR_WIDTH, uint
     ImGui::Image((void*)texture, imageSize);
 }
 
-void debugUI::updateWindows()
+void debugUI::updateWindows(float scaleFactor)
 {
     if (showMemoryView)
     {
-        ImGui::SetNextWindowSizeConstraints(ImVec2(-1.f, ImGui::GetFontSize() * 12.0f), ImVec2(INFINITY, INFINITY));
+        ImGui::SetNextWindowSizeConstraints(ImVec2(-1.f, ImGui::GetFontSize() * 20), ImVec2(INFINITY, INFINITY));
         ImGui::Begin("Memory View", &showMemoryView);
 
         ImGui::BeginDisabled(realTimeMemView);
@@ -171,7 +171,7 @@ void debugUI::updateWindows()
 
     if (showVRAMView)
     {
-        ImGui::SetNextWindowSizeConstraints(ImVec2(PPU::SCR_WIDTH * 3, PPU::SCR_HEIGHT * 3 + ImGui::GetFrameHeight() * 2), ImVec2(FLT_MAX, FLT_MAX));
+        ImGui::SetNextWindowSizeConstraints(ImVec2(430.0f * scaleFactor, (392.0f * scaleFactor) + ImGui::GetFrameHeight() * 2), ImVec2(FLT_MAX, FLT_MAX));
         ImGui::Begin("VRAM View", &showVRAMView);
 
         if (ImGui::BeginTabBar("tabbar"))
@@ -247,14 +247,12 @@ void debugUI::updateWindows()
                 if (tileDataFrameBuffer == nullptr)
                 {
                     OpenGL::createTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT);
-                    tileDataFrameBuffer = std::make_unique<uint8_t[]>(PPU::TILEDATA_FRAMEBUFFER_SIZE);                
+                    tileDataFrameBuffer = std::make_unique<uint8_t[]>(PPU::TILEDATA_FRAMEBUFFER_SIZE); 
+                    updateTileData();
                 }
 
                 if (ImGui::Button("Refresh"))
-                {
-                    gbCore.ppu.renderTileData(tileDataFrameBuffer.get());
-                    OpenGL::updateTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileDataFrameBuffer.get());
-                }
+                    updateTileData();
 
                 ImGui::Spacing();
                 ImGui::Separator();

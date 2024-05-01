@@ -8,6 +8,7 @@
 
 #include <iostream>
 #include <filesystem>
+#include <thread>
 
 #include "GBCore.h"
 #include "Shader.h"
@@ -15,6 +16,7 @@
 #include "glFunctions.h"
 
 GLFWwindow* window;
+bool saveManagerOpen{ false };
 
 bool fpsLock{ true };
 bool vsync { true };
@@ -22,23 +24,33 @@ int vsyncCPUCycles;
 
 int menuBarHeight;
 int viewport_width, viewport_height;
+float scaleFactor;
 
 Shader regularShader;
 Shader scalingShader;
-
 uint32_t gbFramebufferTexture;
 
 const std::wstring defaultPath{ std::filesystem::current_path().wstring() };
 constexpr nfdnfilteritem_t filterItem[] = { {L"Game ROM", L"gb,bin"} };
+bool fileDialogOpen;
+
+const char* errorPopupTitle = "Error Loading the ROM!";
+bool errorLoadingROM{false};
 
 extern GBCore gbCore;
 std::string FPS_text{ "FPS: 00.00" };
 
 template <typename T>
-void loadBase(T path)
+bool loadBase(T path)
 {
-    gbCore.cartridge.loadROM(path);
+    if (!gbCore.cartridge.loadROM(path))
+    {
+        errorLoadingROM = true;
+        return false;
+    }
+
     debugUI::clearBuffers();
+    return true;
 }
 
 std::wstring currentROMPAth{};
@@ -46,16 +58,16 @@ inline void loadROM(const wchar_t* path)
 {
     if (std::filesystem::exists(path))
     {
-        loadBase(path);
-        currentROMPAth = path;
+        if (loadBase(path))
+            currentROMPAth = path;
     }
 }
 inline void loadROM(const char* path)
 {
     if (std::filesystem::exists(path))
     {
-        loadBase(path);
-        currentROMPAth = std::wstring(path, path + strlen(path));
+        if (loadBase(path))
+            currentROMPAth = std::wstring(path, path + strlen(path));
     }
 }
 
@@ -129,12 +141,18 @@ void renderImGUI()
         {
             if (ImGui::MenuItem("Load Game"))
             {
+                fileDialogOpen = true;
                 NFD::UniquePathN outPath;
                 nfdresult_t result = NFD::OpenDialog(outPath, filterItem, 1, defaultPath.c_str());
 
                 if (result == NFD_OKAY)
                     loadROM(outPath.get());
+
+                fileDialogOpen = false;
             }
+
+            if (ImGui::MenuItem("Save Manager"))
+                saveManagerOpen = !saveManagerOpen;
 
             ImGui::EndMenu();
         }
@@ -230,7 +248,30 @@ void renderImGUI()
         ImGui::EndMainMenuBar();
     }
 
-    debugUI::updateWindows();
+    if (saveManagerOpen)
+    {
+        // TODO
+    }
+
+    if (errorLoadingROM)
+    {
+        ImGui::OpenPopup(errorPopupTitle);
+        errorLoadingROM = false;
+    }
+
+    if (ImGui::BeginPopupModal(errorPopupTitle))
+    {
+        float windowWidth = ImGui::GetWindowSize().x;
+        ImGui::SetCursorPosX((windowWidth - (75 * scaleFactor)) * 0.5f);
+
+        if (ImGui::Button("Ok", ImVec2(75 * scaleFactor, 30 * scaleFactor)))
+            ImGui::CloseCurrentPopup();
+
+        ImGui::SetWindowSize(ImVec2(ImGui::CalcTextSize(errorPopupTitle).x + ImGui::GetStyle().FramePadding.x, ImGui::GetContentRegionAvail().y));
+        ImGui::EndPopup();
+    }
+
+    debugUI::updateWindows(scaleFactor);
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -255,7 +296,23 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
     viewport_width = width; viewport_height = height - menuBarHeight;
     glViewport(0, 0, viewport_width, viewport_height);
-    render();
+}
+
+void window_refresh_callback(GLFWwindow* window)
+{
+    if (!fileDialogOpen) render(); // Super strange issue - ImGUI crashes if rendering is done while file dialog is open???
+}
+
+bool pausedPreMinimize;
+void window_iconify_callback(GLFWwindow* window, int iconified)
+{
+    if (iconified)
+    {
+        pausedPreMinimize = gbCore.paused;
+        gbCore.paused = true;
+    }
+    else
+        gbCore.paused = pausedPreMinimize;
 }
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -301,6 +358,8 @@ bool setGLFW()
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+    glfwSetWindowIconifyCallback(window, window_iconify_callback);
+    glfwSetWindowRefreshCallback(window, window_refresh_callback);
     glfwSetDropCallback(window, drop_callback);
     glfwSetKeyCallback(window, key_callback);
 
@@ -350,7 +409,10 @@ void setImGUI()
     io.IniFilename = "data/imgui.ini";
 
     const int resolutionX = glfwGetVideoMode(glfwGetPrimaryMonitor())->width;
-    io.Fonts->AddFontFromFileTTF("data/robotomono.ttf", (resolutionX / 1920.0f) * 18.0f);
+    scaleFactor = (resolutionX / 1920.0f);
+
+    io.Fonts->AddFontFromFileTTF("data/robotomono.ttf", scaleFactor * 18.0f);
+    ImGui::GetStyle().ScaleAllSizes(scaleFactor);
 
     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
     ImGui::StyleColorsDark();
@@ -419,11 +481,7 @@ int main()
 
         if (shouldUpdate)
         {
-            if (!vsync && !fpsLock)
-                gbCore.update(GBCore::getCycles(deltaTime));
-            else
-                gbCore.update(vsync ? vsyncCPUCycles : GBCore::CYCLES_PER_FRAME);
-
+            gbCore.update(vsync ? vsyncCPUCycles : fpsLock ? GBCore::CYCLES_PER_FRAME : GBCore::getCycles(deltaTime));
             glfwPollEvents();
             render();
             frameCount++;
@@ -440,6 +498,10 @@ int main()
         }
 
         lastFrameTime = currentFrameTime;
+        std::this_thread::sleep_for(std::chrono::milliseconds(0));
+
+        if (gbCore.paused)
+            glfwWaitEvents();
     }
 
     return 1;

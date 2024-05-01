@@ -4,10 +4,10 @@
 
 std::map<int, uint8_t> buttonKeyConfig =
 {
-	{57, 3}, // Space
-	{28, 2}, // Enter
-	{45, 1}, // X
-	{44, 0}  // Z 
+	{57, 3}, // Space (Start)
+	{28, 2}, // Enter (Select)
+	{44, 1}, // Z (B)
+	{45, 0}  // X (A)
 };
 std::map<int, uint8_t> dpadKeyConfig =
 {

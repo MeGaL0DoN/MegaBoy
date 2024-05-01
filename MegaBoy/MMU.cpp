@@ -5,8 +5,58 @@
 
 MMU::MMU(GBCore& gbCore) : gbCore(gbCore) {}
 
+void MMU::startDMATransfer()
+{
+	if (dmaTransfer)
+	{
+		dmaRestartRequest = true;
+		return;
+	}
+
+	dmaTransfer = true;
+	dmaCycles = 0;
+	dmaSourceAddr = DMA * 0x100;
+
+	if (dmaRestartRequest)
+	{
+		dmaDelayCycles = 1;
+		dmaRestartRequest = false;
+	}
+	else dmaDelayCycles = 2;
+}
+
+void MMU::executeDMA()
+{
+	if (dmaTransfer)
+	{
+		if (dmaDelayCycles > 0)
+			dmaDelayCycles--;
+		else
+		{
+			gbCore.ppu.OAM[dmaCycles++] = read8<false>(dmaSourceAddr++);
+
+			if (dmaRestartRequest)
+			{
+				dmaTransfer = false;
+				startDMATransfer();
+			}
+			else if (dmaCycles >= DMA_CYCLES)
+				dmaTransfer = false;
+		}
+	}
+}
+
 void MMU::write8(uint16_t addr, uint8_t val)
 {
+	if (addr == 0xFF46)
+	{
+		DMA = val;
+		startDMATransfer();
+		return;
+	}
+	else if (dmaInProgress() && (addr < 0xFF80 || addr > 0xFFFE)) // during DMA only HRAM can be accessed. TO FIX ON CGB
+		return;
+
 	if (addr <= 0x7FFF)
 	{
 		gbCore.cartridge.getMapper()->write(addr, val);
@@ -30,7 +80,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 	}
 	else if (addr <= 0xFE9F)
 	{
-		if ((gbCore.ppu.state == PPUMode::HBlank || gbCore.ppu.state == PPUMode::VBlank) && !gbCore.ppu.dmaTransfer)
+		if ((gbCore.ppu.state == PPUMode::HBlank || gbCore.ppu.state == PPUMode::VBlank) /*&& !dmaInProgress()*/)
 			gbCore.ppu.OAM[addr - 0xFE00] = val;
 	}
 	else if (addr <= 0xFEFF)
@@ -88,10 +138,6 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 		case 0xFF45:
 			gbCore.ppu.LYC = val;
-			break;
-		case 0xFF46:
-			gbCore.ppu.DMA = val;
-			gbCore.ppu.startDMATransfer();
 			break;
 		case 0xFF47:
 			gbCore.ppu.BGP = val;
@@ -164,8 +210,18 @@ void MMU::write8(uint16_t addr, uint8_t val)
 		gbCore.cpu.IE = val;
 }
 
+template uint8_t MMU::read8<true>(uint16_t) const;
+template uint8_t MMU::read8<false>(uint16_t) const;
+
+template <bool dmaBlocking>
 uint8_t MMU::read8(uint16_t addr) const
 {
+	if constexpr (dmaBlocking)
+	{
+		if (dmaInProgress() && (addr < 0xFF80 || addr > 0xFFFE)) // during DMA only HRAM can be accessed. TO FIX ON CGB
+			return 0xFF;
+	}
+
 	if (addr <= 0xFF && gbCore.cpu.executingBootROM)
 	{
 		return bootROM[addr];
@@ -192,7 +248,7 @@ uint8_t MMU::read8(uint16_t addr) const
 	}
 	if (addr <= 0xFE9F)
 	{
-		if ((gbCore.ppu.state == PPUMode::HBlank || gbCore.ppu.state == PPUMode::VBlank) && !gbCore.ppu.dmaTransfer)
+		if ((gbCore.ppu.state == PPUMode::HBlank || gbCore.ppu.state == PPUMode::VBlank) /*&& !dmaInProgress()*/)
 			return gbCore.ppu.OAM[addr - 0xFE00];
 
 		return 0xFF;
@@ -235,7 +291,7 @@ uint8_t MMU::read8(uint16_t addr) const
 		case 0xFF45:
 			return gbCore.ppu.LYC;
 		case 0xFF46:
-			return gbCore.ppu.DMA;
+			return DMA;
 		case 0xFF47:
 			return gbCore.ppu.BGP;
 		case 0xFF48:

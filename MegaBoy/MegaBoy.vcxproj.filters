@@ -105,6 +105,9 @@
     <ClCompile Include="APU.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="MBC2.cpp">
+      <Filter>Source Files\Mappers</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Libs\ImGUI\imconfig.h">
@@ -180,6 +183,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="EmptyMBC.h">
+      <Filter>Header Files\Mappers</Filter>
+    </ClInclude>
+    <ClInclude Include="MBC2.h">
       <Filter>Header Files\Mappers</Filter>
     </ClInclude>
   </ItemGroup>

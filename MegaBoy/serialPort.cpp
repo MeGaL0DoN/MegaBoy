@@ -2,7 +2,7 @@
 
 void serialPort::writeSerialControl(uint8_t val)
 {
-    serial_control = val;
+    serial_control = val | 0b01111100;
     if (serial_control & 0x80) 
     {
         serialCycles = 0;

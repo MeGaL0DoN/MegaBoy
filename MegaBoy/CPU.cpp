@@ -78,6 +78,7 @@ uint8_t& CPU::getRegister(uint8_t ind)
 	}
 }
 
+//int i{ 0 };
 //std::ofstream outs("megaboyLog.txt");
 
 uint8_t CPU::execute()
@@ -94,7 +95,7 @@ uint8_t CPU::execute()
 	//	outs.close();
 	//}
 
-	i++;
+	//i++;
 
 	cycles = 0;
 

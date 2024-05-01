@@ -13,7 +13,7 @@ uint8_t MBC1::read(uint16_t addr) const
 	}
 	if (addr <= 0xBFFF)
 	{
-		if (!hasRAM || !ramEnable)
+		if (!cartridge.hasRAM || !ramEnable)
 			return 0xFF;
 
 		return ram[RAMOffset + (addr - 0xA000)];
@@ -47,7 +47,7 @@ void MBC1::write(uint16_t addr, uint8_t val)
 	}
 	else if (addr <= 0xBFFF)
 	{
-		if (!hasRAM || !ramEnable) return;
+		if (!cartridge.hasRAM || !ramEnable) return;
 		ram[RAMOffset + (addr - 0xA000)] = val;
 	}
 }
@@ -62,7 +62,7 @@ void MBC1::updateOffsets()
 	else
 	{
 		lowROMOffset = ((32 * bank2) % cartridge.romBanks) * 0x4000;
-		if (hasRAM) RAMOffset = (bank2 % cartridge.ramBanks) * 0x2000;
+		if (cartridge.hasRAM) RAMOffset = (bank2 % cartridge.ramBanks) * 0x2000;
 	}
 
 	highROMOffset = (((bank2 << 5) | bank1) % cartridge.romBanks) * 0x4000;

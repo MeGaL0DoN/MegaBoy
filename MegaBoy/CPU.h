@@ -37,8 +37,6 @@ public:
 		executingBootROM = true;
 	}
 
-	int i{ 0 };
-
 private:
 	void executeMain();
 	void executePrefixed();
