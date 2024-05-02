@@ -4,6 +4,8 @@
 #include "EmptyMBC.h"
 #include "MBC1.h"
 #include "MBC2.h"
+#include "MBC3.h"
+#include "MBC5.h"
 #include <iostream>
 
 Cartridge::Cartridge(GBCore& gbCore) : gbCore(gbCore), mapper(std::make_unique<EmptyMBC>(*this)) { }
@@ -102,6 +104,45 @@ bool Cartridge::proccessCartridgeHeader(const std::vector<uint8_t>& buffer)
 		hasBattery = true;
 		mapper = std::make_unique<MBC2>(*this);
 		break;
+	case 0x0F:
+		hasBattery = true;
+		mapper = std::make_unique<MBC3>(*this, true);
+		break;
+	case 0x10:
+		hasBattery = true;
+		mapper = std::make_unique<MBC3>(*this, true);
+		break;
+	case 0x11:
+		mapper = std::make_unique<MBC3>(*this, false);
+		break;
+	case 0x12:
+		mapper = std::make_unique<MBC3>(*this, false);
+		break;
+	case 0x13:
+		hasBattery = true;
+		mapper = std::make_unique<MBC3>(*this, false);
+		break;
+	case 0x19:
+		mapper = std::make_unique<MBC5>(*this, false);
+		break;
+	case 0x1A:
+		mapper = std::make_unique<MBC5>(*this, false);
+		break;
+	case 0x1B:
+		hasBattery = true;
+		mapper = std::make_unique<MBC5>(*this, false);
+		break;
+	case 0x1C:
+		mapper = std::make_unique<MBC5>(*this, true);
+		break;
+	case 0x1D:
+		mapper = std::make_unique<MBC5>(*this, true);
+		break;
+	case 0x1E:
+		hasBattery = true;
+		mapper = std::make_unique<MBC5>(*this, true);
+		break;
+
 	default:
 		std::cout << "Unknown MBC! \n";
 		return false;

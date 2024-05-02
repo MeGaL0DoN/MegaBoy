@@ -129,14 +129,15 @@ void PPU::handleVBlank()
 	if (videoCycles >= VBLANK_CYCLES)
 	{
 		videoCycles -= VBLANK_CYCLES;
-		SetLY(LY + 1);
 
-		if (LY == 154)
+		if (LY == 153)
 		{
 			SetLY(0);
 			WLY = 0;
 			SetPPUMode(PPUMode::OAMSearch);
 		}
+		else
+			SetLY(LY + 1);
 	}
 }
 

@@ -108,6 +108,12 @@
     <ClCompile Include="MBC2.cpp">
       <Filter>Source Files\Mappers</Filter>
     </ClCompile>
+    <ClCompile Include="MBC3.cpp">
+      <Filter>Source Files\Mappers</Filter>
+    </ClCompile>
+    <ClCompile Include="MBC5.cpp">
+      <Filter>Source Files\Mappers</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Libs\ImGUI\imconfig.h">
@@ -186,6 +192,12 @@
       <Filter>Header Files\Mappers</Filter>
     </ClInclude>
     <ClInclude Include="MBC2.h">
+      <Filter>Header Files\Mappers</Filter>
+    </ClInclude>
+    <ClInclude Include="MBC3.h">
+      <Filter>Header Files\Mappers</Filter>
+    </ClInclude>
+    <ClInclude Include="MBC5.h">
       <Filter>Header Files\Mappers</Filter>
     </ClInclude>
   </ItemGroup>

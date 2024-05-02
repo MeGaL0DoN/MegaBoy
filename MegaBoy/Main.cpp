@@ -394,7 +394,7 @@ void setWindowSize()
     glfwSetWindowSize(window, viewport_width, viewport_height + menuBarHeight);
     glfwSetWindowAspectRatio(window, viewport_width, viewport_height);
 
-    uint16_t maxHeight = mode->height - static_cast<int16_t>(mode->height / 11.0);
+    uint16_t maxHeight = mode->height - static_cast<int16_t>(mode->height / 15.0);
     glfwSetWindowSizeLimits(window, PPU::SCR_WIDTH * 2, PPU::SCR_HEIGHT * 2, maxHeight * (PPU::SCR_WIDTH / PPU::SCR_HEIGHT), maxHeight);
     glViewport(0, 0, viewport_width, viewport_height);
 

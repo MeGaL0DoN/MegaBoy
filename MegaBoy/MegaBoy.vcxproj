@@ -152,6 +152,8 @@
     <ClCompile Include="MBC.h" />
     <ClCompile Include="MBC1.cpp" />
     <ClCompile Include="MBC2.cpp" />
+    <ClCompile Include="MBC3.cpp" />
+    <ClCompile Include="MBC5.cpp" />
     <ClCompile Include="PPU.cpp" />
     <ClCompile Include="Libs\glad\glad.c" />
     <ClCompile Include="Libs\ImGUI\imgui.cpp" />
@@ -171,6 +173,8 @@
     <ClInclude Include="EmptyMBC.h" />
     <ClInclude Include="MBC1.h" />
     <ClInclude Include="MBC2.h" />
+    <ClInclude Include="MBC3.h" />
+    <ClInclude Include="MBC5.h" />
     <ClInclude Include="RomOnlyMBC.h" />
     <ClInclude Include="pixelOps.h" />
     <ClInclude Include="CPU.h" />

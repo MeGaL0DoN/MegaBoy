@@ -130,7 +130,7 @@ void debugUI::updateWindows(float scaleFactor)
 {
     if (showMemoryView)
     {
-        ImGui::SetNextWindowSizeConstraints(ImVec2(-1.f, ImGui::GetFontSize() * 20), ImVec2(INFINITY, INFINITY));
+        ImGui::SetNextWindowSizeConstraints(ImVec2(-1.f, ImGui::GetFontSize() * 19.2f), ImVec2(INFINITY, INFINITY));
         ImGui::Begin("Memory View", &showMemoryView);
 
         ImGui::BeginDisabled(realTimeMemView);
