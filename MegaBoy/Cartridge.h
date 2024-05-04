@@ -14,6 +14,7 @@ public:
 	Cartridge(GBCore& gbCore);
 
 	bool ROMLoaded { false };
+	bool readSuccessfully { false };
 
 	bool hasRAM{ false };
 	bool hasBattery { false };

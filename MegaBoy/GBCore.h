@@ -24,6 +24,7 @@ public:
 
 	bool paused { false };
 	bool runBootROM { false };
+	std::string gameTitle { };
 
 	MMU mmu { *this };
 	CPU cpu { *this };

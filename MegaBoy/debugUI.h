@@ -12,6 +12,7 @@ class debugUI
 public:
 	static void updateMenu();
 	static void updateWindows(float scaleFactor);
+	static void updateTextures(bool forceUpdate);
 
 	static constexpr void clearBuffers()
 	{
@@ -20,12 +21,6 @@ public:
 		clearBGBuffer(OAMFrameBuffer.get());
 	}
 
-	static constexpr void updateTextures()
-	{
-		if (backgroundTexture) OpenGL::updateTexture(backgroundTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, BGFrameBuffer.get());
-		if (windowTexture) OpenGL::updateTexture(windowTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, windowFrameBuffer.get());
-		if (OAMTexture) OpenGL::updateTexture(OAMTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, OAMFrameBuffer.get());
-	}
 private:
 	static inline bool showMemoryView { false };
 	static inline bool realTimeMemView { false };
@@ -43,17 +38,12 @@ private:
 	static inline uint32_t tileDataTexture {0};
 
 	static constexpr void clearBGBuffer(uint8_t* buffer) { PixelOps::clearBuffer(buffer, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu.getCurrentPalette()[0]); }
-
-	static inline void updateTileData()
-	{
-		gbCore.ppu.renderTileData(tileDataFrameBuffer.get());
-		OpenGL::updateTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileDataFrameBuffer.get());
-	}
+	static constexpr void clearTileDataBuffer() { PixelOps::clearBuffer(tileDataFrameBuffer.get(), PPU::TILES_WIDTH, PPU::TILES_HEIGHT, gbCore.ppu.getCurrentPalette()[0]); }
 
 	static constexpr void clearBGScanline(uint8_t* buffer, uint8_t LY)
 	{
 		for (int x = 0; x < PPU::SCR_WIDTH; x++)
-			PixelOps::setPixel(buffer, PPU::SCR_WIDTH, x, LY ,gbCore.ppu.getCurrentPalette()[0]);
+			PixelOps::setPixel(buffer, PPU::SCR_WIDTH, x, LY, gbCore.ppu.getCurrentPalette()[0]);
 	}
 
 	static void backgroundRenderEvent(const uint8_t* buffer, uint8_t LY);

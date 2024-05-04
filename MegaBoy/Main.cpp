@@ -37,6 +37,7 @@ bool fileDialogOpen;
 const char* errorPopupTitle = "Error Loading the ROM!";
 bool errorLoadingROM{false};
 
+bool pauseOnVBlank {false};
 extern GBCore gbCore;
 std::string FPS_text{ "FPS: 00.00" };
 
@@ -48,6 +49,9 @@ bool loadBase(T path)
         errorLoadingROM = true;
         return false;
     }
+
+    std::string title = "MegaBoy - " + gbCore.gameTitle;
+    glfwSetWindowTitle(window, title.c_str());
 
     debugUI::clearBuffers();
     return true;
@@ -71,10 +75,16 @@ inline void loadROM(const char* path)
     }
 }
 
-void updateGBTexture(const uint8_t* framebuffer)
+void drawCallback(const uint8_t* framebuffer)
 {
+    if (pauseOnVBlank)
+    {
+        pauseOnVBlank = false;
+        gbCore.paused = true;
+    }
+
     OpenGL::updateTexture(gbFramebufferTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
-    debugUI::updateTextures();
+    debugUI::updateTextures(gbCore.paused);
 }
 
 void setBuffers()
@@ -114,7 +124,7 @@ void setBuffers()
     regularShader.use();
 
     OpenGL::createTexture(gbFramebufferTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
-    gbCore.ppu.drawCallback = updateGBTexture;
+    gbCore.ppu.drawCallback = drawCallback;
     gbCore.ppu.invokeDrawCallback();
 }
 
@@ -326,7 +336,8 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         }
         if (key == GLFW_KEY_TAB)
         {
-            gbCore.paused = !gbCore.paused;
+            if (gbCore.paused) gbCore.paused = false;
+            else pauseOnVBlank = true;
             return;
         }
     }

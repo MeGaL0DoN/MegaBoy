@@ -15,6 +15,7 @@ enum class PPUMode : uint8_t
 	VBlank = 1,
 	OAMSearch = 2,
 	PixelTransfer = 3,
+	None
 };
 
 struct object
@@ -61,7 +62,7 @@ public:
 		onOAMRender = nullptr;
 	}
 
-	friend MMU; friend class Cartridge;
+	friend MMU; friend class Cartridge; friend class CPU; //
 
 	PPU(MMU& mmu, CPU& cpu) : mmu(mmu), cpu(cpu)
 	{

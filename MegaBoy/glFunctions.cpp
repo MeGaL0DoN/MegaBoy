@@ -1,12 +1,12 @@
 #include "glFunctions.h"
 #include <glad/glad.h>
 
-void OpenGL::createTexture(uint32_t& textureId, uint32_t width, uint32_t height)
+void OpenGL::createTexture(uint32_t& textureId, uint32_t width, uint32_t height, const uint8_t* data)
 {
     glGenTextures(1, &textureId);
     glBindTexture(GL_TEXTURE_2D, textureId);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
     glGenerateMipmap(GL_TEXTURE_2D);
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);

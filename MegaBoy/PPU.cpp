@@ -50,13 +50,14 @@ void PPU::updateScreenColors(const std::array<color, 4>& newColors)
 void PPU::SetLY(uint8_t val)
 {
 	LY = val;
+	uint8_t oldSTAT = STAT;
 	STAT = resetBit(STAT, 2);
 
 	if (LY == LYC)
 	{
 		STAT = setBit(STAT, 2);
 
-		if (LYC_STAT())
+		if (LYC_STAT() && !(oldSTAT & 0x04))
 			cpu.requestInterrupt(Interrupt::STAT);
 	}
 }
@@ -71,13 +72,13 @@ void PPU::SetPPUMode(PPUMode ppuState)
 	switch (state)
 	{
 	case PPUMode::HBlank:
-		if (HBlank_STAT()) cpu.requestInterrupt(Interrupt::STAT);
+		if (HBlank_STAT() && !(STAT & 0x40)) cpu.requestInterrupt(Interrupt::STAT);
 		break;
 	case PPUMode::VBlank:
-		if (VBlank_STAT()) cpu.requestInterrupt(Interrupt::STAT);
+		if (VBlank_STAT() && !(STAT & 0x10)) cpu.requestInterrupt(Interrupt::STAT);
 		break;
 	case PPUMode::OAMSearch:
-		if (OAM_STAT()) cpu.requestInterrupt(Interrupt::STAT);
+		if (OAM_STAT() && !(STAT & 0x20)) cpu.requestInterrupt(Interrupt::STAT);
 		break;
 	}
 }
@@ -329,6 +330,9 @@ void PPU::renderObjTile(uint16_t tileAddr, uint8_t attributes, int16_t objX, int
 
 void PPU::renderTileData(uint8_t* buffer)
 {
+	if (!buffer)
+		return;
+
 	for (int addr = 0; addr < 0x17FF; addr += 16)
 	{
 		uint16_t tileInd = addr / 16;

@@ -126,6 +126,39 @@ inline void displayImage(uint32_t texture, uint16_t width = PPU::SCR_WIDTH, uint
     ImGui::Image((void*)texture, imageSize);
 }
 
+enum class VRAMTab
+{
+    Background,
+    Window,
+    OAM,
+    TileData
+};
+
+VRAMTab currentTab;
+
+void debugUI::updateTextures(bool forceUpdate)
+{
+    if (showVRAMView)
+    {
+        switch (forceUpdate ? VRAMTab::Background : currentTab)
+        {
+        case VRAMTab::Background:
+            OpenGL::updateTexture(backgroundTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, BGFrameBuffer.get());
+            if (!forceUpdate) break;
+        case VRAMTab::Window:
+            OpenGL::updateTexture(windowTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, windowFrameBuffer.get());
+            if (!forceUpdate) break;
+        case VRAMTab::OAM:
+            OpenGL::updateTexture(OAMTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, OAMFrameBuffer.get());
+            if (!forceUpdate) break;
+        case VRAMTab::TileData:
+            gbCore.ppu.renderTileData(tileDataFrameBuffer.get());
+            OpenGL::updateTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileDataFrameBuffer.get());
+            break;
+        }
+    }
+}
+
 void debugUI::updateWindows(float scaleFactor)
 {
     if (showMemoryView)
@@ -171,20 +204,20 @@ void debugUI::updateWindows(float scaleFactor)
 
     if (showVRAMView)
     {
-        ImGui::SetNextWindowSizeConstraints(ImVec2(430.0f * scaleFactor, (392.0f * scaleFactor) + ImGui::GetFrameHeight() * 2), ImVec2(FLT_MAX, FLT_MAX));
+        ImGui::SetNextWindowSizeConstraints(ImVec2(460.0f * scaleFactor, (392.0f * scaleFactor) + ImGui::GetFrameHeight() * 2), ImVec2(FLT_MAX, FLT_MAX));
         ImGui::Begin("VRAM View", &showVRAMView);
 
         if (ImGui::BeginTabBar("tabbar"))
         {
             if (ImGui::BeginTabItem("Background"))
             {
-                if (BGFrameBuffer == nullptr)
-                {
-                    OpenGL::createTexture(backgroundTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
-                    BGFrameBuffer = std::make_unique<uint8_t[]>(PPU::FRAMEBUFFER_SIZE);
+                currentTab = VRAMTab::Background;
 
+                if (!backgroundTexture)
+                {
+                    BGFrameBuffer = std::make_unique<uint8_t[]>(PPU::FRAMEBUFFER_SIZE);
                     clearBGBuffer(BGFrameBuffer.get());
-                    OpenGL::updateTexture(backgroundTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, BGFrameBuffer.get());
+                    OpenGL::createTexture(backgroundTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, BGFrameBuffer.get());
                 }
 
                 displayImage(backgroundTexture);
@@ -192,13 +225,13 @@ void debugUI::updateWindows(float scaleFactor)
             }
             if (ImGui::BeginTabItem("Window"))
             {
-                if (windowFrameBuffer == nullptr)
-                {
-                    OpenGL::createTexture(windowTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
-                    windowFrameBuffer = std::make_unique<uint8_t[]>(PPU::FRAMEBUFFER_SIZE);
+                currentTab = VRAMTab::Window;
 
+                if (!windowTexture)
+                {
+                    windowFrameBuffer = std::make_unique<uint8_t[]>(PPU::FRAMEBUFFER_SIZE);
                     clearBGBuffer(windowFrameBuffer.get());
-                    OpenGL::updateTexture(windowTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, windowFrameBuffer.get());
+                    OpenGL::createTexture(windowTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, windowFrameBuffer.get());
                 }
 
                 displayImage(windowTexture);
@@ -206,6 +239,8 @@ void debugUI::updateWindows(float scaleFactor)
             }
             if (ImGui::BeginTabItem("OAM"))
             {
+                currentTab = VRAMTab::OAM;
+
                 static bool showOAMMem {false};
                 ImGui::Checkbox("MEM View", &showOAMMem);
                 ImGui::Spacing();
@@ -226,13 +261,11 @@ void debugUI::updateWindows(float scaleFactor)
                 }
                 else
                 {
-                    if (OAMFrameBuffer == nullptr)
+                    if (!OAMTexture)
                     {
-                        OpenGL::createTexture(OAMTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
                         OAMFrameBuffer = std::make_unique<uint8_t[]>(PPU::FRAMEBUFFER_SIZE);
-
                         clearBGBuffer(OAMFrameBuffer.get());
-                        OpenGL::updateTexture(OAMTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, OAMFrameBuffer.get());
+                        OpenGL::createTexture(OAMTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, OAMFrameBuffer.get());
                     }
 
                     displayImage(OAMTexture);
@@ -242,21 +275,14 @@ void debugUI::updateWindows(float scaleFactor)
             }
             if (ImGui::BeginTabItem("Tile Data"))
             {
-                ImGui::Spacing();
+                currentTab = VRAMTab::TileData;
 
-                if (tileDataFrameBuffer == nullptr)
+                if (!tileDataTexture)
                 {
-                    OpenGL::createTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT);
-                    tileDataFrameBuffer = std::make_unique<uint8_t[]>(PPU::TILEDATA_FRAMEBUFFER_SIZE); 
-                    updateTileData();
+                    tileDataFrameBuffer = std::make_unique<uint8_t[]>(PPU::TILEDATA_FRAMEBUFFER_SIZE);
+                    clearTileDataBuffer();
+                    OpenGL::createTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileDataFrameBuffer.get());
                 }
-
-                if (ImGui::Button("Refresh"))
-                    updateTileData();
-
-                ImGui::Spacing();
-                ImGui::Separator();
-                ImGui::Spacing();
 
                 displayImage(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT);
                 ImGui::EndTabItem();

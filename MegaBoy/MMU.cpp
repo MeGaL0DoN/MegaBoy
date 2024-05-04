@@ -1,7 +1,8 @@
-#include <fstream>
+//#include <fstream>
 #include <filesystem>
 #include "MMU.h"
 #include "GBCore.h"
+#include <iostream>
 
 MMU::MMU(GBCore& gbCore) : gbCore(gbCore) {}
 
@@ -46,6 +47,8 @@ void MMU::executeDMA()
 	}
 }
 
+uint8_t writeCount{ 0 };
+
 void MMU::write8(uint16_t addr, uint8_t val)
 {
 	if (addr == 0xFF46)
@@ -63,6 +66,12 @@ void MMU::write8(uint16_t addr, uint8_t val)
 	}
 	else if (addr <= 0x9FFF)
 	{
+		//if (gbCore.ppu.state == PPUMode::PixelTransfer)
+		//{
+		//	if (writeCount % 50 == 0) std::cout << "LY: " << +gbCore.ppu.LY << " CYCLES: " << gbCore.ppu.videoCycles << " LCDC: " << +gbCore.ppu.LCDC << " STAT: " << +gbCore.ppu.STAT << "\n";
+		//	writeCount++;
+		//}
+
 		if (gbCore.ppu.state != PPUMode::PixelTransfer)
 			gbCore.ppu.VRAM[addr - 0x8000] = val;
 	}

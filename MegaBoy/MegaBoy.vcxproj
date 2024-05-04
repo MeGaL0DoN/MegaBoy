@@ -147,6 +147,7 @@
     <ClCompile Include="debugUI.cpp" />
     <ClCompile Include="GBCore.cpp" />
     <ClCompile Include="glFunctions.cpp" />
+    <ClCompile Include="HuC1.cpp" />
     <ClCompile Include="inputManager.cpp" />
     <ClCompile Include="MBC.cpp" />
     <ClCompile Include="MBC.h" />
@@ -171,6 +172,7 @@
     <ClInclude Include="APU.h" />
     <ClInclude Include="Cartridge.h" />
     <ClInclude Include="EmptyMBC.h" />
+    <ClInclude Include="HuC1.h" />
     <ClInclude Include="MBC1.h" />
     <ClInclude Include="MBC2.h" />
     <ClInclude Include="MBC3.h" />

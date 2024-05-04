@@ -11,6 +11,8 @@ bool CPU::interruptsPending()
 	return IE & IF & 0x1F;
 }
 
+uint8_t currentSTAT;
+
 uint8_t CPU::handleInterrupts()
 {
 	if (interruptsPending())

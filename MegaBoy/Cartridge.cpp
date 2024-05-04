@@ -6,6 +6,7 @@
 #include "MBC2.h"
 #include "MBC3.h"
 #include "MBC5.h"
+#include "HuC1.h"
 #include <iostream>
 
 Cartridge::Cartridge(GBCore& gbCore) : gbCore(gbCore), mapper(std::make_unique<EmptyMBC>(*this)) { }
@@ -20,7 +21,7 @@ bool Cartridge::loadROM(std::ifstream& ifs)
 	std::string signature;
 	std::getline(ifs, signature);
 
-	if (signature == SAVE_FILE_SIGNATURE)
+	if (signature == SAVE_FILE_SIGNATURE) // TODO
 	{
 		std::cout << "Parsing a save file! \n";
 		//return loadSaveFile();
@@ -56,8 +57,30 @@ bool Cartridge::loadROM(std::ifstream& ifs)
 	return true;
 }
 
+struct importGuard
+{
+	Cartridge& cartridge;
+	uint8_t backupRomBanks;
+	uint8_t backupRamBanks;
+
+	importGuard(Cartridge& cartridge) : cartridge(cartridge), backupRomBanks(cartridge.romBanks), backupRamBanks(cartridge.ramBanks)
+	{ }
+
+	~importGuard()
+	{
+		if (!cartridge.readSuccessfully)
+		{
+			cartridge.romBanks = backupRomBanks;
+			cartridge.ramBanks = backupRamBanks;
+		}
+	}
+};
+
 bool Cartridge::proccessCartridgeHeader(const std::vector<uint8_t>& buffer)
 {
+	readSuccessfully = false;
+	importGuard guard{ *this };
+
 	romBanks = 1 << (buffer[0x148] + 1);
 	if (romBanks == 0 || romBanks > buffer.size() / 0x4000) return false;
 
@@ -142,11 +165,24 @@ bool Cartridge::proccessCartridgeHeader(const std::vector<uint8_t>& buffer)
 		hasBattery = true;
 		mapper = std::make_unique<MBC5>(*this, true);
 		break;
+	case 0xFF:
+		hasBattery = true;
+		mapper = std::make_unique<HuC1>(*this);
+		break;
 
 	default:
 		std::cout << "Unknown MBC! \n";
 		return false;
 	}
 
+	gbCore.gameTitle = "";
+
+	for (int i = 0x134; i <= 0x143; i++)
+	{
+		if (buffer[i] == 0x00) break;
+		gbCore.gameTitle += buffer[i];
+	}
+
+	readSuccessfully = true;
 	return true;
 }
