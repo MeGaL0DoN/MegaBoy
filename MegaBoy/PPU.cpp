@@ -51,6 +51,12 @@ void PPU::updateScreenColors(const std::array<color, 4>& newColors)
 	}
 }
 
+void PPU::checkLYC()
+{
+	lycFlag = LY == LYC;
+	STAT = setBit(STAT, 2, lycFlag);
+}
+
 void PPU::requestSTAT()
 {
 	if (!blockStat)
@@ -60,19 +66,28 @@ void PPU::requestSTAT()
 	}
 }
 
-void PPU::checkLYC()
-{
-	lycFlag = LY == LYC;
-	STAT = setBit(STAT, 2, lycFlag);
-}
-
 void PPU::updateInterrupts()
 {
-	if ((HBlank_STAT() && state == PPUMode::HBlank) || (VBlank_STAT() && state == PPUMode::VBlank) ||
-		(OAM_STAT() && state == PPUMode::OAMSearch) || (LYC_STAT() && lycFlag))
+	bool interrupt = lycFlag && LYC_STAT();
+
+	if (!interrupt)
 	{
-		requestSTAT();
+		switch (state)
+		{
+		case PPUMode::HBlank:
+			if (HBlank_STAT()) interrupt = true;
+			break;
+		case PPUMode::VBlank:
+			if (VBlank_STAT()) interrupt = true;
+			break;
+		case PPUMode::OAMSearch:
+			if (OAM_STAT()) interrupt = true;
+			break;
+		}
 	}
+
+	if (interrupt)
+		requestSTAT();
 	else
 		blockStat = false;
 }

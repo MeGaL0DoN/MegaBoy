@@ -170,7 +170,7 @@ void renderImGUI()
         if (ImGui::BeginMenu("Settings", "Ctrl+Q"))
         {
             ImGui::Checkbox("Run Boot ROM", &gbCore.runBootROM);
-            ImGui::Checkbox("Pause on minimize", &pauseOnMinimize);
+            ImGui::Checkbox("Pause when minimized", &pauseOnMinimize);
 
             ImGui::EndMenu();
         }
