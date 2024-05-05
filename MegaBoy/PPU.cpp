@@ -16,6 +16,10 @@ void PPU::reset()
 	WY = 0;
 	WX = 0;
 
+	canAccessOAM = true;
+	canAccessVRAM = true;
+	blockStat = false;
+
 	BGP = 0xFC;
 	updatePalette(BGP, BGpalette);
 }
@@ -47,19 +51,30 @@ void PPU::updateScreenColors(const std::array<color, 4>& newColors)
 	}
 }
 
-void PPU::SetLY(uint8_t val)
+void PPU::requestSTAT()
 {
-	LY = val;
-	uint8_t oldSTAT = STAT;
-	STAT = resetBit(STAT, 2);
-
-	if (LY == LYC)
+	if (!blockStat)
 	{
-		STAT = setBit(STAT, 2);
-
-		if (LYC_STAT() && !(oldSTAT & 0x04))
-			cpu.requestInterrupt(Interrupt::STAT);
+		blockStat = true;
+		cpu.requestInterrupt(Interrupt::STAT);
 	}
+}
+
+void PPU::checkLYC()
+{
+	lycFlag = LY == LYC;
+	STAT = setBit(STAT, 2, lycFlag);
+}
+
+void PPU::updateInterrupts()
+{
+	if ((HBlank_STAT() && state == PPUMode::HBlank) || (VBlank_STAT() && state == PPUMode::VBlank) ||
+		(OAM_STAT() && state == PPUMode::OAMSearch) || (LYC_STAT() && lycFlag))
+	{
+		requestSTAT();
+	}
+	else
+		blockStat = false;
 }
 
 void PPU::SetPPUMode(PPUMode ppuState)
@@ -72,13 +87,16 @@ void PPU::SetPPUMode(PPUMode ppuState)
 	switch (state)
 	{
 	case PPUMode::HBlank:
-		if (HBlank_STAT() && !(STAT & 0x40)) cpu.requestInterrupt(Interrupt::STAT);
+		canAccessOAM = true; canAccessVRAM = true;
 		break;
 	case PPUMode::VBlank:
-		if (VBlank_STAT() && !(STAT & 0x10)) cpu.requestInterrupt(Interrupt::STAT);
+		canAccessOAM = true; canAccessVRAM = true;
 		break;
 	case PPUMode::OAMSearch:
-		if (OAM_STAT() && !(STAT & 0x20)) cpu.requestInterrupt(Interrupt::STAT);
+		canAccessOAM = false;
+		break;
+	case PPUMode::PixelTransfer:
+		canAccessVRAM = false;
 		break;
 	}
 }
@@ -103,6 +121,9 @@ void PPU::execute()
 		handleVBlank();
 		break;
 	}
+
+	checkLYC();
+	updateInterrupts();
 }
 
 void PPU::handleHBlank()
@@ -110,7 +131,7 @@ void PPU::handleHBlank()
 	if (videoCycles >= HBLANK_CYCLES)
 	{
 		videoCycles -= HBLANK_CYCLES;
-		SetLY(LY + 1);
+		LY++;
 
 		updatedOAMPixels.clear();
 		updatedWindowPixels.clear();
@@ -133,12 +154,12 @@ void PPU::handleVBlank()
 
 		if (LY == 153)
 		{
-			SetLY(0);
+			LY = 0;
 			WLY = 0;
 			SetPPUMode(PPUMode::OAMSearch);
 		}
 		else
-			SetLY(LY + 1);
+			LY++;
 	}
 }
 

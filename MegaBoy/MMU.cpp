@@ -47,7 +47,7 @@ void MMU::executeDMA()
 	}
 }
 
-uint8_t writeCount{ 0 };
+//uint8_t writeCount{ 0 };
 
 void MMU::write8(uint16_t addr, uint8_t val)
 {
@@ -66,13 +66,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 	}
 	else if (addr <= 0x9FFF)
 	{
-		//if (gbCore.ppu.state == PPUMode::PixelTransfer)
-		//{
-		//	if (writeCount % 50 == 0) std::cout << "LY: " << +gbCore.ppu.LY << " CYCLES: " << gbCore.ppu.videoCycles << " LCDC: " << +gbCore.ppu.LCDC << " STAT: " << +gbCore.ppu.STAT << "\n";
-		//	writeCount++;
-		//}
-
-		if (gbCore.ppu.state != PPUMode::PixelTransfer)
+		if (gbCore.ppu.canAccessVRAM)
 			gbCore.ppu.VRAM[addr - 0x8000] = val;
 	}
 	else if (addr <= 0xBFFF)
@@ -89,7 +83,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 	}
 	else if (addr <= 0xFE9F)
 	{
-		if ((gbCore.ppu.state == PPUMode::HBlank || gbCore.ppu.state == PPUMode::VBlank) /*&& !dmaInProgress()*/)
+		if (gbCore.ppu.canAccessOAM)
 			gbCore.ppu.OAM[addr - 0xFE00] = val;
 	}
 	else if (addr <= 0xFEFF)
@@ -241,7 +235,7 @@ uint8_t MMU::read8(uint16_t addr) const
 	}
 	if (addr <= 0x9FFF)
 	{
-		return gbCore.ppu.state == PPUMode::PixelTransfer ? 0xFF : gbCore.ppu.VRAM[addr - 0x8000];
+		return gbCore.ppu.canAccessVRAM ? gbCore.ppu.VRAM[addr - 0x8000] : 0xFF;  
 	}
 	if (addr <= 0xBFFF)
 	{
@@ -257,10 +251,7 @@ uint8_t MMU::read8(uint16_t addr) const
 	}
 	if (addr <= 0xFE9F)
 	{
-		if ((gbCore.ppu.state == PPUMode::HBlank || gbCore.ppu.state == PPUMode::VBlank) /*&& !dmaInProgress()*/)
-			return gbCore.ppu.OAM[addr - 0xFE00];
-
-		return 0xFF;
+		return gbCore.ppu.canAccessOAM ? gbCore.ppu.OAM[addr - 0xFE00] : 0xFF;
 	}
 	if (addr <= 0xFEFF)
 	{

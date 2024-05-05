@@ -94,6 +94,9 @@ private:
 	std::array<uint8_t, 8192> VRAM;
 	std::array<uint8_t, 160> OAM;
 
+	bool canAccessOAM;
+	bool canAccessVRAM;
+
 	uint8_t LCDC;
 	uint8_t STAT;
 	uint8_t SCY;
@@ -107,6 +110,9 @@ private:
 	uint8_t WLY;
 	uint8_t WY;
 	uint8_t WX;
+
+	bool lycFlag;
+	bool blockStat;
 
 	PPUMode state;
 	uint16_t videoCycles;
@@ -143,7 +149,10 @@ private:
 
 	void updatePalette(uint8_t val, std::array<uint8_t, 4>& palette);
 
-	void SetLY(uint8_t val);
+	void checkLYC();
+	void requestSTAT();
+	void updateInterrupts();
+
 	void SetPPUMode(PPUMode ppuState);
 	void disableLCD(PPUMode mode = PPUMode::HBlank);
 

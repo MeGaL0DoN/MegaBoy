@@ -18,6 +18,7 @@
 GLFWwindow* window;
 bool saveManagerOpen{ false };
 
+bool pauseOnMinimize { true };
 bool fpsLock{ true };
 bool vsync { true };
 int vsyncCPUCycles;
@@ -169,6 +170,7 @@ void renderImGUI()
         if (ImGui::BeginMenu("Settings", "Ctrl+Q"))
         {
             ImGui::Checkbox("Run Boot ROM", &gbCore.runBootROM);
+            ImGui::Checkbox("Pause on minimize", &pauseOnMinimize);
 
             ImGui::EndMenu();
         }
@@ -269,7 +271,7 @@ void renderImGUI()
         errorLoadingROM = false;
     }
 
-    if (ImGui::BeginPopupModal(errorPopupTitle))
+    if (ImGui::BeginPopupModal(errorPopupTitle, 0, ImGuiWindowFlags_NoMove))
     {
         float windowWidth = ImGui::GetWindowSize().x;
         ImGui::SetCursorPosX((windowWidth - (75 * scaleFactor)) * 0.5f);
@@ -316,6 +318,8 @@ void window_refresh_callback(GLFWwindow* window)
 bool pausedPreMinimize;
 void window_iconify_callback(GLFWwindow* window, int iconified)
 {
+    if (!pauseOnMinimize) return;
+
     if (iconified)
     {
         pausedPreMinimize = gbCore.paused;
