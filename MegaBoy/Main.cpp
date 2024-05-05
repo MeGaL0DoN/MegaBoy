@@ -341,7 +341,11 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         if (key == GLFW_KEY_TAB)
         {
             if (gbCore.paused) gbCore.paused = false;
-            else pauseOnVBlank = true;
+            else
+            {
+                if (gbCore.cartridge.ROMLoaded) pauseOnVBlank = true;
+                else gbCore.paused = true;
+            }
             return;
         }
     }

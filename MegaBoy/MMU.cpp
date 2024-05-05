@@ -47,8 +47,6 @@ void MMU::executeDMA()
 	}
 }
 
-//uint8_t writeCount{ 0 };
-
 void MMU::write8(uint16_t addr, uint8_t val)
 {
 	if (addr == 0xFF46)
@@ -57,7 +55,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 		startDMATransfer();
 		return;
 	}
-	else if (dmaInProgress() && (addr < 0xFF80 || addr > 0xFFFE)) // during DMA only HRAM can be accessed. TO FIX ON CGB
+	else if (dmaInProgress() && (addr < 0xFF80 || addr > 0xFFFE)) // during DMA only HRAM can be accessed. // TODO: DISABLE ON GBC!
 		return;
 
 	if (addr <= 0x7FFF)
@@ -126,8 +124,10 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 		case 0xFF41:
 		{
-			// Allow writing only five upper bits to LCD status register.
-			gbCore.ppu.STAT = (gbCore.ppu.STAT & 0x87) | (val & 0xF8);
+			// Handle spurious STAT interrupts   // TODO: DISABLE ON GBC!
+			gbCore.ppu.newStatVal = (gbCore.ppu.STAT & 0x87) | (val & 0xF8);
+			gbCore.ppu.STAT = 0xFF;
+			gbCore.ppu.statRegChanged = true;
 			break;
 		}
 		case 0xFF42:
@@ -221,7 +221,7 @@ uint8_t MMU::read8(uint16_t addr) const
 {
 	if constexpr (dmaBlocking)
 	{
-		if (dmaInProgress() && (addr < 0xFF80 || addr > 0xFFFE)) // during DMA only HRAM can be accessed. TO FIX ON CGB
+		if (dmaInProgress() && (addr < 0xFF80 || addr > 0xFFFE)) // during DMA only HRAM can be accessed. // TODO: DISABLE ON GBC!
 			return 0xFF;
 	}
 

@@ -19,6 +19,7 @@ void PPU::reset()
 	canAccessOAM = true;
 	canAccessVRAM = true;
 	blockStat = false;
+	statRegChanged = false;
 
 	BGP = 0xFC;
 	updatePalette(BGP, BGpalette);
@@ -139,6 +140,12 @@ void PPU::execute()
 
 	checkLYC();
 	updateInterrupts();
+
+	if (statRegChanged)
+	{
+		STAT = newStatVal;
+		statRegChanged = false;
+	}
 }
 
 void PPU::handleHBlank()

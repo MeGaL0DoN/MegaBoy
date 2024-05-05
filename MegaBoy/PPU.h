@@ -15,7 +15,6 @@ enum class PPUMode : uint8_t
 	VBlank = 1,
 	OAMSearch = 2,
 	PixelTransfer = 3,
-	None
 };
 
 struct object
@@ -113,6 +112,9 @@ private:
 
 	bool lycFlag;
 	bool blockStat;
+
+	bool statRegChanged;
+	uint8_t newStatVal;
 
 	PPUMode state;
 	uint16_t videoCycles;

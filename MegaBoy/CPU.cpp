@@ -42,12 +42,9 @@ void CPU::addCycle()
 	gbCore.stepComponents();
 }
 
-//uint8_t lastwrite;
-
 void CPU::write8(uint16_t addr, uint8_t val)
 {
 	gbCore.mmu.write8(addr, val);
-	//lastwrite = val;
 	addCycle();
 }
 uint8_t CPU::read8(uint16_t addr)
