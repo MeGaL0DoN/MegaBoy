@@ -2,33 +2,43 @@
 
 void serialPort::writeSerialControl(uint8_t val)
 {
-    serial_control = val | 0b01111100;
-    if (serial_control & 0x80) 
+    s.serial_control = val | 0b01111100;
+    if (s.serial_control & 0x80) 
     {
-        serialCycles = 0;
-        transferredBits = 0;
+        s.serialCycles = 0;
+        s.transferredBits = 0;
     }
 }
 
 void serialPort::execute() 
 {
-    if (serial_control & 0x80)
+    if (s.serial_control & 0x80)
     {
-        if (serial_control & 0x1) // For now executing only if internal clock is selected.
-            serialCycles++;
+        if (s.serial_control & 0x1) // For now executing only if internal clock is selected.
+            s.serialCycles++;
 
-        if (serialCycles >= SERIAL_TRANSFER_CYCLES)
+        if (s.serialCycles >= SERIAL_TRANSFER_CYCLES)
         {
-            serialCycles -= SERIAL_TRANSFER_CYCLES;
-            transferredBits++;
-            serial_reg <<= 1;
-            serial_reg |= 0x1; // For now 0x1 represents not connected. Later replace with actual value.
+            s.serialCycles -= SERIAL_TRANSFER_CYCLES;
+            s.transferredBits++;
+            s.serial_reg <<= 1;
+            s.serial_reg |= 0x1; // For now 0x1 represents not connected. Later replace with actual value.
 
-            if (transferredBits == 8)
+            if (s.transferredBits == 8)
             {
-                serial_control &= 0x7F;
+                s.serial_control &= 0x7F;
                 cpu.requestInterrupt(Interrupt::Serial);
             }
         }
     }
+}
+
+void serialPort::saveState(std::ofstream& st)
+{
+    st.write(reinterpret_cast<char*>(&s), sizeof(s));
+}
+
+void serialPort::loadState(std::ifstream& st)
+{
+    st.read(reinterpret_cast<char*>(&s), sizeof(s));
 }

@@ -8,28 +8,26 @@ constexpr std::array<uint8_t, 5> interruptSources = { 0x40, 0x48, 0x50, 0x58, 0x
 
 bool CPU::interruptsPending()
 {
-	return IE & IF & 0x1F;
+	return s.IE & s.IF & 0x1F;
 }
-
-uint8_t currentSTAT;
 
 uint8_t CPU::handleInterrupts()
 {
 	if (interruptsPending())
 	{
-		if (IME)
+		if (s.IME)
 		{
 			for (int i = 0; i < sizeof(interruptSources); i++)
 			{
-				if (getBit(IE, i) && getBit(IF, i))
+				if (getBit(s.IE, i) && getBit(s.IF, i))
 				{
 					cycles = 0;
-					halted = false;
-					instructions.PUSH(PC);
-					PC = interruptSources[i];
-					IF = resetBit(IF, i);
+					s.halted = false;
+					instructions.PUSH(s.PC);
+					s.PC = interruptSources[i];
+					s.IF = resetBit(s.IF, i);
 					addCycles(2); // PUSH adds 3, need 5 in total.
-					IME = false;
+					s.IME = false;
 					return cycles;
 				}
 			}
@@ -37,7 +35,7 @@ uint8_t CPU::handleInterrupts()
 		else
 		{
 			// halt bug
-			halted = false;
+			s.halted = false;
 		}
 	}
 
@@ -46,33 +44,33 @@ uint8_t CPU::handleInterrupts()
 
 void CPU::requestInterrupt(Interrupt interrupt)
 {
-	IF = setBit(IF, static_cast<uint8_t>(interrupt));
+	s.IF = setBit(s.IF, static_cast<uint8_t>(interrupt));
 }
 
 constexpr std::array<uint16_t, 4> TIMAcycles = { 256, 4, 16, 64 };
 
 void CPU::updateTimer()
 {
-	DIV_COUNTER++;
-	if (DIV_COUNTER >= 64)
+	s.DIV_COUNTER++;
+	if (s.DIV_COUNTER >= 64)
 	{
-		DIV_COUNTER -= 64;
-		DIV_reg++;
+		s.DIV_COUNTER -= 64;
+		s.DIV_reg++;
 	}
 
-	if (getBit(TAC_reg, 2))
+	if (getBit(s.TAC_reg, 2))
 	{
-		TIMA_COUNTER++;
-		uint16_t currentTIMAspeed = TIMAcycles[TAC_reg & 0x03];
+		s.TIMA_COUNTER++;
+		uint16_t currentTIMAspeed = TIMAcycles[s.TAC_reg & 0x03];
 
-		while (TIMA_COUNTER >= currentTIMAspeed) 
+		while (s.TIMA_COUNTER >= currentTIMAspeed) 
 		{
-			TIMA_COUNTER -= currentTIMAspeed;
-			TIMA_reg++;
+			s.TIMA_COUNTER -= currentTIMAspeed;
+			s.TIMA_reg++;
 
-			if (TIMA_reg == 0)
+			if (s.TIMA_reg == 0)
 			{
-				TIMA_reg = TMA_reg;
+				s.TIMA_reg = s.TMA_reg;
 				requestInterrupt(Interrupt::Timer);
 			}
 		}

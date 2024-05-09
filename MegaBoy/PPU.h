@@ -54,7 +54,9 @@ public:
 	void (*drawCallback)(const uint8_t* framebuffer);
 	constexpr void invokeDrawCallback() { if (drawCallback != nullptr) drawCallback(framebuffer.data()); }
 
-	constexpr void resetCallbacks()
+	void(*VBlankEndCallback)();
+
+	constexpr void resetRenderCallbacks()
 	{
 		onBackgroundRender = nullptr;
 		onWindowRender = nullptr;
@@ -86,35 +88,43 @@ public:
 
 	constexpr const std::array<uint8_t, 8192>& getVRAM() { return VRAM; }
 	constexpr const std::array<uint8_t, 160>& getOAM() { return OAM; }
+
+	void saveState(std::ofstream& st);
+	void loadState(std::ifstream& st);
 private:
 	MMU& mmu;
 	CPU& cpu;
 
+	struct ppuRegs
+	{
+		uint8_t LCDC{0x91};
+		uint8_t STAT{0x85};
+		uint8_t SCY{0x00};
+		uint8_t SCX{0x00};
+		uint8_t LYC{0x00};
+		uint8_t BGP{0xFC};
+		uint8_t OBP0{0x00};
+		uint8_t OBP1{0x00};
+		uint8_t WY{0x00};
+		uint8_t WX{0x00};
+	};
+
 	std::array<uint8_t, 8192> VRAM;
 	std::array<uint8_t, 160> OAM;
 
-	bool canAccessOAM;
-	bool canAccessVRAM;
-
-	uint8_t LCDC;
-	uint8_t STAT;
-	uint8_t SCY;
-	uint8_t SCX;
-	uint8_t LYC;
-	uint8_t BGP;
-	uint8_t OBP0;
-	uint8_t OBP1;
+	ppuRegs regs;
 
 	uint8_t LY;
 	uint8_t WLY;
-	uint8_t WY;
-	uint8_t WX;
 
 	bool lycFlag;
 	bool blockStat;
 
 	bool statRegChanged;
 	uint8_t newStatVal;
+
+	bool canAccessOAM;
+	bool canAccessVRAM;
 
 	PPUMode state;
 	uint16_t videoCycles;
@@ -175,17 +185,17 @@ private:
 	void renderBGTile(uint16_t addr, int16_t screenX, uint8_t scrollY);
 	void renderObjTile(uint16_t tileAddr, uint8_t attributes, int16_t objX, int16_t objY);
 
-	inline bool TileMapsEnable() { return getBit(LCDC, 0); }
-	inline bool OBJEnable() { return getBit(LCDC, 1); }
-	inline bool DoubleOBJSize() { return getBit(LCDC, 2); }
-	inline uint16_t BGTileAddr() { return getBit(LCDC, 3) ? 0x1C00 : 0x1800; }
-	inline uint16_t WindowTileAddr() { return getBit(LCDC, 6) ? 0x1C00 : 0x1800; }
-	inline bool BGUnsignedAddressing() { return getBit(LCDC, 4); }
-	inline bool WindowEnable() { return getBit(LCDC, 5); }
-	inline bool LCDEnabled() { return getBit(LCDC, 7); }
+	inline bool TileMapsEnable() { return getBit(regs.LCDC, 0); }
+	inline bool OBJEnable() { return getBit(regs.LCDC, 1); }
+	inline bool DoubleOBJSize() { return getBit(regs.LCDC, 2); }
+	inline uint16_t BGTileAddr() { return getBit(regs.LCDC, 3) ? 0x1C00 : 0x1800; }
+	inline uint16_t WindowTileAddr() { return getBit(regs.LCDC, 6) ? 0x1C00 : 0x1800; }
+	inline bool BGUnsignedAddressing() { return getBit(regs.LCDC, 4); }
+	inline bool WindowEnable() { return getBit(regs.LCDC, 5); }
+	inline bool LCDEnabled() { return getBit(regs.LCDC, 7); }
 
-	inline bool LYC_STAT() { return getBit(STAT, 6); }
-	inline bool OAM_STAT() { return getBit(STAT, 5); }
-	inline bool VBlank_STAT() { return getBit(STAT, 4); }
-	inline bool HBlank_STAT() { return getBit(STAT, 3); }
+	inline bool LYC_STAT() { return getBit(regs.STAT, 6); }
+	inline bool OAM_STAT() { return getBit(regs.STAT, 5); }
+	inline bool VBlank_STAT() { return getBit(regs.STAT, 4); }
+	inline bool HBlank_STAT() { return getBit(regs.STAT, 3); }
 };

@@ -8,13 +8,20 @@ public:
 
 	uint8_t read(uint16_t addr) const override;
 	void write(uint16_t addr, uint8_t val) override;
+
+	virtual void saveState(std::ofstream& st) const override;
+	virtual void loadState(std::ifstream& st) override;
 private:
 	const bool hasTimer;
 
-	bool ramEnable{ false };
-	uint8_t romBank{1};
+	struct state
+	{
+		bool rtcModeActive{ false };
 
-	bool rtcModeActive {false};
-	uint8_t ramBank {0};
-	uint8_t rtcReg{0}; // to fix
+		uint8_t romBank{ 1 };
+		uint8_t ramBank{ 0 };
+		uint8_t rtcReg{ 0 }; // to fix
+	};
+
+	state s;
 };

@@ -8,24 +8,35 @@
 #include "MBC5.h"
 #include "HuC1.h"
 #include <iostream>
+#include "algorithm"
 
 Cartridge::Cartridge(GBCore& gbCore) : gbCore(gbCore), mapper(std::make_unique<EmptyMBC>(*this)) { }
+
+void Cartridge::saveGame()
+{
+	//saveStream.clear();
+	//saveStream.seekp(0, std::ios::beg);
+
+	//saveStream.write(reinterpret_cast<char*>(rom.data()), rom.size());
+
+	//saveStream.flush();
+}
 
 bool Cartridge::loadROM(std::ifstream& ifs)
 {
 	std::ifstream::pos_type size = ifs.tellg();
 	if (size < 0x4000) return false; // If file size is less than 1 ROM bank then it is defintely invalid.
 
-	ifs.seekg(0, std::ios::beg);
+	//ifs.seekg(0, std::ios::beg);
 
-	std::string signature;
-	std::getline(ifs, signature);
+	//std::string signature;
+	//std::getline(ifs, signature);
 
-	if (signature == SAVE_FILE_SIGNATURE) // TODO
-	{
-		std::cout << "Parsing a save file! \n";
-		//return loadSaveFile();
-	}
+	//if (signature == SAVE_FILE_SIGNATURE) // TODO
+	//{
+	//	std::cout << "Parsing a save file! \n";
+	//	//return loadSaveFile();
+	//}
 
 	std::vector<uint8_t> fileBuffer;
 	fileBuffer.resize(size);
@@ -40,6 +51,10 @@ bool Cartridge::loadROM(std::ifstream& ifs)
 	gbCore.reset();
 	rom = std::move(fileBuffer);
 
+	//gameSaveFile = gbCore.gameTitle;
+	//gameSaveFile.erase(std::remove(gameSaveFile.begin(), gameSaveFile.end(), ' '), gameSaveFile.end());
+	//saveStream.open(gameSaveFile);
+
 	if (gbCore.runBootROM && std::filesystem::exists("data/boot_rom.bin"))
 	{
 		std::ifstream ifs("data/boot_rom.bin", std::ios::binary | std::ios::ate);
@@ -50,7 +65,7 @@ bool Cartridge::loadROM(std::ifstream& ifs)
 		ifs.read(reinterpret_cast<char*>(&gbCore.mmu.bootROM[0]), pos);
 
 		// LCD disabled on boot ROM start
-		gbCore.ppu.LCDC = resetBit(gbCore.ppu.LCDC, 7);
+		gbCore.ppu.regs.LCDC = resetBit(gbCore.ppu.regs.LCDC, 7);
 		gbCore.cpu.enableBootROM();
 	}
 

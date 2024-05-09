@@ -22,6 +22,9 @@ public:
 	void stepComponents();
 	void reset();
 
+	void saveState();
+	void loadState();
+
 	bool paused { false };
 	bool runBootROM { false };
 	std::string gameTitle { };

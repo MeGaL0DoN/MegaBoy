@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstring>
 #include "registers.h"
+#include <iostream>
 
 enum class StatIRQ
 {
@@ -26,8 +27,6 @@ class GBCore;
 class CPU
 {
 public:
-	int opcodeNum{ 0 };
-
 	uint8_t execute();
 	uint8_t handleInterrupts();
 	void requestInterrupt(Interrupt interrupt);
@@ -41,11 +40,16 @@ public:
 
 	inline void enableBootROM()
 	{
-		PC = 0x0;
+		s.PC = 0x0;
 		executingBootROM = true;
 	}
 
+	void saveState(std::ofstream& st);
+	void loadState(std::ifstream& st);
+
 private:
+	GBCore& gbCore;
+
 	void executeMain();
 	void executePrefixed();
 	bool interruptsPending();
@@ -73,32 +77,62 @@ private:
 		return read8(addr + 1) << 8 | read8(addr);
 	}
 
-	registerCollection registers {};
-	GBCore& gbCore;
+	struct cpuState
+	{
+		registerCollection registers{};
 
+		uint16_t PC;
+		Register16 SP;
+
+		uint8_t DIV_reg;
+		uint8_t TIMA_reg;
+		uint8_t TMA_reg;
+		uint8_t TAC_reg;
+
+		uint16_t DIV_COUNTER;
+		uint16_t TIMA_COUNTER;
+
+		uint8_t IE;
+		uint8_t IF;
+
+		bool stopped;
+		bool halted;
+		bool halt_bug;
+
+		bool IME;
+		bool shouldSetIME;
+
+		cpuState()
+		{
+			reset();
+		}
+
+		inline void reset()
+		{
+			PC = 0x100;
+			SP = 0xFFFE;
+			DIV_reg = 0xAB;
+			TIMA_reg = 0x00;
+			TMA_reg = 0x00;
+			TAC_reg = 0xF8;
+			DIV_COUNTER = 0;
+			TIMA_COUNTER = 0;
+			IE = 0x00;
+			IF = 0xE1;
+			
+			stopped = false;
+			halted = false;
+			halt_bug = false;
+			IME = false;
+			shouldSetIME = false;
+			
+			registers.resetRegisters();
+		}
+	};
+
+	cpuState s{};
 	uint8_t opcode;
 	uint8_t cycles;
-
-	uint16_t PC;
-	Register16 SP;
-
-	uint8_t DIV_reg;
-	uint8_t TIMA_reg;
-	uint8_t TMA_reg;
-	uint8_t TAC_reg;
-
-	uint16_t DIV_COUNTER;
-	uint16_t TIMA_COUNTER;
-
-	uint8_t IE;
-	uint8_t IF;
-
-	bool stopped;
-	bool halted;
-	bool halt_bug;
-
-	bool IME;
-	bool shouldSetIME;
 
 	bool executingBootROM;
 };

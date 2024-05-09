@@ -19,6 +19,8 @@ GLFWwindow* window;
 bool saveManagerOpen{ false };
 
 bool pauseOnMinimize { true };
+bool autoSaves { true };
+
 bool fpsLock{ true };
 bool vsync { true };
 int vsyncCPUCycles;
@@ -35,7 +37,7 @@ const std::wstring defaultPath{ std::filesystem::current_path().wstring() };
 constexpr nfdnfilteritem_t filterItem[] = { {L"Game ROM", L"gb,bin"} };
 bool fileDialogOpen;
 
-const char* errorPopupTitle = "Error Loading the ROM!";
+constexpr const char* errorPopupTitle = "Error Loading the ROM!";
 bool errorLoadingROM{false};
 
 bool pauseOnVBlank {false};
@@ -169,6 +171,7 @@ void renderImGUI()
         }
         if (ImGui::BeginMenu("Settings", "Ctrl+Q"))
         {
+            ImGui::Checkbox("Auto Saves", &autoSaves);
             ImGui::Checkbox("Run Boot ROM", &gbCore.runBootROM);
             ImGui::Checkbox("Pause when minimized", &pauseOnMinimize);
 
@@ -335,18 +338,20 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     {
         if (key == GLFW_KEY_ESCAPE)
         {
-            loadROM(currentROMPAth.c_str());
+            gbCore.loadState();
+          //  loadROM(currentROMPAth.c_str());
             return;
         }
         if (key == GLFW_KEY_TAB)
         {
-            if (gbCore.paused) gbCore.paused = false;
-            else
-            {
-                if (gbCore.cartridge.ROMLoaded) pauseOnVBlank = true;
-                else gbCore.paused = true;
-            }
-            return;
+            gbCore.saveState(); 
+            //if (gbCore.paused) gbCore.paused = false;
+            //else
+            //{
+            //    if (gbCore.cartridge.ROMLoaded) pauseOnVBlank = true;
+            //    else gbCore.paused = true;
+            //}
+            //return;
         }
     }
 
@@ -439,42 +444,6 @@ void setImGUI()
     ImGui_ImplOpenGL3_Init("#version 330");
 }
 
-//void compareFiles()
-//{
-//    std::ifstream newV("megaboyLog.txt");
-//    std::ifstream oldV("lunaLogs.txt");
-//
-//    std::vector<std::string> newLines;
-//    std::vector<std::string> oldLines;
-//
-//    newLines.reserve(400000);
-//    oldLines.reserve(400000);
-//
-//    std::string line;
-//
-//    while (std::getline(newV, line))
-//    {
-//        newLines.push_back(line);
-//    }
-//
-//    while (std::getline(oldV, line))
-//    {
-//        oldLines.push_back(line);
-//    }
-//
-//    for (int i = 0; i < 400000; i++)
-//    {
-//        if (newLines[i] != oldLines[i])
-//        {
-//            std::cout << "Difference at line " << i + 1 << "\n";
-//            std::cout << newLines[i] << "\n";
-//            return;
-//        }
-//    }
-//
-//    std::cout << "No differences! \n";
-//}
-
 int main()
 {
     if (!setGLFW()) return -1;
@@ -495,16 +464,20 @@ int main()
         timer += deltaTime;
         fpsTimer += deltaTime;
 
-        constexpr double maxDeltaTime = 1.0 / 5.0; // So holding the window down and then releasing doesn't block emulator by executing a bunch of instructions... 
-        const bool shouldUpdate = vsync || (fpsLock && timer >= GBCore::FRAME_RATE) || (!fpsLock && deltaTime < maxDeltaTime);
+        const bool updateCPU = vsync || timer >= GBCore::FRAME_RATE;  
+        const bool updateRender = updateCPU || (!vsync && !fpsLock);
 
-        if (shouldUpdate)
+        if (updateCPU)
         {
-            gbCore.update(vsync ? vsyncCPUCycles : fpsLock ? GBCore::CYCLES_PER_FRAME : GBCore::getCycles(deltaTime));
+            gbCore.update(vsync ? vsyncCPUCycles : GBCore::CYCLES_PER_FRAME);
+            timer = 0;
+        }
+
+        if (updateRender)
+        {
             glfwPollEvents();
             render();
             frameCount++;
-            timer = 0;
         }
 
         if (fpsTimer >= 1.0)
@@ -514,6 +487,9 @@ int main()
 
             frameCount = 0;
             fpsTimer = 0;
+
+           // if (gbCore.cartridge.ROMLoaded) // Autosave once a second.
+             //   gbCore.saveState(); //cartridge.saveGame();
         }
 
         lastFrameTime = currentFrameTime;

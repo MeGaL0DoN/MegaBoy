@@ -1,19 +1,33 @@
 #pragma once
 #include "CPU.h"
+#include <fstream>
 
 class serialPort
 {
 public:
+	friend class MMU;
+
 	serialPort(CPU& cpu) : cpu(cpu) { reset(); }
 	void writeSerialControl(uint8_t val);
 	void execute();
 
-	constexpr void reset() { serial_reg = 0x0; serial_control = 0x7E; serialCycles = 0; transferredBits = 0; }
-	uint8_t serial_control;
-	uint8_t serial_reg;
+	constexpr void reset() { s = {}; }
+
+	void saveState(std::ofstream& st);
+	void loadState(std::ifstream& st);
+
 private:
 	CPU& cpu;
-	uint16_t serialCycles;
-	uint8_t transferredBits;
 	static constexpr uint16_t SERIAL_TRANSFER_CYCLES = 128;
+
+	struct serialState
+	{
+		uint8_t serial_control{0x7E};
+		uint8_t serial_reg{0x0};
+
+		uint16_t serialCycles{0x0};
+		uint8_t transferredBits{0x0};
+	};
+
+	serialState s{};
 };

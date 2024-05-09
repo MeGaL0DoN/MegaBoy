@@ -45,3 +45,15 @@ void MBC2::write(uint16_t addr, uint8_t val)
 		ram[addr & 0x1FF] = val;
 	}
 }
+
+void MBC2::saveState(std::ofstream& st) const
+{
+	MBC::saveBattery(st);
+	st.write(reinterpret_cast<const char*>(&romBank), sizeof(romBank));
+}
+
+void MBC2::loadState(std::ifstream& st)
+{
+	MBC::loadBattery(st);
+	st.read(reinterpret_cast<char*>(&romBank), sizeof(romBank));
+}

@@ -9,12 +9,12 @@ uint8_t MBC3::read(uint16_t addr) const
 	}
 	if (addr <= 0x7FFF)
 	{
-		return rom[(romBank % cartridge.romBanks) * 0x4000 + (addr - 0x4000)];
+		return rom[(s.romBank % cartridge.romBanks) * 0x4000 + (addr - 0x4000)];
 	}
 	if (addr <= 0xBFFF)
 	{
-		if (rtcModeActive) return rtcReg; // to fix
-		else return ram[(ramBank % cartridge.ramBanks) * 0x2000 + (addr - 0xA000)];
+		if (s.rtcModeActive) return s.rtcReg; // to fix
+		else return ram[(s.ramBank % cartridge.ramBanks) * 0x2000 + (addr - 0xA000)];
 	}
 
 	return 0xFF;
@@ -28,18 +28,18 @@ void MBC3::write(uint16_t addr, uint8_t val)
 	}
 	else if (addr <= 0x3FFF)
 	{
-		romBank = val & 0x7F;
-		if (romBank == 0) romBank = 1;
+		s.romBank = val & 0x7F;
+		if (s.romBank == 0) s.romBank = 1;
 	}
 	else if (addr <= 0x5FFF)
 	{
 		if (val <= 0x03)
 		{
-			ramBank = val;
-			rtcModeActive = false;
+			s.ramBank = val;
+			s.rtcModeActive = false;
 		}
 		else if (val <= 0x0C)
-			rtcModeActive = true; // to fix
+			s.rtcModeActive = true; // to fix
 	}
 	else if (addr <= 0x7FFF)
 	{
@@ -47,7 +47,19 @@ void MBC3::write(uint16_t addr, uint8_t val)
 	}
 	else if (addr <= 0xBFFF)
 	{
-		if (rtcModeActive) rtcReg = val; // to fix
-		else ram[(ramBank % cartridge.ramBanks) * 0x2000 + (addr - 0xA000)] = val;
+		if (s.rtcModeActive) s.rtcReg = val; // to fix
+		else ram[(s.ramBank % cartridge.ramBanks) * 0x2000 + (addr - 0xA000)] = val;
 	}
+}
+
+void MBC3::saveState(std::ofstream& st) const
+{
+	MBC::saveBattery(st);
+	st.write(reinterpret_cast<const char*>(&s), sizeof(s));
+}
+
+void MBC3::loadState(std::ifstream& st)
+{
+	MBC::loadBattery(st);
+	st.read(reinterpret_cast<char*>(&s), sizeof(s));
 }

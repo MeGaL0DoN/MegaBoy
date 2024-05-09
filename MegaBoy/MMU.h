@@ -21,27 +21,34 @@ public:
 
 	inline void reset()
 	{
-		dmaTransfer = false;
-		dmaRestartRequest = false;
-		DMA = 0xFF;
+		dma.transfer = false;
+		dma.restartRequest = false;
+		dma.reg = 0xFF;
 	}
+
+	void saveState(std::ofstream& st);
+	void loadState(std::ifstream& st);
 
 private:
 	GBCore& gbCore;
+	static constexpr uint8_t DMA_CYCLES = 160;
 
 	std::array<uint8_t, 8192> WRAM{};
 	std::array<uint8_t, 127> HRAM{};
 	std::array<uint8_t, 256> bootROM{};
-	uint8_t DMA;
 
-	bool dmaTransfer;
-	bool dmaRestartRequest;
-	uint8_t dmaCycles;
-	uint16_t dmaSourceAddr;
-	uint8_t dmaDelayCycles;
+	struct DMAstate
+	{
+		uint8_t reg;
+		bool transfer;
+		bool restartRequest;
+		uint8_t cycles;
+		uint16_t sourceAddr;
+		uint8_t delayCycles;
+	};
 
+	DMAstate dma;
+
+	constexpr bool dmaInProgress() const { return dma.transfer && dma.delayCycles == 0; }
 	void startDMATransfer();
-
-	constexpr bool dmaInProgress() const { return dmaTransfer && dmaDelayCycles == 0; }
-	static constexpr uint8_t DMA_CYCLES = 160;
 };

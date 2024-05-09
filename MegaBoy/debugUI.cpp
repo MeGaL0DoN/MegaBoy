@@ -56,7 +56,7 @@ void debugUI::updateMenu()
                 gbCore.ppu.onOAMRender = debugUI::OAM_renderEvent;
             }
             else
-                gbCore.ppu.resetCallbacks();
+                gbCore.ppu.resetRenderCallbacks();
         }
 
         ImGui::EndMenu();

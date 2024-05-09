@@ -39,3 +39,17 @@ void MBC5::write(uint16_t addr, uint8_t val)
 		ramBank = val & 0x0F;
 	}
 }
+
+void MBC5::saveState(std::ofstream& st) const
+{
+	MBC::saveBattery(st);
+	st.write(reinterpret_cast<const char*>(&romBank), sizeof(romBank));
+	st.write(reinterpret_cast<const char*>(&ramBank), sizeof(ramBank));
+}
+
+void MBC5::loadState(std::ifstream& st)
+{
+	MBC::loadBattery(st);
+	st.read(reinterpret_cast<char*>(&romBank), sizeof(romBank));
+	st.read(reinterpret_cast<char*>(&ramBank), sizeof(ramBank));
+}

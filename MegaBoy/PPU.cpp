@@ -8,21 +8,13 @@ void PPU::reset()
 	std::memset(VRAM.data(), 0, sizeof(VRAM));
 	disableLCD(PPUMode::OAMSearch);
 
-	LCDC = 0x91;
-	STAT = 0x85;
-	SCY = 0x00;
-	SCX = 0x00;
-	LYC = 0x00;
-	WY = 0;
-	WX = 0;
+	regs = {};
+	updatePalette(regs.BGP, BGpalette);
 
-	canAccessOAM = true;
+	canAccessOAM = false;
 	canAccessVRAM = true;
 	blockStat = false;
 	statRegChanged = false;
-
-	BGP = 0xFC;
-	updatePalette(BGP, BGpalette);
 }
 void PPU::disableLCD(PPUMode mode)
 {
@@ -32,6 +24,51 @@ void PPU::disableLCD(PPUMode mode)
 	clearBuffer();
 	SetPPUMode(mode);
 }
+
+#define WRITE(var) st.write(reinterpret_cast<char*>(&var), sizeof(var))
+
+// must be called only after VBlank, so saving mid-frame variables like LY is not needed.
+
+void PPU::saveState(std::ofstream& st)
+{
+	WRITE(regs);
+	WRITE(videoCycles);
+	WRITE(statRegChanged);
+	WRITE(newStatVal);
+
+	st.write(reinterpret_cast<char*>(VRAM.data()), sizeof(VRAM));
+	st.write(reinterpret_cast<char*>(OAM.data()), sizeof(OAM));
+}
+
+#undef WRITE
+
+#define READ(var) st.read(reinterpret_cast<char*>(&var), sizeof(var))
+
+void PPU::loadState(std::ifstream& st)
+{
+	READ(regs);
+	READ(videoCycles);
+	READ(statRegChanged);
+	READ(newStatVal);
+
+	st.read(reinterpret_cast<char*>(VRAM.data()), sizeof(VRAM));
+	st.read(reinterpret_cast<char*>(OAM.data()), sizeof(OAM));
+
+	updatePalette(regs.BGP, BGpalette);
+	updatePalette(regs.OBP0, OBP0palette);
+	updatePalette(regs.OBP1, OBP1palette);
+
+	LY = 0;
+	WLY = 0;
+	videoCycles = 0;
+	state = PPUMode::OAMSearch;
+	canAccessVRAM = true; canAccessOAM = false; blockStat = false;
+
+	if (!LCDEnabled())
+		clearBuffer();
+}
+
+#undef READ
 
 void PPU::updatePalette(uint8_t val, std::array<uint8_t, 4>& palette)
 {
@@ -54,8 +91,8 @@ void PPU::updateScreenColors(const std::array<color, 4>& newColors)
 
 void PPU::checkLYC()
 {
-	lycFlag = LY == LYC;
-	STAT = setBit(STAT, 2, lycFlag);
+	lycFlag = LY == regs.LYC;
+	regs.STAT = setBit(regs.STAT, 2, lycFlag);
 }
 
 void PPU::requestSTAT()
@@ -95,8 +132,8 @@ void PPU::updateInterrupts()
 
 void PPU::SetPPUMode(PPUMode ppuState)
 {
-	STAT = setBit(STAT, 1, static_cast<uint8_t>(ppuState) & 0x2);
-	STAT = setBit(STAT, 0, static_cast<uint8_t>(ppuState) & 0x1);
+	regs.STAT = setBit(regs.STAT, 1, static_cast<uint8_t>(ppuState) & 0x2);
+	regs.STAT = setBit(regs.STAT, 0, static_cast<uint8_t>(ppuState) & 0x1);
 
 	state = ppuState;
 
@@ -143,7 +180,7 @@ void PPU::execute()
 
 	if (statRegChanged)
 	{
-		STAT = newStatVal;
+		regs.STAT = newStatVal;
 		statRegChanged = false;
 	}
 }
@@ -179,6 +216,7 @@ void PPU::handleVBlank()
 			LY = 0;
 			WLY = 0;
 			SetPPUMode(PPUMode::OAMSearch);
+			if (VBlankEndCallback != nullptr) VBlankEndCallback();
 		}
 		else
 			LY++;
@@ -282,13 +320,13 @@ void PPU::renderBlank()
 void PPU::renderBackground()
 {
 	uint16_t bgTileAddr = BGTileAddr();
-	uint16_t tileYInd = (static_cast<uint8_t>(LY + SCY) / 8) * 32;
+	uint16_t tileYInd = (static_cast<uint8_t>(LY + regs.SCY) / 8) * 32;
 
 	for (uint8_t tileX = 0; tileX < 21; tileX++)
 	{
-		uint16_t tileXInd = (tileX + SCX / 8) % 32; 
+		uint16_t tileXInd = (tileX + regs.SCX / 8) % 32; 
 		uint8_t tileIndex = VRAM[bgTileAddr + tileYInd + tileXInd];
-		renderBGTile<false>(getBGTileAddr(tileIndex), (tileX * 8 - SCX % 8), SCY);
+		renderBGTile<false>(getBGTileAddr(tileIndex), (tileX * 8 - regs.SCX % 8), regs.SCY);
 	}
 
 	if (onBackgroundRender != nullptr)
@@ -296,8 +334,8 @@ void PPU::renderBackground()
 }
 void PPU::renderWindow()
 {
-	int16_t wx = static_cast<int16_t>(WX) - 7;
-	if (LY < WY || wx >= SCR_WIDTH) return;
+	int16_t wx = static_cast<int16_t>(regs.WX) - 7;
+	if (LY < regs.WY || wx >= SCR_WIDTH) return;
 
 	uint16_t winTileAddr = WindowTileAddr();
 	uint16_t tileYInd = WLY / 8 * 32;

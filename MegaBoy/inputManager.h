@@ -1,6 +1,7 @@
 #pragma once
 #include "CPU.h"
 #include <map>
+#include <fstream>
 
 class MMU;
 
@@ -22,6 +23,9 @@ public:
 		modeChanged();
 	}
 
+	inline void saveState(std::ofstream& st) { st.write(reinterpret_cast<char*>(&joypadReg), sizeof(joypadReg)); }
+	inline void loadState(std::ifstream& st) { st.read(reinterpret_cast<char*>(&joypadReg), sizeof(joypadReg)); }
+
 private:
 	MMU& mmu;
 	CPU& cpu;
@@ -29,9 +33,6 @@ private:
 	uint8_t joypadReg {0xCF};
 	uint8_t dpadState { 0xF };
 	uint8_t buttonState { 0xF };
-
-	bool readButtons { false };
-	bool readDpad { false };
 
 	void modeChanged();
 	void updateKeyGroup(int scancode, int action, uint8_t& keyState, const std::map<int, uint8_t>& keyConfig, bool setReg);
