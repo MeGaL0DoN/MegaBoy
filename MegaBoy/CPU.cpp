@@ -70,6 +70,12 @@ uint8_t CPU::execute()
 {
 	cycles = 0;
 
+	if (s.shouldSetIME)
+	{
+		s.IME = true;
+		s.shouldSetIME = false;
+	}
+
 	if (s.halted)
 	{
 		addCycle();
@@ -85,12 +91,6 @@ uint8_t CPU::execute()
 	}
 
 	executeMain();
-
-	if (s.shouldSetIME)
-	{
-		s.IME = true;
-		s.shouldSetIME = false;
-	}
 
 	if (s.PC > 0xFF)
 		executingBootROM = false; 

@@ -18,6 +18,7 @@
 GLFWwindow* window;
 bool saveManagerOpen{ false };
 
+bool blending{ true };
 bool pauseOnMinimize { true };
 bool autoSaves { true };
 
@@ -31,7 +32,7 @@ float scaleFactor;
 
 Shader regularShader;
 Shader scalingShader;
-uint32_t gbFramebufferTexture;
+std::array<uint32_t, 2> gbFramebufferTextures;
 
 const std::wstring defaultPath{ std::filesystem::current_path().wstring() };
 constexpr nfdnfilteritem_t filterItem[] = { {L"Game ROM", L"gb,bin"} };
@@ -86,7 +87,16 @@ void drawCallback(const uint8_t* framebuffer)
         gbCore.paused = true;
     }
 
-    OpenGL::updateTexture(gbFramebufferTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
+    //glBindTexture(GL_TEXTURE_2D, gbFramebufferTextures[0]);
+    //glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 0, 0, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, 0);
+
+    OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
+
+    auto temp = gbFramebufferTextures[0];
+    gbFramebufferTextures[0] = gbFramebufferTextures[1];
+    gbFramebufferTextures[1] = temp;
+
+  //  OpenGL::updateTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
     debugUI::updateTextures(gbCore.paused);
 }
 
@@ -126,7 +136,9 @@ void setBuffers()
     regularShader.compile("data/shaders/regular_vertex.glsl", "data/shaders/regular_frag.glsl");
     regularShader.use();
 
-    OpenGL::createTexture(gbFramebufferTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
+    OpenGL::createTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
+    OpenGL::createTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
+
     gbCore.ppu.drawCallback = drawCallback;
     gbCore.ppu.invokeDrawCallback();
 }
@@ -193,6 +205,16 @@ void renderImGUI()
             }
 
             ImGui::SeparatorText("UI");
+
+            if (ImGui::Checkbox("Alpha Blending", &blending))
+            {
+                if (blending) glEnable(GL_BLEND);
+                else
+                {
+                    glDisable(GL_BLEND);
+                    regularShader.setFloat("alpha", 1.0f);
+                }
+            }
 
             if (ImGui::Checkbox("Upscaling Filter", &upscaling))
             {
@@ -295,8 +317,19 @@ void renderImGUI()
 
 void renderGameBoy()
 {
-    OpenGL::bindTexture(gbFramebufferTexture);
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+    OpenGL::bindTexture(gbFramebufferTextures[0]);
+
+    if (blending)
+    {
+        regularShader.setFloat("alpha", 1.0f);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+        regularShader.setFloat("alpha", 0.5f);
+        OpenGL::bindTexture(gbFramebufferTextures[1]);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+    }
+    else
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 }
 
 void render()
@@ -395,6 +428,9 @@ bool setGLFW()
 
     glClearColor(PPU::BGB_GREEN_PALETTE[0].R, PPU::BGB_GREEN_PALETTE[0].G, PPU::BGB_GREEN_PALETTE[0].B, 0);
     glClear(GL_COLOR_BUFFER_BIT);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     return true;
 }
