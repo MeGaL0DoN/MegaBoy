@@ -47,6 +47,7 @@ precision mediump int;
 uniform COMPAT_PRECISION vec2 OutputSize;
 uniform COMPAT_PRECISION vec2 TextureSize;
 uniform COMPAT_PRECISION vec2 InputSize;
+uniform float alpha;
 uniform sampler2D Texture;
 COMPAT_VARYING vec4 TEX0;
 
@@ -308,5 +309,6 @@ vec4 scale(sampler2D image, vec2 coord)
 
 void main()
 {
-	FragColor = scale(Source, vTexCoord);
+	vec4 textColor = scale(Source, vTexCoord);
+    FragColor = vec4(textColor.rgb, alpha);
 } 

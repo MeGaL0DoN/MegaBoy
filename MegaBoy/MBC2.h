@@ -12,6 +12,8 @@ public:
 
 	virtual void saveState(std::ofstream& st) const override;
 	virtual void loadState(std::ifstream& st) override;
+
+	virtual void reset() override { MBC::reset(); romBank = 1; }
 private:
 	uint8_t romBank{ 1 };
 };

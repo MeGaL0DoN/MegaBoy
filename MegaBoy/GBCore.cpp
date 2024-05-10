@@ -1,4 +1,5 @@
 #include "GBCore.h"
+#include <fstream>
 
 GBCore gbCore{};
 
@@ -18,6 +19,23 @@ void GBCore::reset()
 	ppu.reset();
 	mmu.reset();
 	apu.reset();
+}
+
+void GBCore::loadBootROM()
+{
+	if (runBootROM && std::filesystem::exists("data/boot_rom.bin"))
+	{
+		std::ifstream ifs("data/boot_rom.bin", std::ios::binary | std::ios::ate);
+		std::ifstream::pos_type pos = ifs.tellg();
+		if (pos != 256) return;
+
+		ifs.seekg(0, std::ios::beg);
+		ifs.read(reinterpret_cast<char*>(&mmu.bootROM[0]), pos);
+
+		// LCD disabled on boot ROM start
+		ppu.regs.LCDC = resetBit(ppu.regs.LCDC, 7);
+		cpu.enableBootROM();
+	}
 }
 
 bool saveStatePending{ false };
@@ -52,9 +70,19 @@ void ppuVBlankEnd()
 	gbCore.ppu.VBlankEndCallback = nullptr;
 }
 
+void GBCore::restartROM()
+{
+	if (!cartridge.ROMLoaded)
+		return;
+
+	reset();
+	cartridge.getMapper()->reset();
+	loadBootROM();
+}
+
 void GBCore::saveState()
 {
-	if (!saveStatePending)
+	if (!saveStatePending && !gbCore.paused)
 	{
 		ppu.VBlankEndCallback = ppuVBlankEnd;
 		return;

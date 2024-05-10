@@ -16,11 +16,9 @@
 #include "glFunctions.h"
 
 GLFWwindow* window;
-bool saveManagerOpen{ false };
 
-bool blending{ true };
-bool pauseOnMinimize { true };
-bool autoSaves { true };
+bool blending{ false };
+bool pauseOnFocus { true };
 
 bool fpsLock{ true };
 bool vsync { true };
@@ -34,6 +32,8 @@ Shader regularShader;
 Shader scalingShader;
 std::array<uint32_t, 2> gbFramebufferTextures;
 
+Shader* currentShader;
+
 const std::wstring defaultPath{ std::filesystem::current_path().wstring() };
 constexpr nfdnfilteritem_t filterItem[] = { {L"Game ROM", L"gb,bin"} };
 bool fileDialogOpen;
@@ -46,36 +46,20 @@ extern GBCore gbCore;
 std::string FPS_text{ "FPS: 00.00" };
 
 template <typename T>
-bool loadBase(T path)
-{
-    if (!gbCore.cartridge.loadROM(path))
-    {
-        errorLoadingROM = true;
-        return false;
-    }
-
-    std::string title = "MegaBoy - " + gbCore.gameTitle;
-    glfwSetWindowTitle(window, title.c_str());
-
-    debugUI::clearBuffers();
-    return true;
-}
-
-std::wstring currentROMPAth{};
-inline void loadROM(const wchar_t* path)
+inline void loadROM(T path)
 {
     if (std::filesystem::exists(path))
     {
-        if (loadBase(path))
-            currentROMPAth = path;
-    }
-}
-inline void loadROM(const char* path)
-{
-    if (std::filesystem::exists(path))
-    {
-        if (loadBase(path))
-            currentROMPAth = std::wstring(path, path + strlen(path));
+        if (!gbCore.cartridge.loadROM(path))
+        {
+            errorLoadingROM = true;
+            return;
+        }
+
+        std::string title = "MegaBoy - " + gbCore.gameTitle;
+        glfwSetWindowTitle(window, title.c_str());
+
+        debugUI::clearBuffers();
     }
 }
 
@@ -87,17 +71,16 @@ void drawCallback(const uint8_t* framebuffer)
         gbCore.paused = true;
     }
 
-    //glBindTexture(GL_TEXTURE_2D, gbFramebufferTextures[0]);
-    //glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 0, 0, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, 0);
-
     OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
+    std::swap(gbFramebufferTextures[0], gbFramebufferTextures[1]);
 
-    auto temp = gbFramebufferTextures[0];
-    gbFramebufferTextures[0] = gbFramebufferTextures[1];
-    gbFramebufferTextures[1] = temp;
-
-  //  OpenGL::updateTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
     debugUI::updateTextures(gbCore.paused);
+}
+
+void refreshGBTextures()
+{
+    OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu.getFrameBuffer());
+    OpenGL::updateTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu.getFrameBuffer());
 }
 
 void setBuffers()
@@ -135,12 +118,13 @@ void setBuffers()
 
     regularShader.compile("data/shaders/regular_vertex.glsl", "data/shaders/regular_frag.glsl");
     regularShader.use();
+    currentShader = &regularShader;
 
     OpenGL::createTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
     OpenGL::createTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
 
     gbCore.ppu.drawCallback = drawCallback;
-    gbCore.ppu.invokeDrawCallback();
+    refreshGBTextures();
 }
 
 inline void updateImGUIViewports()
@@ -176,16 +160,19 @@ void renderImGUI()
                 fileDialogOpen = false;
             }
 
-            if (ImGui::MenuItem("Save Manager"))
-                saveManagerOpen = !saveManagerOpen;
+            //if (ImGui::MenuItem("Save State"))
+            //{
+            //    fileDialogOpen = true;
+            //    NFD::UniquePathN outPath;
+            //    nfdresult_t result = NFD::SaveDialog(outPath, filterItem,);
+            //}
 
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Settings", "Ctrl+Q"))
         {
-            ImGui::Checkbox("Auto Saves", &autoSaves);
             ImGui::Checkbox("Run Boot ROM", &gbCore.runBootROM);
-            ImGui::Checkbox("Pause when minimized", &pauseOnMinimize);
+            ImGui::Checkbox("Pause when unfocused", &pauseOnFocus);
 
             ImGui::EndMenu();
         }
@@ -208,11 +195,15 @@ void renderImGUI()
 
             if (ImGui::Checkbox("Alpha Blending", &blending))
             {
-                if (blending) glEnable(GL_BLEND);
+                if (blending)
+                {
+                    glEnable(GL_BLEND);
+                    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+                }
                 else
                 {
                     glDisable(GL_BLEND);
-                    regularShader.setFloat("alpha", 1.0f);
+                    currentShader->setFloat("alpha", 1.0f);
                 }
             }
 
@@ -230,9 +221,14 @@ void renderImGUI()
                         scalingShader.setFloat2("OutputSize", PPU::SCR_WIDTH * 6, PPU::SCR_HEIGHT * 6); // 6x seems to be the best scale
                         scalingShader.setFloat2("TextureSize", PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
                     }
+
+                    currentShader = &scalingShader;
                 }
                 else
+                {
                     regularShader.use();
+                    currentShader = &regularShader;
+                }
             }
 
             ImGui::Spacing();
@@ -248,7 +244,7 @@ void renderImGUI()
                 if (gbCore.paused || !gbCore.cartridge.ROMLoaded) gbCore.ppu.updateScreenColors(colors);
 
                 gbCore.ppu.setColorsPalette(colors);
-                gbCore.ppu.invokeDrawCallback();
+                refreshGBTextures();
             }
 
             ImGui::EndMenu();
@@ -259,7 +255,7 @@ void renderImGUI()
                 gbCore.paused = !gbCore.paused;
 
             if (ImGui::MenuItem("Reload", "(Esc)"))
-                loadROM(currentROMPAth.c_str());
+                gbCore.restartROM();
 
             ImGui::EndMenu();
         }
@@ -283,11 +279,6 @@ void renderImGUI()
         }
 
         ImGui::EndMainMenuBar();
-    }
-
-    if (saveManagerOpen)
-    {
-        // TODO
     }
 
     if (errorLoadingROM)
@@ -321,15 +312,14 @@ void renderGameBoy()
 
     if (blending)
     {
-        regularShader.setFloat("alpha", 1.0f);
+        currentShader->setFloat("alpha", 1.0f);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
-        regularShader.setFloat("alpha", 0.5f);
+        currentShader->setFloat("alpha", 0.5f);
         OpenGL::bindTexture(gbFramebufferTextures[1]);
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
     }
-    else
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 }
 
 void render()
@@ -351,18 +341,29 @@ void window_refresh_callback(GLFWwindow* window)
     if (!fileDialogOpen) render(); // Super strange issue - ImGUI crashes if rendering is done while file dialog is open???
 }
 
-bool pausedPreMinimize;
+bool pausedPreEvent;
+
 void window_iconify_callback(GLFWwindow* window, int iconified)
 {
-    if (!pauseOnMinimize) return;
-
     if (iconified)
     {
-        pausedPreMinimize = gbCore.paused;
+        pausedPreEvent = gbCore.paused;
         gbCore.paused = true;
     }
     else
-        gbCore.paused = pausedPreMinimize;
+        gbCore.paused = pausedPreEvent;
+}
+void window_focus_callback(GLFWwindow* window, int focused)
+{
+    if (!pauseOnFocus) return;
+
+    if (!focused)
+    {
+        pausedPreEvent = gbCore.paused;
+        gbCore.paused = true;
+    }
+    else
+        gbCore.paused = pausedPreEvent;
 }
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -371,20 +372,20 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     {
         if (key == GLFW_KEY_ESCAPE)
         {
-            gbCore.loadState();
-          //  loadROM(currentROMPAth.c_str());
+           // gbCore.loadState();
+            gbCore.restartROM();
             return;
         }
         if (key == GLFW_KEY_TAB)
         {
-            gbCore.saveState(); 
-            //if (gbCore.paused) gbCore.paused = false;
-            //else
-            //{
-            //    if (gbCore.cartridge.ROMLoaded) pauseOnVBlank = true;
-            //    else gbCore.paused = true;
-            //}
-            //return;
+          //  gbCore.saveState(); 
+            if (gbCore.paused) gbCore.paused = false;
+            else
+            {
+                if (gbCore.cartridge.ROMLoaded) pauseOnVBlank = true;
+                else gbCore.paused = true;
+            }
+            return;
         }
     }
 
@@ -416,6 +417,7 @@ bool setGLFW()
     glfwSwapInterval(1);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetWindowIconifyCallback(window, window_iconify_callback);
+    glfwSetWindowFocusCallback(window, window_focus_callback);
     glfwSetWindowRefreshCallback(window, window_refresh_callback);
     glfwSetDropCallback(window, drop_callback);
     glfwSetKeyCallback(window, key_callback);
@@ -428,9 +430,6 @@ bool setGLFW()
 
     glClearColor(PPU::BGB_GREEN_PALETTE[0].R, PPU::BGB_GREEN_PALETTE[0].G, PPU::BGB_GREEN_PALETTE[0].B, 0);
     glClear(GL_COLOR_BUFFER_BIT);
-
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     return true;
 }

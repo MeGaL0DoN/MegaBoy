@@ -55,19 +55,7 @@ bool Cartridge::loadROM(std::ifstream& ifs)
 	//gameSaveFile.erase(std::remove(gameSaveFile.begin(), gameSaveFile.end(), ' '), gameSaveFile.end());
 	//saveStream.open(gameSaveFile);
 
-	if (gbCore.runBootROM && std::filesystem::exists("data/boot_rom.bin"))
-	{
-		std::ifstream ifs("data/boot_rom.bin", std::ios::binary | std::ios::ate);
-		std::ifstream::pos_type pos = ifs.tellg();
-		if (pos != 256) return true;
-
-		ifs.seekg(0, std::ios::beg);
-		ifs.read(reinterpret_cast<char*>(&gbCore.mmu.bootROM[0]), pos);
-
-		// LCD disabled on boot ROM start
-		gbCore.ppu.regs.LCDC = resetBit(gbCore.ppu.regs.LCDC, 7);
-		gbCore.cpu.enableBootROM();
-	}
+	gbCore.loadBootROM();
 
 	return true;
 }

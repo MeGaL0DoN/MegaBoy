@@ -9,7 +9,6 @@ class Cartridge;
 class MMU
 {
 public:
-	friend class Cartridge;
 	MMU(GBCore& gbCore);
 
 	void write8(uint16_t addr, uint8_t val);
@@ -29,13 +28,14 @@ public:
 	void saveState(std::ofstream& st);
 	void loadState(std::ifstream& st);
 
+	std::array<uint8_t, 256> bootROM{};
+
 private:
 	GBCore& gbCore;
 	static constexpr uint8_t DMA_CYCLES = 160;
 
 	std::array<uint8_t, 8192> WRAM{};
 	std::array<uint8_t, 127> HRAM{};
-	std::array<uint8_t, 256> bootROM{};
 
 	struct DMAstate
 	{

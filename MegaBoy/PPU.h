@@ -38,6 +38,8 @@ struct object
 class PPU
 {
 public:
+	friend class MMU;
+
 	static constexpr uint8_t SCR_WIDTH = 160;
 	static constexpr uint8_t SCR_HEIGHT = 144;
 
@@ -52,8 +54,6 @@ public:
 	void (*onOAMRender)(const uint8_t* buffer, const std::vector<uint8_t>& updatedPixels, uint8_t LY);
 
 	void (*drawCallback)(const uint8_t* framebuffer);
-	constexpr void invokeDrawCallback() { if (drawCallback != nullptr) drawCallback(framebuffer.data()); }
-
 	void(*VBlankEndCallback)();
 
 	constexpr void resetRenderCallbacks()
@@ -62,8 +62,6 @@ public:
 		onWindowRender = nullptr;
 		onOAMRender = nullptr;
 	}
-
-	friend MMU; friend class Cartridge; friend class CPU; //
 
 	PPU(MMU& mmu, CPU& cpu) : mmu(mmu), cpu(cpu)
 	{
@@ -91,28 +89,28 @@ public:
 
 	void saveState(std::ofstream& st);
 	void loadState(std::ifstream& st);
+
+	struct ppuRegs
+	{
+		uint8_t LCDC{ 0x91 };
+		uint8_t STAT{ 0x85 };
+		uint8_t SCY{ 0x00 };
+		uint8_t SCX{ 0x00 };
+		uint8_t LYC{ 0x00 };
+		uint8_t BGP{ 0xFC };
+		uint8_t OBP0{ 0x00 };
+		uint8_t OBP1{ 0x00 };
+		uint8_t WY{ 0x00 };
+		uint8_t WX{ 0x00 };
+	};
+
+	ppuRegs regs;
 private:
 	MMU& mmu;
 	CPU& cpu;
 
-	struct ppuRegs
-	{
-		uint8_t LCDC{0x91};
-		uint8_t STAT{0x85};
-		uint8_t SCY{0x00};
-		uint8_t SCX{0x00};
-		uint8_t LYC{0x00};
-		uint8_t BGP{0xFC};
-		uint8_t OBP0{0x00};
-		uint8_t OBP1{0x00};
-		uint8_t WY{0x00};
-		uint8_t WX{0x00};
-	};
-
 	std::array<uint8_t, 8192> VRAM;
 	std::array<uint8_t, 160> OAM;
-
-	ppuRegs regs;
 
 	uint8_t LY;
 	uint8_t WLY;
@@ -142,6 +140,8 @@ private:
 	static constexpr uint8_t PIXEL_TRANSFER_CYCLES = 43;
 	static constexpr uint8_t HBLANK_CYCLES = 51;
 	static constexpr uint8_t VBLANK_CYCLES = 114;
+
+	constexpr void invokeDrawCallback() { if (drawCallback != nullptr) drawCallback(framebuffer.data()); }
 
 	constexpr void clearBuffer()
 	{

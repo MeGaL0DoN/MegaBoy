@@ -19,6 +19,8 @@ public:
 	virtual void saveState(std::ofstream& st) const {}
 	virtual void loadState(std::ifstream& st) {}
 
+	virtual void reset() { ramEnable = false; std::fill(ram.begin(), ram.end(), 0); }
+
 protected:
 	const Cartridge& cartridge;
 

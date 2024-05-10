@@ -20,10 +20,14 @@ public:
 
 	void update(int cyclesToExecute = CYCLES_PER_FRAME);
 	void stepComponents();
-	void reset();
 
 	void saveState();
 	void loadState();
+
+	void loadBootROM();
+
+	void reset();
+	void restartROM();
 
 	bool paused { false };
 	bool runBootROM { false };
