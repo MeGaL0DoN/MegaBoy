@@ -18,7 +18,7 @@
 GLFWwindow* window;
 
 bool blending{ false };
-bool pauseOnFocus { true };
+bool pauseOnFocus { false };
 
 bool fpsLock{ true };
 bool vsync { true };
@@ -35,7 +35,7 @@ std::array<uint32_t, 2> gbFramebufferTextures;
 Shader* currentShader;
 
 const std::wstring defaultPath{ std::filesystem::current_path().wstring() };
-constexpr nfdnfilteritem_t filterItem[] = { {L"Game ROM", L"gb,bin"} };
+constexpr nfdnfilteritem_t filterItem[] = { {L"Game ROM/Save", L"gb,gbc,bin"} };
 bool fileDialogOpen;
 
 constexpr const char* errorPopupTitle = "Error Loading the ROM!";
@@ -160,12 +160,17 @@ void renderImGUI()
                 fileDialogOpen = false;
             }
 
-            //if (ImGui::MenuItem("Save State"))
-            //{
-            //    fileDialogOpen = true;
-            //    NFD::UniquePathN outPath;
-            //    nfdresult_t result = NFD::SaveDialog(outPath, filterItem,);
-            //}
+            if (ImGui::MenuItem("Save State"))
+            {
+                fileDialogOpen = true;
+                NFD::UniquePathN outPath;
+                nfdresult_t result = NFD::SaveDialog(outPath, filterItem, 1);
+
+                if (result == NFD_OKAY)
+                    ;
+
+                fileDialogOpen = false;
+            }
 
             ImGui::EndMenu();
         }

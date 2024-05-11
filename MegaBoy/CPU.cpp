@@ -31,6 +31,7 @@ void CPU::addCycle()
 {
 	cycles++;
 	gbCore.stepComponents();
+	s.interruptLatch = interruptsPending();
 }
 
 void CPU::write8(uint16_t addr, uint8_t val)

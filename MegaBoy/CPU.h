@@ -101,6 +101,7 @@ private:
 
 		bool IME;
 		bool shouldSetIME;
+		bool interruptLatch;
 
 		cpuState()
 		{

@@ -4,8 +4,6 @@
 #include "GBCore.h"
 extern InstructionsEngine instructions;
 
-constexpr std::array<uint8_t, 5> interruptSources = { 0x40, 0x48, 0x50, 0x58, 0x60 };
-
 bool CPU::interruptsPending()
 {
 	return s.IE & s.IF & 0x1F;
@@ -13,30 +11,30 @@ bool CPU::interruptsPending()
 
 uint8_t CPU::handleInterrupts()
 {
-	if (interruptsPending())
+	if (s.IME && s.interruptLatch)
 	{
-		if (s.IME)
+		instructions.PUSH(s.PC);
+		addCycles(2); // PUSH adds 3, need 5 in total.
+
+		s.IME = false;
+		s.halted = false;
+		uint8_t interrupt = s.IE & s.IF;
+
+		if (interrupt)
 		{
-			for (int i = 0; i < sizeof(interruptSources); i++)
-			{
-				if (getBit(s.IE, i) && getBit(s.IF, i))
-				{
-					cycles = 0;
-					s.halted = false;
-					instructions.PUSH(s.PC);
-					s.PC = interruptSources[i];
-					s.IF = resetBit(s.IF, i);
-					addCycles(2); // PUSH adds 3, need 5 in total.
-					s.IME = false;
-					return cycles;
-				}
-			}
+			uint8_t interrruptBit = std::countr_zero(interrupt);
+			s.PC = 0x0040 + interrruptBit * 8;
+			s.IF = resetBit(s.IF, interrruptBit);
 		}
 		else
-		{
-			// halt bug
-			s.halted = false;
-		}
+			s.PC = 0x00;
+
+		return 5;
+	}
+	else if (interruptsPending())
+	{
+		// halt bug
+		s.halted = false;
 	}
 
 	return 0;
