@@ -30,17 +30,7 @@ public:
 		return loadROM(ifs);
 	}
 
-//	std::ofstream saveStream;
-	void saveGame();
-
 private:
-	//std::string gameSaveFile;
-
-	//static constexpr const char* SAVE_FILE_SIGNATURE = "MegaBoy Emulator Save File";
-
-	//bool loadGameROM();
-	//bool loadSaveFile();
-
 	bool proccessCartridgeHeader(const std::vector<uint8_t>& buffer);
 
 	std::unique_ptr<MBC> mapper;

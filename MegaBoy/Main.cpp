@@ -30,15 +30,18 @@ float scaleFactor;
 
 Shader regularShader;
 Shader scalingShader;
+Shader lcdShader;
 std::array<uint32_t, 2> gbFramebufferTextures;
 
 Shader* currentShader;
 
 const std::wstring defaultPath{ std::filesystem::current_path().wstring() };
-constexpr nfdnfilteritem_t filterItem[] = { {L"Game ROM/Save", L"gb,gbc,bin"} };
 bool fileDialogOpen;
 
-constexpr const char* errorPopupTitle = "Error Loading the ROM!";
+constexpr nfdnfilteritem_t openFilterItem[] = { {L"Game ROM/Save", L"gb,gbc,megabs"} };
+constexpr nfdnfilteritem_t saveFilterItem[] = { {L"Save State", L"megabs"} };
+
+const char* errorPopupTitle = "Error Loading the ROM!";
 bool errorLoadingROM{false};
 
 bool pauseOnVBlank {false};
@@ -152,7 +155,7 @@ void renderImGUI()
             {
                 fileDialogOpen = true;
                 NFD::UniquePathN outPath;
-                nfdresult_t result = NFD::OpenDialog(outPath, filterItem, 1, defaultPath.c_str());
+                nfdresult_t result = NFD::OpenDialog(outPath, openFilterItem, 1, defaultPath.c_str());
 
                 if (result == NFD_OKAY)
                     loadROM(outPath.get());
@@ -164,7 +167,7 @@ void renderImGUI()
             {
                 fileDialogOpen = true;
                 NFD::UniquePathN outPath;
-                nfdresult_t result = NFD::SaveDialog(outPath, filterItem, 1);
+                nfdresult_t result = NFD::SaveDialog(outPath, saveFilterItem, 1);
 
                 if (result == NFD_OKAY)
                     ;
@@ -212,27 +215,33 @@ void renderImGUI()
                 }
             }
 
-            if (ImGui::Checkbox("Upscaling Filter", &upscaling))
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            static int filter{ 0 };
+            constexpr const char* filters[] = { "None", "LCD", "Upscaling" };
+
+            if (ImGui::ListBox("Filter", &filter, filters, 3))
             {
-                if (upscaling)
-                {
-                    if (scalingShader.compiled())
-                        scalingShader.use();
-                    else
-                    {
-                        scalingShader.compile("data/shaders/omniscale_vertex.glsl", "data/shaders/omniscale_frag.glsl");
-                        scalingShader.use();
+                currentShader = filter == 0 ? &regularShader : filter == 1 ? &lcdShader : &scalingShader;
 
-                        scalingShader.setFloat2("OutputSize", PPU::SCR_WIDTH * 6, PPU::SCR_HEIGHT * 6); // 6x seems to be the best scale
-                        scalingShader.setFloat2("TextureSize", PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
-                    }
-
-                    currentShader = &scalingShader;
-                }
+                if (currentShader->compiled())
+                    currentShader->use();
                 else
                 {
-                    regularShader.use();
-                    currentShader = &regularShader;
+                    switch (filter)
+                    {
+                    case 1:
+                        lcdShader.compile("data/shaders/lcd1x_vertex.glsl", "data/shaders/lcd1x_frag.glsl");
+                        lcdShader.setFloat2("TextureSize", PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
+                        break;
+                    case 2:
+                        scalingShader.compile("data/shaders/omniscale_vertex.glsl", "data/shaders/omniscale_frag.glsl");
+                        scalingShader.setFloat2("OutputSize", PPU::SCR_WIDTH * 6, PPU::SCR_HEIGHT * 6);
+                        scalingShader.setFloat2("TextureSize", PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
+                        break;
+                    }
                 }
             }
 

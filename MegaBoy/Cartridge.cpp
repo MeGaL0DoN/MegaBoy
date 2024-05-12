@@ -12,16 +12,6 @@
 
 Cartridge::Cartridge(GBCore& gbCore) : gbCore(gbCore), mapper(std::make_unique<EmptyMBC>(*this)) { }
 
-void Cartridge::saveGame()
-{
-	//saveStream.clear();
-	//saveStream.seekp(0, std::ios::beg);
-
-	//saveStream.write(reinterpret_cast<char*>(rom.data()), rom.size());
-
-	//saveStream.flush();
-}
-
 bool Cartridge::loadROM(std::ifstream& ifs)
 {
 	std::ifstream::pos_type size = ifs.tellg();
@@ -63,8 +53,8 @@ bool Cartridge::loadROM(std::ifstream& ifs)
 struct importGuard
 {
 	Cartridge& cartridge;
-	uint8_t backupRomBanks;
-	uint8_t backupRamBanks;
+	uint16_t backupRomBanks;
+	uint16_t backupRamBanks;
 
 	importGuard(Cartridge& cartridge) : cartridge(cartridge), backupRomBanks(cartridge.romBanks), backupRamBanks(cartridge.ramBanks)
 	{ }

@@ -1,3 +1,4 @@
+#include <cassert>
 #include "CPU.h"
 #include "instructionsEngine.h"
 #include "GBCore.h"
@@ -63,8 +64,9 @@ uint8_t& CPU::getRegister(uint8_t ind)
 			return HL_ref;
 		}
 		case 7: return s.registers.A.val;
-		default: throw;
 	}
+
+	assert(false);
 }
 
 uint8_t CPU::execute()

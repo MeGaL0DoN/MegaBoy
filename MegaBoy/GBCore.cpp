@@ -90,12 +90,12 @@ void GBCore::saveState()
 
 	std::ofstream st("savetest", std::ios::out | std::ios::binary);
 
-	cartridge.getMapper()->saveState(st);
 	mmu.saveState(st);
 	cpu.saveState(st);
 	ppu.saveState(st);
 	serial.saveState(st);
 	input.saveState(st);
+	cartridge.getMapper()->saveState(st);
 
 	saveStatePending = false;
 }
@@ -104,10 +104,10 @@ void GBCore::loadState()
 {
 	std::ifstream st("savetest", std::ios::in | std::ios::binary);
 
-	cartridge.getMapper()->loadState(st);
 	mmu.loadState(st);
 	cpu.loadState(st);
 	ppu.loadState(st);
 	serial.loadState(st);
 	input.loadState(st);
+	cartridge.getMapper()->loadState(st);
 }
