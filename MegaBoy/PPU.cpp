@@ -60,7 +60,6 @@ void PPU::loadState(std::ifstream& st)
 
 	LY = 0;
 	WLY = 0;
-	videoCycles = 0;
 	state = PPUMode::OAMSearch;
 	canAccessVRAM = true; canAccessOAM = false; blockStat = false;
 
@@ -72,18 +71,18 @@ void PPU::loadState(std::ifstream& st)
 
 void PPU::updatePalette(uint8_t val, std::array<uint8_t, 4>& palette)
 {
-	for (int i = 0; i < 4; i++)
+	for (uint8_t i = 0; i < 4; i++)
 		palette[i] = (getBit(val, i * 2 + 1) << 1) | getBit(val, i * 2);
 }
 
 void PPU::updateScreenColors(const std::array<color, 4>& newColors)
 {
-	for (int x = 0; x < SCR_WIDTH; x++)
+	for (uint8_t x = 0; x < SCR_WIDTH; x++)
 	{
-		for (int y = 0; y < SCR_HEIGHT; y++)
+		for (uint8_t y = 0; y < SCR_HEIGHT; y++)
 		{
 			color pixel = getPixel(x, y);
-			uint8_t pixelInd = std::find(colors.begin(), colors.end(), pixel) - colors.begin();
+			uint8_t pixelInd { static_cast<uint8_t>(std::find(colors.begin(), colors.end(), pixel) - colors.begin()) };
 			setPixel(x, y, newColors[pixelInd]);
 		}
 	}
@@ -269,7 +268,7 @@ void PPU::handleOAMSearch()
 				else if (LY >= objY + 8 && LY < objY + 16)
 				{
 					uint16_t tileAddr = yFlip ? (tileInd & 0xFE) * 16 : ((tileInd & 0xFE) + 1) * 16;
-					selectedObjects[objCount] = object{ objX, objY + 8, tileAddr, attributes };
+					selectedObjects[objCount] = object{ objX, static_cast<int16_t>(objY + 8), tileAddr, attributes };
 					objCount++;
 				}
 			}
@@ -307,7 +306,7 @@ void PPU::renderScanLine()
 
 void PPU::renderBlank()
 {
-	for (int x = 0; x < SCR_WIDTH; x++)
+	for (uint8_t x = 0; x < SCR_WIDTH; x++)
 	{
 		setPixel(x, LY, getColor(BGpalette[0]));
 		opaqueBackgroundPixels[x] = true;
@@ -337,9 +336,9 @@ void PPU::renderWindow()
 	int16_t wx = static_cast<int16_t>(regs.WX) - 7;
 	if (LY < regs.WY || wx >= SCR_WIDTH) return;
 
-	uint16_t winTileAddr = WindowTileAddr();
-	uint16_t tileYInd = WLY / 8 * 32;
-	uint8_t winTileXEnd = 32 - (wx / 8);
+	uint16_t winTileAddr { WindowTileAddr() };
+	uint16_t tileYInd {static_cast<uint16_t>(WLY / 8 * 32) };
+	uint8_t winTileXEnd{ static_cast<uint8_t>(32 - (wx / 8)) };
 
 	for (uint8_t tileX = 0; tileX < winTileXEnd; tileX++)
 	{
@@ -363,15 +362,14 @@ void PPU::renderBGTile(uint16_t addr, int16_t screenX, uint8_t scrollY)
 	uint8_t lsbLineByte = VRAM[addr + lineOffset];
 	uint8_t msbLineByte = VRAM[addr + lineOffset + 1];
 
-	for (int x = 7; x >= 0; x--)
+	for (int8_t x = 7; x >= 0; x--)
 	{
 		uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
 		int16_t xPos = 7 - x + screenX;
+
 		if (xPos >= 0 && xPos < SCR_WIDTH)
 		{
-			auto color = getColor(BGpalette[colorId]);
 			setPixel(static_cast<uint8_t>(xPos), LY, getColor(BGpalette[colorId]));
-
 			opaqueBackgroundPixels[xPos] = (colorId == 0);
 			if constexpr (updateWindowChangesBuffer) updatedWindowPixels.push_back(static_cast<uint8_t>(xPos));
 		}
@@ -387,11 +385,11 @@ void PPU::renderObjTile(uint16_t tileAddr, uint8_t attributes, int16_t objX, int
 
 	if (objX < SCR_WIDTH && objX > -8)
 	{
-		const uint8_t lineOffset = 2 * (yFlip ? (objY - LY + 7) : (8 - (objY - LY + 8)));
-		const uint8_t lsbLineByte = VRAM[tileAddr + lineOffset];
-		const uint8_t msbLineByte = VRAM[tileAddr + lineOffset + 1];
+		const uint8_t lineOffset { static_cast<uint8_t>(2 * (yFlip ? (objY - LY + 7) : (8 - (objY - LY + 8)))) };
+		const uint8_t lsbLineByte { VRAM[tileAddr + lineOffset] };
+		const uint8_t msbLineByte { VRAM[tileAddr + lineOffset + 1] };
 
-		for (int x = 7; x >= 0; x--)
+		for (int8_t x = 7; x >= 0; x--)
 		{
 			uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
 			int16_t xPos = xFlip ? x + objX : 7 - x + objX;
@@ -414,22 +412,22 @@ void PPU::renderTileData(uint8_t* buffer)
 	if (!buffer)
 		return;
 
-	for (int addr = 0; addr < 0x17FF; addr += 16)
+	for (uint16_t addr = 0; addr < 0x17FF; addr += 16)
 	{
 		uint16_t tileInd = addr / 16;
 		uint16_t screenX = (tileInd % 16) * 8;
 		uint16_t screenY = (tileInd / 16) * 8;
 
-		for (int y = 0; y < 8; y++)
+		for (uint8_t y = 0; y < 8; y++)
 		{
-			uint8_t yPos = y + screenY;
-			uint8_t lsbLineByte = VRAM[addr + y * 2];
-			uint8_t msbLineByte = VRAM[addr + y * 2 + 1];
+			uint8_t yPos { static_cast<uint8_t>(y + screenY) };
+			uint8_t lsbLineByte { VRAM[addr + y * 2] };
+			uint8_t msbLineByte { VRAM[addr + y * 2 + 1] };
 
-			for (int x = 7; x >= 0; x--)
+			for (int8_t x = 7; x >= 0; x--)
 			{
 				uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
-				uint8_t xPos = 7 - x + screenX;
+				uint8_t xPos { static_cast<uint8_t>(7 - x + screenX) };
 				PixelOps::setPixel(buffer, TILES_WIDTH, xPos, yPos, colors[colorId]);
 			}
 		}

@@ -1,10 +1,10 @@
-#include "ImGui/imgui.h"
-#include "ImGui/imgui_impl_glfw.h"
-#include "ImGui/imgui_impl_opengl3.h"
+#include <ImGui/imgui.h>
+#include <ImGui/imgui_impl_glfw.h>
+#include <ImGui/imgui_impl_opengl3.h>
 
-#include "glad/glad.h"
-#include "GLFW/glfw3.h"
-#include "nfd/nfd.hpp"
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
+#include <nfd/nfd.hpp>
 
 #include <iostream>
 #include <filesystem>
@@ -14,11 +14,12 @@
 #include "Shader.h"
 #include "debugUI.h"
 #include "glFunctions.h"
+#include "stringUtils.h"
 
 GLFWwindow* window;
 
 bool blending{ false };
-bool pauseOnFocus { false };
+bool pauseOnFocus { true };
 
 bool fpsLock{ true };
 bool vsync { true };
@@ -35,7 +36,12 @@ std::array<uint32_t, 2> gbFramebufferTextures;
 
 Shader* currentShader;
 
+#ifdef _WIN32
 const std::wstring defaultPath{ std::filesystem::current_path().wstring() };
+#else
+const std::string defaultPath{ std::filesystem::current_path().string() };
+#endif 
+
 bool fileDialogOpen;
 
 constexpr nfdnfilteritem_t openFilterItem[] = { {L"Game ROM/Save", L"gb,gbc,megabs"} };
@@ -49,15 +55,17 @@ extern GBCore gbCore;
 std::string FPS_text{ "FPS: 00.00" };
 
 template <typename T>
-inline void loadROM(T path)
+inline void loadFile(T path)
 {
     if (std::filesystem::exists(path))
     {
-        if (!gbCore.cartridge.loadROM(path))
-        {
-            errorLoadingROM = true;
-            return;
-        }
+        //if (!gbCore.loadFile(path))
+        //{
+        //    errorLoadingROM = true;
+        //    return;
+        //}
+
+        gbCore.loadFile(path);
 
         std::string title = "MegaBoy - " + gbCore.gameTitle;
         glfwSetWindowTitle(window, title.c_str());
@@ -158,7 +166,7 @@ void renderImGUI()
                 nfdresult_t result = NFD::OpenDialog(outPath, openFilterItem, 1, defaultPath.c_str());
 
                 if (result == NFD_OKAY)
-                    loadROM(outPath.get());
+                    loadFile(outPath.get());
 
                 fileDialogOpen = false;
             }
@@ -170,7 +178,7 @@ void renderImGUI()
                 nfdresult_t result = NFD::SaveDialog(outPath, saveFilterItem, 1);
 
                 if (result == NFD_OKAY)
-                    ;
+                    gbCore.saveState(outPath.get());
 
                 fileDialogOpen = false;
             }
@@ -186,8 +194,6 @@ void renderImGUI()
         }
         if (ImGui::BeginMenu("Graphics"))
         {
-            static bool upscaling{ false };
-
             if (ImGui::Checkbox("VSync", &vsync))
                 glfwSwapInterval(vsync ? 1 : 0);
 
@@ -344,21 +350,25 @@ void render()
     glfwSwapBuffers(window);
 }
 
-void framebuffer_size_callback(GLFWwindow* window, int width, int height)
+void framebuffer_size_callback(GLFWwindow* _window, int width, int height)
 {
+    (void)_window;
     viewport_width = width; viewport_height = height - menuBarHeight;
     glViewport(0, 0, viewport_width, viewport_height);
 }
 
-void window_refresh_callback(GLFWwindow* window)
+void window_refresh_callback(GLFWwindow* _window)
 {
+    (void)_window;
     if (!fileDialogOpen) render(); // Super strange issue - ImGUI crashes if rendering is done while file dialog is open???
 }
 
 bool pausedPreEvent;
 
-void window_iconify_callback(GLFWwindow* window, int iconified)
+void window_iconify_callback(GLFWwindow* _window, int iconified)
 {
+    (void)_window;
+
     if (iconified)
     {
         pausedPreEvent = gbCore.paused;
@@ -367,8 +377,10 @@ void window_iconify_callback(GLFWwindow* window, int iconified)
     else
         gbCore.paused = pausedPreEvent;
 }
-void window_focus_callback(GLFWwindow* window, int focused)
+void window_focus_callback(GLFWwindow* _window, int focused)
 {
+    (void)_window;
+
     if (!pauseOnFocus) return;
 
     if (!focused)
@@ -380,36 +392,48 @@ void window_focus_callback(GLFWwindow* window, int focused)
         gbCore.paused = pausedPreEvent;
 }
 
-void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mods)
 {
+    (void)_window; (void)mods;
+
     if (action == 1)
     {
         if (key == GLFW_KEY_ESCAPE)
         {
-           // gbCore.loadState();
-            gbCore.restartROM();
-            return;
+            gbCore.loadFile("testfile");
+            //gbCore.restartROM();
+            //return;
         }
         if (key == GLFW_KEY_TAB)
         {
-          //  gbCore.saveState(); 
-            if (gbCore.paused) gbCore.paused = false;
-            else
-            {
-                if (gbCore.cartridge.ROMLoaded) pauseOnVBlank = true;
-                else gbCore.paused = true;
-            }
-            return;
+            gbCore.saveState("testfile");
+            //if (gbCore.paused) gbCore.paused = false;
+            //else
+            //{
+            //    if (gbCore.cartridge.ROMLoaded) pauseOnVBlank = true;
+            //    else gbCore.paused = true;
+            //}
+            //return;
         }
     }
 
     if (!gbCore.paused)
         gbCore.input.update(scancode, action);
 }
-void drop_callback(GLFWwindow* window, int count, const char** paths)
+
+void drop_callback(GLFWwindow* _window, int count, const char** paths)
 {
+    (void)_window;
+
     if (count > 0)
-        loadROM(paths[0]);
+    {
+    #ifdef _WIN32
+        auto utf16 = StringUtils::ToUTF16(paths[0]);
+        loadFile(utf16.c_str());
+    #else
+        loadFile(paths[0]);
+    #endif
+    }
 }
 
 bool setGLFW()
@@ -467,7 +491,7 @@ void setWindowSize()
     glfwSetWindowSize(window, viewport_width, viewport_height + menuBarHeight);
     glfwSetWindowAspectRatio(window, viewport_width, viewport_height);
 
-    uint16_t maxHeight = mode->height - static_cast<int16_t>(mode->height / 15.0);
+    uint16_t maxHeight{ static_cast<uint16_t>(mode->height - mode->height / 15.0) };
     glfwSetWindowSizeLimits(window, PPU::SCR_WIDTH * 2, PPU::SCR_HEIGHT * 2, maxHeight * (PPU::SCR_WIDTH / PPU::SCR_HEIGHT), maxHeight);
     glViewport(0, 0, viewport_width, viewport_height);
 

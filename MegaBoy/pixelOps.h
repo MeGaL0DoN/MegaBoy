@@ -37,9 +37,9 @@ namespace PixelOps
 	{
 		if (!buffer) return;
 
-		for (int x = 0; x < width; x++)
+		for (uint8_t x = 0; x < width; x++)
 		{
-			for (int y = 0; y < height; y++)
+			for (uint8_t y = 0; y < height; y++)
 				setPixel(buffer, width, x, y, c);
 		}
 	}

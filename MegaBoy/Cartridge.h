@@ -13,6 +13,7 @@ public:
 
 	Cartridge(GBCore& gbCore);
 
+	uint32_t checksum;
 	bool ROMLoaded { false };
 	bool readSuccessfully { false };
 
@@ -23,14 +24,15 @@ public:
 
 	bool loadROM(std::ifstream& ifs);
 
-	template <typename T>
-	inline bool loadROM(T path)
+private:
+	void calculateChecksum()
 	{
-		std::ifstream ifs(path, std::ios::binary | std::ios::ate);
-		return loadROM(ifs);
+		checksum = 0;
+
+		for (size_t i = 0; i < rom.size(); ++i) 
+			checksum += rom[i];
 	}
 
-private:
 	bool proccessCartridgeHeader(const std::vector<uint8_t>& buffer);
 
 	std::unique_ptr<MBC> mapper;

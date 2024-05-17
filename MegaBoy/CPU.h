@@ -58,9 +58,9 @@ private:
 	uint8_t& getRegister(uint8_t ind);
 
 	void addCycle();
-	inline void addCycles(uint8_t cycles)
+	inline void addCycles(uint8_t _cycles)
 	{
-		for (int i = 0; i < cycles; i++)
+		for (int i = 0; i < _cycles; i++)
 			addCycle();
 	}
 
@@ -79,8 +79,6 @@ private:
 
 	struct cpuState
 	{
-		registerCollection registers{};
-
 		uint16_t PC;
 		Register16 SP;
 
@@ -126,12 +124,12 @@ private:
 			halt_bug = false;
 			IME = false;
 			shouldSetIME = false;
-			
-			registers.resetRegisters();
 		}
 	};
 
 	cpuState s{};
+	registerCollection registers{};
+
 	uint8_t opcode;
 	uint8_t cycles;
 

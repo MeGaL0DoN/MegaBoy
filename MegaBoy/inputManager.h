@@ -8,7 +8,7 @@ class MMU;
 class inputManager
 {
 public:
-	inputManager(MMU& mmu, CPU& cpu) : mmu(mmu), cpu(cpu)
+	inputManager(CPU& cpu) : cpu(cpu)
 	{}
 
 	void update(int scancode, int action);
@@ -27,7 +27,6 @@ public:
 	inline void loadState(std::ifstream& st) { st.read(reinterpret_cast<char*>(&joypadReg), sizeof(joypadReg)); }
 
 private:
-	MMU& mmu;
 	CPU& cpu;
 
 	uint8_t joypadReg {0xCF};

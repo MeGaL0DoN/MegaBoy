@@ -14,19 +14,37 @@ CPU::CPU(GBCore& gbCore) : gbCore(gbCore)
 void CPU::reset()
 {
 	s.reset();
+	registers.reset();
+
 	executingBootROM = false;
 	cycles = 0;
 }
 
+#define WRITE(var) st.write(reinterpret_cast<char*>(&var), sizeof(var))
+
 void CPU::saveState(std::ofstream& st)
 {
-	st.write(reinterpret_cast<char*>(&s), sizeof(s));
+	WRITE(s);
+	WRITE(registers.AF);
+	WRITE(registers.BC);
+	WRITE(registers.DE);
+	WRITE(registers.HL);
 }
+
+#undef WRITE
+
+#define READ(var) st.read(reinterpret_cast<char*>(&var), sizeof(var))
 
 void CPU::loadState(std::ifstream& st)
 {
-	st.read(reinterpret_cast<char*>(&s), sizeof(s));
+	READ(s);
+	READ(registers.AF);
+	READ(registers.BC);
+	READ(registers.DE);
+	READ(registers.HL);
 }
+
+#undef READ
 
 void CPU::addCycle()
 {
@@ -52,21 +70,22 @@ uint8_t& CPU::getRegister(uint8_t ind)
 {
 	switch (ind)
 	{
-		case 0: return s.registers.B.val;
-		case 1: return s.registers.C.val;
-		case 2: return s.registers.D.val;
-		case 3: return s.registers.E.val;
-		case 4: return s.registers.H.val;
-		case 5: return s.registers.L.val;
+		case 0: return registers.B.val;
+		case 1: return registers.C.val;
+		case 2: return registers.D.val;
+		case 3: return registers.E.val;
+		case 4: return registers.H.val;
+		case 5: return registers.L.val;
 		case 6: 
 		{
-			HL_ref = gbCore.mmu.read8(s.registers.HL.val);
+			HL_ref = gbCore.mmu.read8(registers.HL.val);
 			return HL_ref;
 		}
-		case 7: return s.registers.A.val;
+		case 7: return registers.A.val;
 	}
 
 	assert(false);
+	return (uint8_t&)s;
 }
 
 uint8_t CPU::execute()
@@ -115,22 +134,22 @@ void CPU::executeMain()
 		cycles = 1;
 		break;
 	case 0x01: 
-		instructions.loadToReg(s.registers.BC, read16(s.PC + 1));
+		instructions.loadToReg(registers.BC, read16(s.PC + 1));
 		break;
 	case 0x02: 
-		instructions.loadToAddr(s.registers.BC, s.registers.A);
+		instructions.loadToAddr(registers.BC, registers.A);
 		break;
 	case 0x03: 
-		instructions.INCR(s.registers.BC);
+		instructions.INCR(registers.BC);
 		break;
 	case 0x04: 
-		instructions.INCR(s.registers.B.val);
+		instructions.INCR(registers.B.val);
 		break;
 	case 0x05:
-		instructions.DECR(s.registers.B.val);
+		instructions.DECR(registers.B.val);
 		break;
 	case 0x06: 
-		instructions.loadToReg(s.registers.B, read8(s.PC + 1));
+		instructions.loadToReg(registers.B, read8(s.PC + 1));
 		break;
 	case 0x07:
 		instructions.RLCA();
@@ -139,22 +158,22 @@ void CPU::executeMain()
 		instructions.loadToAddr(read16(s.PC + 1), s.SP);
 		break;
 	case 0x09:
-		instructions.addToHL(s.registers.BC);
+		instructions.addToHL(registers.BC);
 		break;
 	case 0x0A:
-		instructions.loadToReg(s.registers.A, s.registers.BC); 
+		instructions.loadToReg(registers.A, registers.BC); 
 		break;
 	case 0x0B:
-		instructions.DECR(s.registers.BC);
+		instructions.DECR(registers.BC);
 		break;
 	case 0x0C:
-		instructions.INCR(s.registers.C.val);
+		instructions.INCR(registers.C.val);
 		break;
 	case 0x0D:
-		instructions.DECR(s.registers.C.val);
+		instructions.DECR(registers.C.val);
 		break;
 	case 0x0E:
-		instructions.loadToReg(s.registers.C, read8(s.PC + 1));
+		instructions.loadToReg(registers.C, read8(s.PC + 1));
 		break;
 	case 0x0F:
 		instructions.RRCA();
@@ -163,22 +182,22 @@ void CPU::executeMain()
 		instructions.STOP();
 		break;
 	case 0x11:
-		instructions.loadToReg(s.registers.DE, read16(s.PC + 1));
+		instructions.loadToReg(registers.DE, read16(s.PC + 1));
 		break;
 	case 0x12:  
-		instructions.loadToAddr(s.registers.DE, s.registers.A); 
+		instructions.loadToAddr(registers.DE, registers.A); 
 		break;
 	case 0x13:
-		instructions.INCR(s.registers.DE);
+		instructions.INCR(registers.DE);
 		break;
 	case 0x14:
-		instructions.INCR(s.registers.D.val);
+		instructions.INCR(registers.D.val);
 		break;
 	case 0x15:
-		instructions.DECR(s.registers.D.val);
+		instructions.DECR(registers.D.val);
 		break;
 	case 0x16:
-		instructions.loadToReg(s.registers.D, read8(s.PC + 1));
+		instructions.loadToReg(registers.D, read8(s.PC + 1));
 		break;
 	case 0x17:
 		instructions.RLA();
@@ -187,76 +206,76 @@ void CPU::executeMain()
 		instructions.JR(read8(s.PC + 1));
 		break;
 	case 0x19:
-		instructions.addToHL(s.registers.DE);
+		instructions.addToHL(registers.DE);
 		break;
 	case 0x1A:
-		instructions.loadToReg(s.registers.A, s.registers.DE);
+		instructions.loadToReg(registers.A, registers.DE);
 		break;
 	case 0x1B:
-		instructions.DECR(s.registers.DE);
+		instructions.DECR(registers.DE);
 		break;
 	case 0x1C:
-		instructions.INCR(s.registers.E.val);
+		instructions.INCR(registers.E.val);
 		break;
 	case 0x1D:
-		instructions.DECR(s.registers.E.val);
+		instructions.DECR(registers.E.val);
 		break;
 	case 0x1E:
-		instructions.loadToReg(s.registers.E, read8(s.PC + 1));
+		instructions.loadToReg(registers.E, read8(s.PC + 1));
 		break;
 	case 0x1F:
 		instructions.RRA();
 		break;
 	case 0x20:
-		instructions.JR_CON(!s.registers.getFlag(FlagType::Zero), read8(s.PC + 1));
+		instructions.JR_CON(!registers.getFlag(FlagType::Zero), read8(s.PC + 1));
 		break;
 	case 0x21:
-		instructions.loadToReg(s.registers.HL, read16(s.PC + 1));
+		instructions.loadToReg(registers.HL, read16(s.PC + 1));
 		break;
 	case 0x22:
 		instructions.LD_HLI_A();
 		break;
 	case 0x23:
-		instructions.INCR(s.registers.HL);
+		instructions.INCR(registers.HL);
 		break;
 	case 0x24:
-		instructions.INCR(s.registers.H.val);
+		instructions.INCR(registers.H.val);
 		break;
 	case 0x25:
-		instructions.DECR(s.registers.H.val);
+		instructions.DECR(registers.H.val);
 		break;
 	case 0x26:
-		instructions.loadToReg(s.registers.H, read8(s.PC + 1));
+		instructions.loadToReg(registers.H, read8(s.PC + 1));
 		break;
 	case 0x27:
 		instructions.DAA();
 		break;
 	case 0x28:
-		instructions.JR_CON(s.registers.getFlag(FlagType::Zero), read8(s.PC + 1));
+		instructions.JR_CON(registers.getFlag(FlagType::Zero), read8(s.PC + 1));
 		break;
 	case 0x29:
-		instructions.addToHL(s.registers.HL);
+		instructions.addToHL(registers.HL);
 		break;
 	case 0x2A:
 		instructions.LD_A_HLI();
 		break;
 	case 0x2B:
-		instructions.DECR(s.registers.HL);
+		instructions.DECR(registers.HL);
 		break;
 	case 0x2C:
-		instructions.INCR(s.registers.L.val);
+		instructions.INCR(registers.L.val);
 		break;
 	case 0x2D:
-		instructions.DECR(s.registers.L.val);
+		instructions.DECR(registers.L.val);
 		break;
 	case 0x2E:
-		instructions.loadToReg(s.registers.L, read8(s.PC + 1));
+		instructions.loadToReg(registers.L, read8(s.PC + 1));
 		break;
 	case 0x2F:
 		instructions.CPL();
 		break;
 	case 0x30:
-		instructions.JR_CON(!s.registers.getFlag(FlagType::Carry), read8(s.PC + 1));
+		instructions.JR_CON(!registers.getFlag(FlagType::Carry), read8(s.PC + 1));
 		break;
 	case 0x31:
 		instructions.loadToReg(s.SP, read16(s.PC + 1));
@@ -274,13 +293,13 @@ void CPU::executeMain()
 		instructions.DECR_HL();
 		break;
 	case 0x36:
-		instructions.loadToAddr(s.registers.HL.val, read8(s.PC + 1));
+		instructions.loadToAddr(registers.HL.val, read8(s.PC + 1));
 		break;
 	case 0x37:
 		instructions.SCF();
 		break;
 	case 0x38:
-		instructions.JR_CON(s.registers.getFlag(FlagType::Carry), read8(s.PC + 1));
+		instructions.JR_CON(registers.getFlag(FlagType::Carry), read8(s.PC + 1));
 		break;
 	case 0x39:
 		instructions.addToHL(s.SP);
@@ -292,13 +311,13 @@ void CPU::executeMain()
 		instructions.DECR(s.SP);
 		break;
 	case 0x3C:
-		instructions.INCR(s.registers.A.val);
+		instructions.INCR(registers.A.val);
 		break;
 	case 0x3D:
-		instructions.DECR(s.registers.A.val);
+		instructions.DECR(registers.A.val);
 		break;
 	case 0x3E:
-		instructions.loadToReg(s.registers.A, read8(s.PC + 1));
+		instructions.loadToReg(registers.A, read8(s.PC + 1));
 		break;
 	case 0x3F:
 		instructions.CCF();
@@ -463,89 +482,89 @@ void CPU::executeMain()
 		break;
 
 	case 0xC0:
-		instructions.RET_CON(!s.registers.getFlag(FlagType::Zero));
+		instructions.RET_CON(!registers.getFlag(FlagType::Zero));
 		break;
 	case 0xC1:
-		instructions.POP(s.registers.BC.val);
+		instructions.POP(registers.BC.val);
 		break;
 	case 0xC2:
-		instructions.JP_CON(!s.registers.getFlag(FlagType::Zero), read16(s.PC + 1));
+		instructions.JP_CON(!registers.getFlag(FlagType::Zero), read16(s.PC + 1));
 		break;
 	case 0xC3:
 		instructions.JP(read16(s.PC + 1)); 
 		break;
 	case 0xC4:
-		instructions.CALL_CON(!s.registers.getFlag(FlagType::Zero), read16(s.PC + 1));
+		instructions.CALL_CON(!registers.getFlag(FlagType::Zero), read16(s.PC + 1));
 		break;
 	case 0xC5:
-		instructions.PUSH(s.registers.BC.val);
+		instructions.PUSH(registers.BC.val);
 		break;
 	case 0xC6:
-		instructions.ADD(s.registers.A, read8(s.PC + 1));
+		instructions.ADD(registers.A, read8(s.PC + 1));
 		break;
 	case 0xC7:
 		instructions.RST(0x00);
 		break;
 	case 0xC8:
-		instructions.RET_CON(s.registers.getFlag(FlagType::Zero));
+		instructions.RET_CON(registers.getFlag(FlagType::Zero));
 		break;
 	case 0xC9:
 		instructions.RET();
 		break;
 	case 0xCA:
-		instructions.JP_CON(s.registers.getFlag(FlagType::Zero), read16(s.PC + 1));
+		instructions.JP_CON(registers.getFlag(FlagType::Zero), read16(s.PC + 1));
 		break;
 	case 0xCB: // PREFIXED Os.PCODES
 		opcode = read8(++s.PC);
 		executePrefixed();
 		break;
 	case 0xCC:
-		instructions.CALL_CON(s.registers.getFlag(FlagType::Zero), read16(s.PC + 1));
+		instructions.CALL_CON(registers.getFlag(FlagType::Zero), read16(s.PC + 1));
 		break;
 	case 0xCD:
 		instructions.CALL(read16(s.PC + 1));
 		break;
 	case 0xCE:
-		instructions.ADC(s.registers.A, read8(s.PC + 1));
+		instructions.ADC(registers.A, read8(s.PC + 1));
 		break;
 	case 0xCF:
 		instructions.RST(0x08);
 		break;
 	case 0xD0:
-		instructions.RET_CON(!s.registers.getFlag(FlagType::Carry));
+		instructions.RET_CON(!registers.getFlag(FlagType::Carry));
 		break;
 	case 0xD1:
-		instructions.POP(s.registers.DE.val);
+		instructions.POP(registers.DE.val);
 		break;
 	case 0xD2:
-		instructions.JP_CON(!s.registers.getFlag(FlagType::Carry), read16(s.PC + 1));
+		instructions.JP_CON(!registers.getFlag(FlagType::Carry), read16(s.PC + 1));
 		break;
 	case 0xD4:
-		instructions.CALL_CON(!s.registers.getFlag(FlagType::Carry), read16(s.PC + 1));
+		instructions.CALL_CON(!registers.getFlag(FlagType::Carry), read16(s.PC + 1));
 		break;
 	case 0xD5:
-		instructions.PUSH(s.registers.DE.val);
+		instructions.PUSH(registers.DE.val);
 		break;
 	case 0xD6:
-		instructions.SUB(s.registers.A, read8(s.PC + 1));
+		instructions.SUB(registers.A, read8(s.PC + 1));
 		break;
 	case 0xD7:
 		instructions.RST(0x10);
 		break;
 	case 0xD8:
-		instructions.RET_CON(s.registers.getFlag(FlagType::Carry));
+		instructions.RET_CON(registers.getFlag(FlagType::Carry));
 		break;
 	case 0xD9:
 		instructions.RET1();
 		break;
 	case 0xDA:
-		instructions.JP_CON(s.registers.getFlag(FlagType::Carry), read16(s.PC + 1));
+		instructions.JP_CON(registers.getFlag(FlagType::Carry), read16(s.PC + 1));
 		break;
 	case 0xDC:
-		instructions.CALL_CON(s.registers.getFlag(FlagType::Carry), read16(s.PC + 1));
+		instructions.CALL_CON(registers.getFlag(FlagType::Carry), read16(s.PC + 1));
 		break;
 	case 0xDE:
-		instructions.SBC(s.registers.A, read8(s.PC + 1));
+		instructions.SBC(registers.A, read8(s.PC + 1));
 		break;
 	case 0xDF:
 		instructions.RST(0x18);
@@ -554,16 +573,16 @@ void CPU::executeMain()
 		instructions.LD_OFFSET_A(read8(s.PC + 1));
 		break;
 	case 0xE1:
-		instructions.POP(s.registers.HL.val);
+		instructions.POP(registers.HL.val);
 		break;
 	case 0xE2:
 		instructions.LD_C_A();
 		break;
 	case 0xE5:
-		instructions.PUSH(s.registers.HL.val);
+		instructions.PUSH(registers.HL.val);
 		break;
 	case 0xE6:
-		instructions.AND(s.registers.A, read8(s.PC + 1));
+		instructions.AND(registers.A, read8(s.PC + 1));
 		break;
 	case 0xE7:
 		instructions.RST(0x20);
@@ -572,13 +591,13 @@ void CPU::executeMain()
 		instructions.addToSP(read8(s.PC + 1));
 		break;
 	case 0xE9:
-		instructions.JP(s.registers.HL);
+		instructions.JP(registers.HL);
 		break;
 	case 0xEA:
-		instructions.loadToAddr(read16(s.PC + 1), s.registers.A);
+		instructions.loadToAddr(read16(s.PC + 1), registers.A);
 		break;
 	case 0xEE:
-		instructions.XOR(s.registers.A, read8(s.PC + 1));
+		instructions.XOR(registers.A, read8(s.PC + 1));
 		break;
 	case 0xEF:
 		instructions.RST(0x28);
@@ -596,10 +615,10 @@ void CPU::executeMain()
 		instructions.DI();
 		break;
 	case 0xF5:
-		instructions.PUSH(s.registers.AF.val);
+		instructions.PUSH(registers.AF.val);
 		break;
 	case 0xF6:
-		instructions.OR(s.registers.A, read8(s.PC + 1));
+		instructions.OR(registers.A, read8(s.PC + 1));
 		break;
 	case 0xF7:
 		instructions.RST(0x30);
@@ -611,13 +630,13 @@ void CPU::executeMain()
 		instructions.LD_SP_HL();
 		break;
 	case 0xFA:
-		instructions.loadToReg(s.registers.A, read16(s.PC + 1));
+		instructions.loadToReg(registers.A, read16(s.PC + 1));
 		break;
 	case 0xFB:
 		instructions.EI();
 		break;
 	case 0xFE:
-		instructions.CP(s.registers.A, read8(s.PC + 1));
+		instructions.CP(registers.A, read8(s.PC + 1));
 		break;
 	case 0xFF:
 		instructions.RST(0x38);

@@ -5,7 +5,7 @@ void debugUI::backgroundRenderEvent(const uint8_t* buffer, uint8_t LY)
 {
     if (!BGFrameBuffer) return;
 
-    for (int x = 0; x < PPU::SCR_WIDTH; x++)
+    for (uint8_t x = 0; x < PPU::SCR_WIDTH; x++)
         PixelOps::setPixel(BGFrameBuffer.get(), PPU::SCR_WIDTH, x, LY, PixelOps::getPixel(buffer, PPU::SCR_WIDTH, x, LY));
 }
 
@@ -98,7 +98,6 @@ inline void displayMemHeader()
 
 inline void displayImage(uint32_t texture, uint16_t width = PPU::SCR_WIDTH, uint16_t height = PPU::SCR_HEIGHT)
 {
-    const ImVec2 windowSize = ImGui::GetWindowSize();
     const ImVec2 contentSize = ImGui::GetContentRegionAvail();
     const ImVec2 contentPos = ImGui::GetCursorScreenPos();
 
@@ -123,7 +122,9 @@ inline void displayImage(uint32_t texture, uint16_t width = PPU::SCR_WIDTH, uint
 
     ImGui::SetCursorScreenPos(imagePos);
     OpenGL::bindTexture(texture);
-    ImGui::Image((void*)texture, imageSize);
+
+    uint64_t _texture64 { texture };
+    ImGui::Image(reinterpret_cast<void*>(_texture64), imageSize);
 }
 
 enum class VRAMTab
@@ -191,7 +192,7 @@ void debugUI::updateWindows(float scaleFactor)
                     memoryData[i] = "0x" + to_hex_str(static_cast<uint16_t>(i * 16)) + " ";
 
                     for (int j = 0; j < 16; j++)
-                        memoryData[i] += to_hex_str(gbCore.mmu.read8(i * 16 + j)) + " "; 
+                        memoryData[i] += to_hex_str(gbCore.mmu.read8(static_cast<uint16_t>(i * 16 + j))) + " "; 
                 }
 
                 ImGui::Text(memoryData[i].data());;

@@ -152,7 +152,7 @@ private:
 	std::array<color, 4> colors;
 	constexpr color getColor(uint8_t ind) { return colors[ind]; }
 
-	constexpr void setPixel(uint8_t x, uint8_t y, color c) { if (y >= SCR_WIDTH) return; PixelOps::setPixel(framebuffer.data(), SCR_WIDTH, x, y, c); }
+	constexpr void setPixel(uint8_t x, uint8_t y, color c) { PixelOps::setPixel(framebuffer.data(), SCR_WIDTH, x, y, c); }
 	constexpr color getPixel(uint8_t x, uint8_t y) { return PixelOps::getPixel(framebuffer.data(), SCR_WIDTH, x, y); }
 
 	std::array<uint8_t, 4> BGpalette;

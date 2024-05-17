@@ -1,5 +1,5 @@
 #include "Cartridge.h"
-#include "GbCore.h"
+#include "GBCore.h"
 #include "RomOnlyMBC.h"
 #include "EmptyMBC.h"
 #include "MBC1.h"
@@ -14,19 +14,9 @@ Cartridge::Cartridge(GBCore& gbCore) : gbCore(gbCore), mapper(std::make_unique<E
 
 bool Cartridge::loadROM(std::ifstream& ifs)
 {
+	ifs.seekg(0, std::ios::end);
 	std::ifstream::pos_type size = ifs.tellg();
 	if (size < 0x4000) return false; // If file size is less than 1 ROM bank then it is defintely invalid.
-
-	//ifs.seekg(0, std::ios::beg);
-
-	//std::string signature;
-	//std::getline(ifs, signature);
-
-	//if (signature == SAVE_FILE_SIGNATURE) // TODO
-	//{
-	//	std::cout << "Parsing a save file! \n";
-	//	//return loadSaveFile();
-	//}
 
 	std::vector<uint8_t> fileBuffer;
 	fileBuffer.resize(size);
@@ -39,13 +29,9 @@ bool Cartridge::loadROM(std::ifstream& ifs)
 
 	ROMLoaded = true;
 	gbCore.reset();
+
 	rom = std::move(fileBuffer);
-
-	//gameSaveFile = gbCore.gameTitle;
-	//gameSaveFile.erase(std::remove(gameSaveFile.begin(), gameSaveFile.end(), ' '), gameSaveFile.end());
-	//saveStream.open(gameSaveFile);
-
-	gbCore.loadBootROM();
+	calculateChecksum();
 
 	return true;
 }

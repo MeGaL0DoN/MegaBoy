@@ -22,7 +22,7 @@ uint8_t CPU::handleInterrupts()
 
 		if (interrupt)
 		{
-			uint8_t interrruptBit = std::countr_zero(interrupt);
+			uint8_t interrruptBit{ static_cast<uint8_t>(std::countr_zero(interrupt)) };
 			s.PC = 0x0040 + interrruptBit * 8;
 			s.IF = resetBit(s.IF, interrruptBit);
 		}

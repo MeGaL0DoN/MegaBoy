@@ -7,6 +7,7 @@
 #include "inputManager.h"
 #include "serialPort.h"
 #include "Cartridge.h"
+#include "stringUtils.h"
 
 class GBCore
 {
@@ -21,10 +22,30 @@ public:
 	void update(int cyclesToExecute = CYCLES_PER_FRAME);
 	void stepComponents();
 
-	void saveState();
-	void loadState();
+	#ifdef  _WIN32
 
-	void loadBootROM();
+	void loadFile(const wchar_t* _filePath)
+	{
+		std::ifstream st(_filePath, std::ios::in | std::ios::binary);
+		this->filePath = StringUtils::ToUTF8(_filePath);
+		loadFile(st);
+	}
+
+	#endif
+
+	void loadFile(const char* _filePath)
+	{
+		std::ifstream st(_filePath, std::ios::in | std::ios::binary);
+		this->filePath = _filePath;
+		loadFile(st);
+	}
+
+	template <typename T>
+	void saveState(T filePath)
+	{
+		std::ofstream st(filePath, std::ios::out | std::ios::binary);
+		saveState(std::move(st));
+	}
 
 	void reset();
 	void restartROM();
@@ -37,7 +58,20 @@ public:
 	CPU cpu { *this };
 	PPU ppu{ mmu, cpu };
 	APU apu{};
-	inputManager input { mmu, cpu };
+	inputManager input { cpu };
 	serialPort serial { cpu };
 	Cartridge cartridge { *this };
+private:
+	std::string romFilePath;
+	std::string filePath;
+
+	static constexpr const std::string_view SAVE_STATE_SIGNATURE = "MegaBoy Emulator Save State";
+
+	void loadState(std::ifstream& st);
+	void loadFile(std::ifstream& st);
+
+	std::ofstream currentSaveSt;
+	void saveState(std::ofstream&& st);
+
+	void loadBootROM();
 };

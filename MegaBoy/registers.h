@@ -1,4 +1,6 @@
 #pragma once
+#pragma warning(disable : 4201) // union type prunning, compiler extension.
+
 #include <cstdint>
 #include "bitOps.h"
 
@@ -10,9 +12,9 @@ struct Register8
 	explicit Register8(uint8_t v) : val(v)
 	{};
 
-	void operator =(uint8_t val)
+	void operator =(uint8_t _val)
 	{
-		this->val = val;
+		this->val = _val;
 	}
 };
 
@@ -27,9 +29,9 @@ union Register16 {
 	explicit Register16(uint16_t v) : val(v)
 	{};
 
-	void operator =(uint16_t val)
+	void operator =(uint16_t _val)
 	{
-		this->val = val;
+		this->val = _val;
 	}
 };
 
@@ -60,10 +62,10 @@ struct registerCollection
 	registerCollection() : A(AF.high), B(BC.high), C(BC.low), D(DE.high),
 						   E(DE.low), H(HL.high), L(HL.low), F(AF.low)
 	{
-		resetRegisters();
+		reset();
 	}
 
-	void resetRegisters()
+	void reset()
 	{
 		A = 0x01;
 		B = 0x00;

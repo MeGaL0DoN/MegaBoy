@@ -2,7 +2,7 @@
 #include <cstdint>
 
 template<typename T>
-constexpr bool getBit(T val, uint8_t bit) { return val & (1 << bit); }
+constexpr uint8_t getBit(T val, uint8_t bit) { return static_cast<bool>(val & (1 << bit)); }
 
 template<typename T>
 constexpr T resetBit(T val, uint8_t bit) { return val & ~(1 << bit); }

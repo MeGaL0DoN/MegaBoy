@@ -1,4 +1,4 @@
-#include "MBC1.h"
+#include "MBC.h"
 #include "Cartridge.h"
 
 MBC::MBC(Cartridge& cartridge) : cartridge(cartridge), rom(cartridge.getRom())

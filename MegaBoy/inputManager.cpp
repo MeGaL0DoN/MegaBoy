@@ -2,27 +2,31 @@
 #include "bitOps.h"
 #include <map>
 
-const std::map<int, uint8_t> buttonKeyConfig =
+#define INT8(val) static_cast<uint8_t>(val)
+
+const std::map<int, uint8_t> buttonKeyConfig 
 {
-	{57, 3}, // Space (Start)
-	{28, 2}, // Enter (Select)
-	{44, 1}, // Z (B)
-	{45, 0}  // X (A)
+	{57, INT8(3)}, // Space (Start)
+	{28, INT8(2)}, // Enter (Select)
+	{44, INT8(1)}, // Z (B)
+	{45, INT8(0)}  // X (A)
 };
-const std::map<int, uint8_t> dpadKeyConfig =
+const std::map<int, uint8_t> dpadKeyConfig 
 {
 	// WASD
-	{31, 3},
-	{17, 2},
-	{30, 1},
-	{32, 0},
+	{31, INT8(3)},
+	{17, INT8(2)},
+	{30, INT8(1)},
+	{32, INT8(0)},
 
 	// Arrows
-	{336, 3},
-	{328, 2},
-	{331, 1},
-	{333, 0},
+	{336, INT8(3)},
+	{328, INT8(2)},
+	{331, INT8(1)},
+	{333, INT8(0)},
 };
+
+#undef INT8
 
 void inputManager::reset()
 {
