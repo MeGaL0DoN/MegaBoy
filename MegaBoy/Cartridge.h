@@ -13,14 +13,14 @@ public:
 
 	Cartridge(GBCore& gbCore);
 
-	uint32_t checksum;
+	uint32_t checksum { 0 };
 	bool ROMLoaded { false };
 	bool readSuccessfully { false };
 
 	bool hasRAM{ false };
 	bool hasBattery { false };
-	uint16_t romBanks{0};
-	uint16_t ramBanks{0};
+	uint16_t romBanks { 0 };
+	uint16_t ramBanks { 0 };
 
 	bool loadROM(std::ifstream& ifs);
 

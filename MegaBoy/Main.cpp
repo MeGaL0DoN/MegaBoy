@@ -19,7 +19,7 @@
 GLFWwindow* window;
 
 bool blending{ false };
-bool pauseOnFocus { true };
+bool pauseOnFocus { false };
 
 bool fpsLock{ true };
 bool vsync { true };
@@ -44,8 +44,8 @@ const std::string defaultPath{ std::filesystem::current_path().string() };
 
 bool fileDialogOpen;
 
-constexpr nfdnfilteritem_t openFilterItem[] = { {L"Game ROM/Save", L"gb,gbc,megabs"} };
-constexpr nfdnfilteritem_t saveFilterItem[] = { {L"Save State", L"megabs"} };
+constexpr nfdnfilteritem_t openFilterItem[] = { {L"Game ROM/Save", L"gb,gbc,mbs"} };
+constexpr nfdnfilteritem_t saveFilterItem[] = { {L"Save State", L"mbs"} };
 
 const char* errorPopupTitle = "Error Loading the ROM!";
 bool errorLoadingROM{false};
@@ -59,18 +59,24 @@ inline void loadFile(T path)
 {
     if (std::filesystem::exists(path))
     {
-        //if (!gbCore.loadFile(path))
-        //{
-        //    errorLoadingROM = true;
-        //    return;
-        //}
+        auto result = gbCore.loadFile(path);
 
-        gbCore.loadFile(path);
-
-        std::string title = "MegaBoy - " + gbCore.gameTitle;
-        glfwSetWindowTitle(window, title.c_str());
-
-        debugUI::clearBuffers();
+        switch (result)
+        {
+        case FileLoadResult::InvalidROM:
+            errorPopupTitle = "Error Loading the ROM!";
+            errorLoadingROM = true;
+            break;
+        case FileLoadResult::SaveStateROMNotFound:
+            errorPopupTitle = "ROM not found! Load the ROM first.";
+            errorLoadingROM = true;
+            break;
+        default:
+            std::string title = "MegaBoy - " + gbCore.gameTitle;
+            glfwSetWindowTitle(window, title.c_str());
+            debugUI::clearBuffers();
+            break;
+        }
     }
 }
 
@@ -171,16 +177,32 @@ void renderImGUI()
                 fileDialogOpen = false;
             }
 
-            if (ImGui::MenuItem("Save State"))
+            if (gbCore.cartridge.ROMLoaded)
             {
-                fileDialogOpen = true;
-                NFD::UniquePathN outPath;
-                nfdresult_t result = NFD::SaveDialog(outPath, saveFilterItem, 1);
+                if (ImGui::MenuItem("Save State"))
+                {
+                    fileDialogOpen = true;
+                    NFD::UniquePathN outPath;
 
-                if (result == NFD_OKAY)
-                    gbCore.saveState(outPath.get());
+                    #ifdef _WIN32
+                        const std::wstring defaultName = StringUtils::ToUTF16(gbCore.gameTitle.c_str()) + L" - Save";          
+                    #else
+                        const std::string defaultName = gbCore.gameTitle + " - Save";
+                    #endif
 
-                fileDialogOpen = false;
+                    nfdresult_t result = NFD::SaveDialog(outPath, saveFilterItem, 1, nullptr, defaultName.c_str());
+
+                    if (result == NFD_OKAY)
+                        gbCore.saveState(outPath.get());
+
+                    fileDialogOpen = false;
+                }
+
+                if (gbCore.cartridge.hasBattery)
+                {
+                    if (ImGui::MenuItem("Load Battery"))
+                        gbCore.loadBattery();
+                }
             }
 
             ImGui::EndMenu();
@@ -274,8 +296,11 @@ void renderImGUI()
             if (ImGui::MenuItem(gbCore.paused ? "Resume" : "Pause", "(Tab)"))
                 gbCore.paused = !gbCore.paused;
 
-            if (ImGui::MenuItem("Reload", "(Esc)"))
+            if (ImGui::MenuItem("Reset State"))
+            {
+                gbCore.backupSave();
                 gbCore.restartROM();
+            }
 
             ImGui::EndMenu();
         }
@@ -394,26 +419,40 @@ void window_focus_callback(GLFWwindow* _window, int focused)
 
 void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mods)
 {
-    (void)_window; (void)mods;
+    (void)_window;
 
     if (action == 1)
     {
-        if (key == GLFW_KEY_ESCAPE)
-        {
-            gbCore.loadFile("testfile");
-            //gbCore.restartROM();
-            //return;
-        }
+        //if (key == GLFW_KEY_ESCAPE)
+        //{
+        //    gbCore.loadFile("testfile");
+        //    //gbCore.restartROM();
+        //    return;
+        //}
         if (key == GLFW_KEY_TAB)
         {
-            gbCore.saveState("testfile");
-            //if (gbCore.paused) gbCore.paused = false;
-            //else
-            //{
-            //    if (gbCore.cartridge.ROMLoaded) pauseOnVBlank = true;
-            //    else gbCore.paused = true;
-            //}
-            //return;
+            if (gbCore.paused) gbCore.paused = false;
+            else
+            {
+                if (gbCore.cartridge.ROMLoaded) pauseOnVBlank = true;
+                else gbCore.paused = true;
+            }
+            return;
+        }
+
+        // number keys 1 though 0
+        if (scancode >= 2 && scancode <= 11)
+        {
+            if (!gbCore.cartridge.ROMLoaded) return;
+            std::string statePath = gbCore.saveFolderName + "/save" + std::to_string(scancode - 1) + ".mbs";
+
+            if (mods & GLFW_MOD_SHIFT)
+                gbCore.saveState(statePath.c_str());
+
+            else if (mods & GLFW_MOD_CONTROL)
+                loadFile(statePath.c_str());
+
+            return;
         }
     }
 
@@ -561,8 +600,8 @@ int main()
             frameCount = 0;
             fpsTimer = 0;
 
-           // if (gbCore.cartridge.ROMLoaded) // Autosave once a second.
-             //   gbCore.saveState(); //cartridge.saveGame();
+            if (!gbCore.paused) 
+                gbCore.autoSave(); // Autosave once a second.
         }
 
         lastFrameTime = currentFrameTime;
@@ -571,6 +610,9 @@ int main()
         if (gbCore.paused)
             glfwWaitEvents();
     }
+
+    gbCore.autoSave();
+    gbCore.backupSave();
 
     return 1;
 }

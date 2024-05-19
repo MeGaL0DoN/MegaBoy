@@ -9,6 +9,13 @@
 #include "Cartridge.h"
 #include "stringUtils.h"
 
+enum class FileLoadResult
+{
+	Success,
+	InvalidROM,
+	SaveStateROMNotFound
+};
+
 class GBCore
 {
 public:
@@ -24,31 +31,42 @@ public:
 
 	#ifdef  _WIN32
 
-	void loadFile(const wchar_t* _filePath)
+	FileLoadResult loadFile(const wchar_t* _filePath)
 	{
 		std::ifstream st(_filePath, std::ios::in | std::ios::binary);
 		this->filePath = StringUtils::ToUTF8(_filePath);
-		loadFile(st);
+		return loadFile(st);
 	}
 
 	#endif
 
-	void loadFile(const char* _filePath)
+	FileLoadResult loadFile(const char* _filePath)
 	{
 		std::ifstream st(_filePath, std::ios::in | std::ios::binary);
 		this->filePath = _filePath;
-		loadFile(st);
+		return loadFile(st);
 	}
+
+	std::string saveFolderName;
 
 	template <typename T>
 	void saveState(T filePath)
 	{
 		std::ofstream st(filePath, std::ios::out | std::ios::binary);
-		saveState(std::move(st));
+		saveState(st);
 	}
 
+	void loadBattery()
+	{
+		if (!cartridge.ROMLoaded || !cartridge.hasBattery) return;
+		restartROM(false);
+	}
+
+	void autoSave();
+	void backupSave();
+
 	void reset();
-	void restartROM();
+	void restartROM(bool resetBattery = true);
 
 	bool paused { false };
 	bool runBootROM { false };
@@ -65,13 +83,11 @@ private:
 	std::string romFilePath;
 	std::string filePath;
 
-	static constexpr const std::string_view SAVE_STATE_SIGNATURE = "MegaBoy Emulator Save State";
+	static constexpr std::string_view SAVE_STATE_SIGNATURE = "MegaBoy Emulator Save State";
 
-	void loadState(std::ifstream& st);
-	void loadFile(std::ifstream& st);
-
-	std::ofstream currentSaveSt;
-	void saveState(std::ofstream&& st);
+	void saveState(std::ofstream& st);
+	bool loadState(std::ifstream& st);
+	FileLoadResult loadFile(std::ifstream& st);
 
 	void loadBootROM();
 };

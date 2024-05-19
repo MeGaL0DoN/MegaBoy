@@ -137,9 +137,9 @@ void MMU::write8(uint16_t addr, uint8_t val)
 		case 0xFF41:
 		{
 			// Handle spurious STAT interrupts   // TODO: DISABLE ON GBC!
-			gbCore.ppu.newStatVal = (gbCore.ppu.regs.STAT & 0x87) | (val & 0xF8);
+			gbCore.ppu.s.newStatVal = (gbCore.ppu.regs.STAT & 0x87) | (val & 0xF8);
 			gbCore.ppu.regs.STAT = 0xFF;
-			gbCore.ppu.statRegChanged = true;
+			gbCore.ppu.s.statRegChanged = true;
 			break;
 		}
 		case 0xFF42:
@@ -299,7 +299,7 @@ uint8_t MMU::read8(uint16_t addr) const
 		case 0xFF43:
 			return gbCore.ppu.regs.SCX;
 		case 0xFF44:
-			return gbCore.ppu.LY;
+			return gbCore.ppu.s.LY;
 		case 0xFF45:
 			return gbCore.ppu.regs.LYC;
 		case 0xFF46:

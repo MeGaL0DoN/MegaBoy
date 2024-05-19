@@ -6,68 +6,76 @@
 void PPU::reset()
 {
 	std::memset(VRAM.data(), 0, sizeof(VRAM));
-	disableLCD(PPUMode::OAMSearch);
-
+	s = {};
 	regs = {};
+
+	disableLCD(PPUMode::OAMSearch);
 	updatePalette(regs.BGP, BGpalette);
 
 	canAccessOAM = false;
 	canAccessVRAM = true;
-	blockStat = false;
-	statRegChanged = false;
 }
 void PPU::disableLCD(PPUMode mode)
 {
-	LY = 0;
-	WLY = 0;
-	videoCycles = 0;
+	s.LY = 0;
+	s.WLY = 0;
+	s.videoCycles = 0;
 	clearBuffer();
 	SetPPUMode(mode);
 }
 
 #define WRITE(var) st.write(reinterpret_cast<char*>(&var), sizeof(var))
-
-// must be called only after VBlank, so saving mid-frame variables like LY is not needed.
+#define WRITE_ARR(var) st.write(reinterpret_cast<char*>(var.data()), sizeof(var))
 
 void PPU::saveState(std::ofstream& st)
 {
 	WRITE(regs);
-	WRITE(videoCycles);
-	WRITE(statRegChanged);
-	WRITE(newStatVal);
+	WRITE(s);
 
-	st.write(reinterpret_cast<char*>(VRAM.data()), sizeof(VRAM));
-	st.write(reinterpret_cast<char*>(OAM.data()), sizeof(OAM));
+	WRITE_ARR(VRAM);
+	WRITE_ARR(OAM);
+
+	if (s.state != PPUMode::VBlank)
+	{
+		WRITE(objCount);
+		WRITE_ARR(selectedObjects);
+		WRITE_ARR(opaqueBackgroundPixels);
+	}
 }
 
 #undef WRITE
+#undef WRITE_ARR
 
 #define READ(var) st.read(reinterpret_cast<char*>(&var), sizeof(var))
+#define READ_ARR(var) st.read(reinterpret_cast<char*>(var.data()), sizeof(var))
 
 void PPU::loadState(std::ifstream& st)
 {
 	READ(regs);
-	READ(videoCycles);
-	READ(statRegChanged);
-	READ(newStatVal);
+	READ(s);
 
-	st.read(reinterpret_cast<char*>(VRAM.data()), sizeof(VRAM));
-	st.read(reinterpret_cast<char*>(OAM.data()), sizeof(OAM));
+	READ_ARR(VRAM);
+	READ_ARR(OAM);
 
 	updatePalette(regs.BGP, BGpalette);
 	updatePalette(regs.OBP0, OBP0palette);
 	updatePalette(regs.OBP1, OBP1palette);
 
-	LY = 0;
-	WLY = 0;
-	state = PPUMode::OAMSearch;
-	canAccessVRAM = true; canAccessOAM = false; blockStat = false;
+	SetPPUMode(s.state);
+
+	if (s.state != PPUMode::VBlank)
+	{
+		READ(objCount);
+		READ_ARR(selectedObjects);
+		READ_ARR(opaqueBackgroundPixels);
+	}
 
 	if (!LCDEnabled())
 		clearBuffer();
 }
 
 #undef READ
+#undef READ_ARR
 
 void PPU::updatePalette(uint8_t val, std::array<uint8_t, 4>& palette)
 {
@@ -90,26 +98,26 @@ void PPU::updateScreenColors(const std::array<color, 4>& newColors)
 
 void PPU::checkLYC()
 {
-	lycFlag = LY == regs.LYC;
-	regs.STAT = setBit(regs.STAT, 2, lycFlag);
+	s.lycFlag = s.LY == regs.LYC;
+	regs.STAT = setBit(regs.STAT, 2, s.lycFlag);
 }
 
 void PPU::requestSTAT()
 {
-	if (!blockStat)
+	if (!s.blockStat)
 	{
-		blockStat = true;
+		s.blockStat = true;
 		cpu.requestInterrupt(Interrupt::STAT);
 	}
 }
 
 void PPU::updateInterrupts()
 {
-	bool interrupt = lycFlag && LYC_STAT();
+	bool interrupt = s.lycFlag && LYC_STAT();
 
 	if (!interrupt)
 	{
-		switch (state)
+		switch (s.state)
 		{
 		case PPUMode::HBlank:
 			if (HBlank_STAT()) interrupt = true;
@@ -126,7 +134,7 @@ void PPU::updateInterrupts()
 	if (interrupt)
 		requestSTAT();
 	else
-		blockStat = false;
+		s.blockStat = false;
 }
 
 void PPU::SetPPUMode(PPUMode ppuState)
@@ -134,9 +142,9 @@ void PPU::SetPPUMode(PPUMode ppuState)
 	regs.STAT = setBit(regs.STAT, 1, static_cast<uint8_t>(ppuState) & 0x2);
 	regs.STAT = setBit(regs.STAT, 0, static_cast<uint8_t>(ppuState) & 0x1);
 
-	state = ppuState;
+	s.state = ppuState;
 
-	switch (state)
+	switch (s.state)
 	{
 	case PPUMode::HBlank:
 		canAccessOAM = true; canAccessVRAM = true;
@@ -156,9 +164,9 @@ void PPU::SetPPUMode(PPUMode ppuState)
 void PPU::execute()
 {
 	if (!LCDEnabled()) return;
-	videoCycles++;
+	s.videoCycles++;
 
-	switch (state)
+	switch (s.state)
 	{
 	case PPUMode::OAMSearch:
 		handleOAMSearch();
@@ -177,24 +185,24 @@ void PPU::execute()
 	checkLYC();
 	updateInterrupts();
 
-	if (statRegChanged)
+	if (s.statRegChanged)
 	{
-		regs.STAT = newStatVal;
-		statRegChanged = false;
+		regs.STAT = s.newStatVal;
+		s.statRegChanged = false;
 	}
 }
 
 void PPU::handleHBlank()
 {
-	if (videoCycles >= HBLANK_CYCLES)
+	if (s.videoCycles >= HBLANK_CYCLES)
 	{
-		videoCycles -= HBLANK_CYCLES;
-		LY++;
+		s.videoCycles -= HBLANK_CYCLES;
+		s.LY++;
 
 		updatedOAMPixels.clear();
 		updatedWindowPixels.clear();
 
-		if (LY == 144)
+		if (s.LY == 144)
 		{
 			SetPPUMode(PPUMode::VBlank);
 			cpu.requestInterrupt(Interrupt::VBlank);
@@ -206,27 +214,26 @@ void PPU::handleHBlank()
 }
 void PPU::handleVBlank()
 {
-	if (videoCycles >= VBLANK_CYCLES)
+	if (s.videoCycles >= VBLANK_CYCLES)
 	{
-		videoCycles -= VBLANK_CYCLES;
+		s.videoCycles -= VBLANK_CYCLES;
 
-		if (LY == 153)
+		if (s.LY == 153)
 		{
-			LY = 0;
-			WLY = 0;
+			s.LY = 0;
+			s.WLY = 0;
 			SetPPUMode(PPUMode::OAMSearch);
-			if (VBlankEndCallback != nullptr) VBlankEndCallback();
 		}
 		else
-			LY++;
+			s.LY++;
 	}
 }
 
 void PPU::handlePixelTransfer()
 {
-	if (videoCycles >= PIXEL_TRANSFER_CYCLES)
+	if (s.videoCycles >= PIXEL_TRANSFER_CYCLES)
 	{
-		videoCycles -= PIXEL_TRANSFER_CYCLES;
+		s.videoCycles -= PIXEL_TRANSFER_CYCLES;
 		renderScanLine();
 		SetPPUMode(PPUMode::HBlank);
 	}
@@ -234,9 +241,9 @@ void PPU::handlePixelTransfer()
 
 void PPU::handleOAMSearch()
 {
-	if (videoCycles >= OAM_SCAN_CYCLES)
+	if (s.videoCycles >= OAM_SCAN_CYCLES)
 	{
-		videoCycles -= OAM_SCAN_CYCLES;
+		s.videoCycles -= OAM_SCAN_CYCLES;
 		objCount = 0;
 
 		const bool doubleObj = DoubleOBJSize();
@@ -251,7 +258,7 @@ void PPU::handleOAMSearch()
 
 			if (!doubleObj)
 			{
-				if (LY >= objY && LY < objY + 8)
+				if (s.LY >= objY && s.LY < objY + 8)
 				{
 					selectedObjects[objCount] = object{ objX, objY, static_cast<uint16_t>(tileInd * 16), attributes };
 					objCount++;
@@ -259,13 +266,13 @@ void PPU::handleOAMSearch()
 			}
 			else
 			{
-				if (LY >= objY && LY < objY + 8)
+				if (s.LY >= objY && s.LY < objY + 8)
 				{
 					uint16_t tileAddr = yFlip ? ((tileInd & 0xFE) + 1) * 16 : (tileInd & 0xFE) * 16;
 					selectedObjects[objCount] = object{ objX, objY, tileAddr, attributes };
 					objCount++;
 				}
-				else if (LY >= objY + 8 && LY < objY + 16)
+				else if (s.LY >= objY + 8 && s.LY < objY + 16)
 				{
 					uint16_t tileAddr = yFlip ? (tileInd & 0xFE) * 16 : ((tileInd & 0xFE) + 1) * 16;
 					selectedObjects[objCount] = object{ objX, static_cast<int16_t>(objY + 8), tileAddr, attributes };
@@ -277,7 +284,7 @@ void PPU::handleOAMSearch()
 				break;
 		}
 
-		std::sort(selectedObjects, selectedObjects + objCount, object::objComparator);
+		std::sort(selectedObjects.begin(), selectedObjects.begin() + objCount, object::objComparator);
 		SetPPUMode(PPUMode::PixelTransfer);
 	}
 }
@@ -288,7 +295,7 @@ void PPU::renderOAM()
 		renderObjTile(selectedObjects[i].tileAddr, selectedObjects[i].attributes, selectedObjects[i].X, selectedObjects[i].Y);
 
 	if (onOAMRender != nullptr)
-		onOAMRender(framebuffer.data(), updatedOAMPixels, LY);
+		onOAMRender(framebuffer.data(), updatedOAMPixels, s.LY);
 }
 
 void PPU::renderScanLine()
@@ -308,18 +315,18 @@ void PPU::renderBlank()
 {
 	for (uint8_t x = 0; x < SCR_WIDTH; x++)
 	{
-		setPixel(x, LY, getColor(BGpalette[0]));
+		setPixel(x, s.LY, getColor(BGpalette[0]));
 		opaqueBackgroundPixels[x] = true;
 	}
 
 	if (onBackgroundRender != nullptr)
-		onBackgroundRender(framebuffer.data(), LY);
+		onBackgroundRender(framebuffer.data(), s.LY);
 }
 
 void PPU::renderBackground()
 {
 	uint16_t bgTileAddr = BGTileAddr();
-	uint16_t tileYInd = (static_cast<uint8_t>(LY + regs.SCY) / 8) * 32;
+	uint16_t tileYInd = (static_cast<uint8_t>(s.LY + regs.SCY) / 8) * 32;
 
 	for (uint8_t tileX = 0; tileX < 21; tileX++)
 	{
@@ -329,27 +336,27 @@ void PPU::renderBackground()
 	}
 
 	if (onBackgroundRender != nullptr)
-		onBackgroundRender(framebuffer.data(), LY);
+		onBackgroundRender(framebuffer.data(), s.LY);
 }
 void PPU::renderWindow()
 {
 	int16_t wx = static_cast<int16_t>(regs.WX) - 7;
-	if (LY < regs.WY || wx >= SCR_WIDTH) return;
+	if (s.LY < regs.WY || wx >= SCR_WIDTH) return;
 
 	uint16_t winTileAddr { WindowTileAddr() };
-	uint16_t tileYInd {static_cast<uint16_t>(WLY / 8 * 32) };
+	uint16_t tileYInd {static_cast<uint16_t>(s.WLY / 8 * 32) };
 	uint8_t winTileXEnd{ static_cast<uint8_t>(32 - (wx / 8)) };
 
 	for (uint8_t tileX = 0; tileX < winTileXEnd; tileX++)
 	{
 		uint8_t tileIndex = VRAM[winTileAddr + tileYInd + tileX];
-		renderBGTile<true>(getBGTileAddr(tileIndex), wx + tileX * 8, WLY - LY);
+		renderBGTile<true>(getBGTileAddr(tileIndex), wx + tileX * 8, s.WLY - s.LY);
 	};
 
-	WLY++;
+	s.WLY++;
 
 	if (onWindowRender != nullptr)
-		onWindowRender(framebuffer.data(), updatedWindowPixels, LY);
+		onWindowRender(framebuffer.data(), updatedWindowPixels, s.LY);
 }
 
 template void PPU::renderBGTile<true>(uint16_t addr, int16_t screenX, uint8_t scrollY);
@@ -358,7 +365,7 @@ template void PPU::renderBGTile<false>(uint16_t addr, int16_t screenX, uint8_t s
 template <bool updateWindowChangesBuffer>
 void PPU::renderBGTile(uint16_t addr, int16_t screenX, uint8_t scrollY)
 {
-	uint8_t lineOffset = 2 * ((LY + scrollY) % 8);
+	uint8_t lineOffset = 2 * ((s.LY + scrollY) % 8);
 	uint8_t lsbLineByte = VRAM[addr + lineOffset];
 	uint8_t msbLineByte = VRAM[addr + lineOffset + 1];
 
@@ -369,7 +376,7 @@ void PPU::renderBGTile(uint16_t addr, int16_t screenX, uint8_t scrollY)
 
 		if (xPos >= 0 && xPos < SCR_WIDTH)
 		{
-			setPixel(static_cast<uint8_t>(xPos), LY, getColor(BGpalette[colorId]));
+			setPixel(static_cast<uint8_t>(xPos), s.LY, getColor(BGpalette[colorId]));
 			opaqueBackgroundPixels[xPos] = (colorId == 0);
 			if constexpr (updateWindowChangesBuffer) updatedWindowPixels.push_back(static_cast<uint8_t>(xPos));
 		}
@@ -385,7 +392,7 @@ void PPU::renderObjTile(uint16_t tileAddr, uint8_t attributes, int16_t objX, int
 
 	if (objX < SCR_WIDTH && objX > -8)
 	{
-		const uint8_t lineOffset { static_cast<uint8_t>(2 * (yFlip ? (objY - LY + 7) : (8 - (objY - LY + 8)))) };
+		const uint8_t lineOffset { static_cast<uint8_t>(2 * (yFlip ? (objY - s.LY + 7) : (8 - (objY - s.LY + 8)))) };
 		const uint8_t lsbLineByte { VRAM[tileAddr + lineOffset] };
 		const uint8_t msbLineByte { VRAM[tileAddr + lineOffset + 1] };
 
@@ -399,7 +406,7 @@ void PPU::renderObjTile(uint16_t tileAddr, uint8_t attributes, int16_t objX, int
 				if (colorId != 0 && (priority == 0 || opaqueBackgroundPixels[xPos]))
 				{
 					auto color = getColor(palette[colorId]);
-					setPixel(static_cast<uint8_t>(xPos), LY, color);
+					setPixel(static_cast<uint8_t>(xPos), s.LY, color);
 					updatedOAMPixels.push_back(static_cast<uint8_t>(xPos));
 				}
 			}

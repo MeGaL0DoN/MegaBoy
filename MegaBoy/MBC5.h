@@ -12,7 +12,7 @@ public:
 	virtual void saveState(std::ofstream& st) const override;
 	virtual void loadState(std::ifstream& st) override;
 
-	virtual void reset() override { MBC::reset(); romBank = 1; ramBank = 0; }
+	virtual void reset(bool resetBattery) override { MBC::reset(resetBattery); romBank = 1; ramBank = 0; }
 private:
 	const bool hasRumble;
 

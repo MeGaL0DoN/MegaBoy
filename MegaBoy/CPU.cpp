@@ -25,10 +25,10 @@ void CPU::reset()
 void CPU::saveState(std::ofstream& st)
 {
 	WRITE(s);
-	WRITE(registers.AF);
-	WRITE(registers.BC);
-	WRITE(registers.DE);
-	WRITE(registers.HL);
+	WRITE(registers.AF.val);
+	WRITE(registers.BC.val);
+	WRITE(registers.DE.val);
+	WRITE(registers.HL.val);
 }
 
 #undef WRITE
@@ -38,10 +38,10 @@ void CPU::saveState(std::ofstream& st)
 void CPU::loadState(std::ifstream& st)
 {
 	READ(s);
-	READ(registers.AF);
-	READ(registers.BC);
-	READ(registers.DE);
-	READ(registers.HL);
+	READ(registers.AF.val);
+	READ(registers.BC.val);
+	READ(registers.DE.val);
+	READ(registers.HL.val);
 }
 
 #undef READ

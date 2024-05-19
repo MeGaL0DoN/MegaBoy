@@ -4,7 +4,6 @@
 #include "bitOps.h"
 #include <array>
 #include <vector>
-#include <bitset>
 
 #include "pixelOps.h"
 using color = PixelOps::color;
@@ -54,7 +53,6 @@ public:
 	void (*onOAMRender)(const uint8_t* buffer, const std::vector<uint8_t>& updatedPixels, uint8_t LY);
 
 	void (*drawCallback)(const uint8_t* framebuffer);
-	void(*VBlankEndCallback)();
 
 	constexpr void resetRenderCallbacks()
 	{
@@ -104,37 +102,41 @@ public:
 		uint8_t WX{ 0x00 };
 	};
 
+	struct ppuState
+	{
+		bool lycFlag { false };
+		bool blockStat { false };
+
+		bool statRegChanged { false };
+		uint8_t newStatVal { 0 };
+
+		uint8_t LY { 0 };
+		uint8_t WLY { 0 };
+
+		PPUMode state { PPUMode::OAMSearch };
+		uint16_t videoCycles { 0 };
+	};
+
+	ppuState s;
 	ppuRegs regs;
 private:
 	MMU& mmu;
 	CPU& cpu;
 
-	std::array<uint8_t, 8192> VRAM;
-	std::array<uint8_t, 160> OAM;
-
-	uint8_t LY;
-	uint8_t WLY;
-
-	bool lycFlag;
-	bool blockStat;
-
-	bool statRegChanged;
-	uint8_t newStatVal;
+	std::array<uint8_t, 8192> VRAM{};
+	std::array<uint8_t, 160> OAM{};
 
 	bool canAccessOAM;
 	bool canAccessVRAM;
 
-	PPUMode state;
-	uint16_t videoCycles;
-
 	std::array<uint8_t, FRAMEBUFFER_SIZE> framebuffer;
-	std::bitset<SCR_WIDTH> opaqueBackgroundPixels;
+	std::array<bool, SCR_WIDTH> opaqueBackgroundPixels;
 
 	std::vector<uint8_t> updatedWindowPixels;
 	std::vector<uint8_t> updatedOAMPixels;
 
 	uint8_t objCount { 0 };
-	object selectedObjects[10];
+	std::array<object, 10> selectedObjects;
 
 	static constexpr uint8_t OAM_SCAN_CYCLES = 20;
 	static constexpr uint8_t PIXEL_TRANSFER_CYCLES = 43;

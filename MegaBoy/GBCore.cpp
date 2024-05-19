@@ -1,6 +1,7 @@
 ﻿#include "GBCore.h"
 #include <fstream>
 #include <string>
+#include <chrono>
 
 GBCore gbCore{};
 
@@ -42,8 +43,6 @@ void GBCore::loadBootROM()
 	}
 }
 
-bool saveStatePending{ false };
-
 void GBCore::update(int cyclesToExecute)
 {
 	if (!cartridge.ROMLoaded || paused) return;
@@ -54,9 +53,6 @@ void GBCore::update(int cyclesToExecute)
 	{
 		currentCycles += cpu.execute();
 		currentCycles += cpu.handleInterrupts();
-
-		if (saveStatePending)
-			saveState(std::move(currentSaveSt));
 	}
 }
 
@@ -68,29 +64,26 @@ void GBCore::stepComponents()
 	serial.execute();
 }
 
-void ppuVBlankEnd()
-{
-	saveStatePending = true;
-	gbCore.ppu.VBlankEndCallback = nullptr;
-}
-
-void GBCore::restartROM()
+void GBCore::restartROM(bool resetBattery)
 {
 	if (!cartridge.ROMLoaded)
 		return;
 
 	reset();
-	cartridge.getMapper()->reset();
+	cartridge.getMapper()->reset(resetBattery);
 	loadBootROM();
 }
 
-void GBCore::loadFile(std::ifstream& st)
+FileLoadResult GBCore::loadFile(std::ifstream& st)
 {
 	std::string filePrefix(SAVE_STATE_SIGNATURE.length(), 0);
 	st.read(filePrefix.data(), SAVE_STATE_SIGNATURE.length());
 
 	if (filePrefix == SAVE_STATE_SIGNATURE)
-		loadState(st);
+	{
+		if (!loadState(st))
+			return FileLoadResult::SaveStateROMNotFound;
+	}
 	else
 	{
 		if (cartridge.loadROM(st))
@@ -98,17 +91,38 @@ void GBCore::loadFile(std::ifstream& st)
 			romFilePath = filePath;
 			loadBootROM();
 		}
+		else
+			return FileLoadResult::InvalidROM;
 	}
+
+	saveFolderName = "saves/" + gbCore.gameTitle + " (" + std::to_string(cartridge.checksum) + ")";
+	return FileLoadResult::Success;
 }
 
-void GBCore::saveState(std::ofstream&& st)
+void GBCore::autoSave()
 {
-	if (!saveStatePending && !gbCore.paused)
-	{
-		currentSaveSt = std::move(st);
-		ppu.VBlankEndCallback = ppuVBlankEnd;
-		return;
-	}
+	if (!cartridge.ROMLoaded) return;
+	saveState(saveFolderName + "/autosave.mbs");
+}
+void GBCore::backupSave()
+{
+	if (!cartridge.ROMLoaded) return;
+
+	const std::chrono::zoned_time time { std::chrono::current_zone(), std::chrono::system_clock::now() };
+	const std::string timeStr = std::format("{:%d-%m-%Y %H-%M-%OS}", time);
+
+	const std::string backupPath = saveFolderName + "/backups";
+
+	if (!std::filesystem::exists(backupPath))
+		std::filesystem::create_directories(backupPath);
+
+	saveState(backupPath + "/" + timeStr + ".mbs");
+}
+
+void GBCore::saveState(std::ofstream& st)
+{
+	if (!std::filesystem::exists(saveFolderName))
+		std::filesystem::create_directories(saveFolderName);
 
 	st << SAVE_STATE_SIGNATURE;
 
@@ -124,12 +138,9 @@ void GBCore::saveState(std::ofstream&& st)
 	serial.saveState(st);
 	input.saveState(st);
 	cartridge.getMapper()->saveState(st);
-
-	saveStatePending = false;
-	st.close();
 }
 
-void GBCore::loadState(std::ifstream& st)
+bool GBCore::loadState(std::ifstream& st)
 {
 	uint16_t filePathLen { 0 };
 	st.read(reinterpret_cast<char*>(&filePathLen), sizeof(filePathLen));
@@ -166,13 +177,8 @@ void GBCore::loadState(std::ifstream& st)
 		if (romExists)
 			romFilePath = romPath;
 		else
-		{
-			std::cout << "Rom doesn't exist! \n";
-			return;
-		}
+			return false;
 	}
-
-	std::cout << "successfully loaded! \n";
 
 	mmu.loadState(st);
 	cpu.loadState(st);
@@ -180,4 +186,6 @@ void GBCore::loadState(std::ifstream& st)
 	serial.loadState(st);
 	input.loadState(st);
 	cartridge.getMapper()->loadState(st);
+
+	return true;
 }
