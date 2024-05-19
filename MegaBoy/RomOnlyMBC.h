@@ -1,7 +1,8 @@
 #pragma once
 #include "MBC.h"
+#include "EmptyMBC.h"
 
-class RomOnlyMBC : public MBC
+class RomOnlyMBC : public MBC<emptyState>
 {
 	using MBC::MBC;
 

@@ -106,7 +106,8 @@ void GBCore::autoSave()
 }
 void GBCore::backupSave()
 {
-	if (!cartridge.ROMLoaded) return;
+	if (!cartridge.ROMLoaded || !std::filesystem::exists(saveFolderName + "/autosave.mbs"))
+		return;
 
 	const std::chrono::zoned_time time { std::chrono::current_zone(), std::chrono::system_clock::now() };
 	const std::string timeStr = std::format("{:%d-%m-%Y %H-%M-%OS}", time);
@@ -116,7 +117,7 @@ void GBCore::backupSave()
 	if (!std::filesystem::exists(backupPath))
 		std::filesystem::create_directories(backupPath);
 
-	saveState(backupPath + "/" + timeStr + ".mbs");
+	std::filesystem::copy_file(saveFolderName + "/autosave.mbs", backupPath + "/" + timeStr + ".mbs");
 }
 
 void GBCore::saveState(std::ofstream& st)
@@ -142,6 +143,8 @@ void GBCore::saveState(std::ofstream& st)
 
 bool GBCore::loadState(std::ifstream& st)
 {
+	check = true;
+
 	uint16_t filePathLen { 0 };
 	st.read(reinterpret_cast<char*>(&filePathLen), sizeof(filePathLen));
 

@@ -1,7 +1,8 @@
 #pragma once
 #include <fstream>
 #include <memory>
-#include "MBC.h"
+#include <vector>
+#include "MBCBase.h"
 
 class GBCore;
 
@@ -9,7 +10,7 @@ class Cartridge
 {
 public:
 	constexpr const std::vector<uint8_t>& getRom() const { return rom; }
-	inline MBC* getMapper() { return mapper.get(); }
+	inline MBCBase* getMapper() { return mapper.get(); }
 
 	Cartridge(GBCore& gbCore);
 
@@ -35,7 +36,7 @@ private:
 
 	bool proccessCartridgeHeader(const std::vector<uint8_t>& buffer);
 
-	std::unique_ptr<MBC> mapper;
+	std::unique_ptr<MBCBase> mapper;
 	GBCore& gbCore;
 	std::vector<uint8_t> rom;
 };

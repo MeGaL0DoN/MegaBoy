@@ -1,3 +1,6 @@
+#include <iostream>
+#include <algorithm>
+
 #include "Cartridge.h"
 #include "GBCore.h"
 #include "RomOnlyMBC.h"
@@ -7,8 +10,6 @@
 #include "MBC3.h"
 #include "MBC5.h"
 #include "HuC1.h"
-#include <iostream>
-#include "algorithm"
 
 Cartridge::Cartridge(GBCore& gbCore) : gbCore(gbCore), mapper(std::make_unique<EmptyMBC>(*this)) { }
 

@@ -99,9 +99,6 @@
     <ClCompile Include="MBC1.cpp">
       <Filter>Source Files\Mappers</Filter>
     </ClCompile>
-    <ClCompile Include="MBC.cpp">
-      <Filter>Source Files\Mappers</Filter>
-    </ClCompile>
     <ClCompile Include="APU.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -208,6 +205,9 @@
     </ClInclude>
     <ClInclude Include="stringUtils.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MBCBase.h">
+      <Filter>Header Files\Mappers</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

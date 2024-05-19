@@ -24,7 +24,7 @@ void MBC3::write(uint16_t addr, uint8_t val)
 {
 	if (addr <= 0x1FFF)
 	{
-		ramEnable = (val & 0x0F) == 0x0A;
+		s.ramEnable = (val & 0x0F) == 0x0A;
 	}
 	else if (addr <= 0x3FFF)
 	{
@@ -50,16 +50,4 @@ void MBC3::write(uint16_t addr, uint8_t val)
 		if (s.rtcModeActive) s.rtcReg = val; // to fix
 		else ram[(s.ramBank % cartridge.ramBanks) * 0x2000 + (addr - 0xA000)] = val;
 	}
-}
-
-void MBC3::saveState(std::ofstream& st) const
-{
-	MBC::saveBattery(st);
-	st.write(reinterpret_cast<const char*>(&s), sizeof(s));
-}
-
-void MBC3::loadState(std::ifstream& st)
-{
-	MBC::loadBattery(st);
-	st.read(reinterpret_cast<char*>(&s), sizeof(s));
 }

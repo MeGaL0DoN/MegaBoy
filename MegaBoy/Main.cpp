@@ -298,6 +298,7 @@ void renderImGUI()
 
             if (ImGui::MenuItem("Reset State"))
             {
+                gbCore.autoSave();
                 gbCore.backupSave();
                 gbCore.restartROM();
             }

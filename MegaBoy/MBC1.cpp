@@ -13,7 +13,7 @@ uint8_t MBC1::read(uint16_t addr) const
 	}
 	if (addr <= 0xBFFF)
 	{
-		if (!cartridge.hasRAM || !ramEnable)
+		if (!cartridge.hasRAM || !s.ramEnable)
 			return 0xFF;
 
 		return ram[s.RAMOffset + (addr - 0xA000)];
@@ -26,12 +26,12 @@ void MBC1::write(uint16_t addr, uint8_t val)
 {
 	if (addr <= 0x1FFF)
 	{
-		ramEnable = ((val & 0xF) == 0xA);
+		s.ramEnable = ((val & 0xF) == 0xA);
 	}
 	else if (addr <= 0x3FFF)
 	{
-		s.bank1 = val & 0x1F;
-		if (s.bank1 == 0) s.bank1 = 1;
+		s.romBank = val & 0x1F;
+		if (s.romBank == 0) s.romBank = 1;
 		updateOffsets();
 	}
 	else if (addr <= 0x5FFF)
@@ -47,7 +47,7 @@ void MBC1::write(uint16_t addr, uint8_t val)
 	}
 	else if (addr <= 0xBFFF)
 	{
-		if (!cartridge.hasRAM || !ramEnable) return;
+		if (!cartridge.hasRAM || !s.ramEnable) return;
 		ram[s.RAMOffset + (addr - 0xA000)] = val;
 	}
 }
@@ -65,17 +65,5 @@ void MBC1::updateOffsets()
 		if (cartridge.hasRAM) s.RAMOffset = (s.bank2 % cartridge.ramBanks) * 0x2000;
 	}
 
-	s.highROMOffset = (((s.bank2 << 5) | s.bank1) % cartridge.romBanks) * 0x4000;
-}
-
-void MBC1::saveState(std::ofstream& st) const
-{
-	MBC::saveBattery(st);
-	st.write(reinterpret_cast<const char*>(&s), sizeof(s));
-}
-
-void MBC1::loadState(std::ifstream& st)
-{
-	MBC::loadBattery(st);
-	st.read(reinterpret_cast<char*>(&s), sizeof(s));
+	s.highROMOffset = (((s.bank2 << 5) | s.romBank) % cartridge.romBanks) * 0x4000;
 }

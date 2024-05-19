@@ -152,7 +152,6 @@
     <ClCompile Include="glFunctions.cpp" />
     <ClCompile Include="HuC1.cpp" />
     <ClCompile Include="inputManager.cpp" />
-    <ClCompile Include="MBC.cpp" />
     <ClCompile Include="MBC.h" />
     <ClCompile Include="MBC1.cpp" />
     <ClCompile Include="MBC2.cpp" />
@@ -180,6 +179,7 @@
     <ClInclude Include="MBC2.h" />
     <ClInclude Include="MBC3.h" />
     <ClInclude Include="MBC5.h" />
+    <ClInclude Include="MBCBase.h" />
     <ClInclude Include="RomOnlyMBC.h" />
     <ClInclude Include="pixelOps.h" />
     <ClInclude Include="CPU.h" />

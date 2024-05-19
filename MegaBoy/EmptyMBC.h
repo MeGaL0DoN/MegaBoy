@@ -1,7 +1,9 @@
 #pragma once
 #include "MBC.h"
 
-class EmptyMBC : public MBC
+struct emptyState {};
+
+class EmptyMBC : public MBC<emptyState>
 {
 public:
 	using MBC::MBC;

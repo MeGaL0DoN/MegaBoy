@@ -47,7 +47,7 @@ private:
 		uint8_t delayCycles;
 	};
 
-	DMAstate dma;
+	DMAstate dma{};
 
 	constexpr bool dmaInProgress() const { return dma.transfer && dma.delayCycles == 0; }
 	void startDMATransfer();
