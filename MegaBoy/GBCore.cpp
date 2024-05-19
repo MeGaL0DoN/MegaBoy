@@ -96,16 +96,14 @@ FileLoadResult GBCore::loadFile(std::ifstream& st)
 	}
 	else
 	{
-		bool romWasLoaded = cartridge.ROMLoaded;
+		if (cartridge.ROMLoaded)
+		{
+			gbCore.autoSave();
+			gbCore.backupSave();
+		}
 
 		if (cartridge.loadROM(st))
 		{
-			if (romWasLoaded)
-			{
-				gbCore.autoSave();
-				gbCore.backupSave();
-			}
-
 			romFilePath = filePath;
 			loadBootROM();
 			result = FileLoadResult::SuccessROM;
@@ -171,8 +169,6 @@ void GBCore::saveState(std::ofstream& st)
 
 bool GBCore::loadState(std::ifstream& st)
 {
-	check = true;
-
 	uint16_t filePathLen { 0 };
 	st.read(reinterpret_cast<char*>(&filePathLen), sizeof(filePathLen));
 
