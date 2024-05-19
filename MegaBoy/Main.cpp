@@ -50,6 +50,9 @@ constexpr nfdnfilteritem_t saveFilterItem[] = { {L"Save State", L"mbs"} };
 const char* errorPopupTitle = "Error Loading the ROM!";
 bool errorLoadingROM{false};
 
+bool fileSaveAskPopup { false };
+constexpr const char* fileSaveAskTitle = "Existing save file found for this ROM!";
+
 bool pauseOnVBlank {false};
 extern GBCore gbCore;
 std::string FPS_text{ "FPS: 00.00" };
@@ -72,10 +75,20 @@ inline void loadFile(T path)
             errorLoadingROM = true;
             break;
         default:
+        {
             std::string title = "MegaBoy - " + gbCore.gameTitle;
             glfwSetWindowTitle(window, title.c_str());
             debugUI::clearBuffers();
-            break;
+
+            if (result == FileLoadResult::SuccessROM)
+            {
+                if (std::filesystem::exists(gbCore.saveFolderName + "/autosave.mbs"))
+                {
+                    fileSaveAskPopup = true;
+                    gbCore.paused = true;
+                }
+            }
+        }
         }
     }
 }
@@ -86,6 +99,7 @@ void drawCallback(const uint8_t* framebuffer)
     {
         pauseOnVBlank = false;
         gbCore.paused = true;
+        gbCore.autoSave();
     }
 
     OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
@@ -179,7 +193,7 @@ void renderImGUI()
 
             if (gbCore.cartridge.ROMLoaded)
             {
-                if (ImGui::MenuItem("Save State"))
+                if (ImGui::MenuItem("Save State As"))
                 {
                     fileDialogOpen = true;
                     NFD::UniquePathN outPath;
@@ -333,15 +347,53 @@ void renderImGUI()
         errorLoadingROM = false;
     }
 
+    if (fileSaveAskPopup)
+    {
+        ImGui::OpenPopup(fileSaveAskTitle);
+        fileSaveAskPopup = false;
+    }
+
     if (ImGui::BeginPopupModal(errorPopupTitle, 0, ImGuiWindowFlags_NoMove))
     {
         float windowWidth = ImGui::GetWindowSize().x;
-        ImGui::SetCursorPosX((windowWidth - (75 * scaleFactor)) * 0.5f);
+        ImGui::SetCursorPosX((windowWidth - (75.0f * scaleFactor)) * 0.5f);
 
         if (ImGui::Button("Ok", ImVec2(75 * scaleFactor, 30 * scaleFactor)))
             ImGui::CloseCurrentPopup();
 
         ImGui::SetWindowSize(ImVec2(ImGui::CalcTextSize(errorPopupTitle).x + ImGui::GetStyle().FramePadding.x, ImGui::GetContentRegionAvail().y));
+        ImGui::EndPopup();
+    }
+
+    if (ImGui::BeginPopupModal(fileSaveAskTitle, 0, ImGuiWindowFlags_NoMove))
+    {
+        float windowWidth = ImGui::GetWindowSize().x;
+        ImGui::SetCursorPosX((windowWidth - (170.0f * scaleFactor)) * 0.5f);
+
+        bool closed { false };
+
+        if (ImGui::Button("Load", ImVec2(85 * scaleFactor, 30 * scaleFactor)))
+        {
+            std::string autoSavePath = gbCore.saveFolderName + "/autosave.mbs";
+            gbCore.loadFile(autoSavePath.c_str());
+            closed = true;
+        }
+
+        ImGui::SameLine();
+
+        if (ImGui::Button("New File", ImVec2(85 * scaleFactor, 30 * scaleFactor)))
+        {
+            gbCore.backupSave();
+            closed = true;
+        }
+
+        if (closed)
+        {
+            ImGui::CloseCurrentPopup();
+            gbCore.paused = false;
+        }
+
+        ImGui::SetWindowSize(ImVec2(ImGui::CalcTextSize(fileSaveAskTitle).x + ImGui::GetStyle().FramePadding.x, ImGui::GetContentRegionAvail().y));
         ImGui::EndPopup();
     }
 
@@ -424,12 +476,6 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
 
     if (action == 1)
     {
-        //if (key == GLFW_KEY_ESCAPE)
-        //{
-        //    gbCore.loadFile("testfile");
-        //    //gbCore.restartROM();
-        //    return;
-        //}
         if (key == GLFW_KEY_TAB)
         {
             if (gbCore.paused) gbCore.paused = false;
@@ -440,9 +486,8 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
             }
             return;
         }
-
         // number keys 1 though 0
-        if (scancode >= 2 && scancode <= 11)
+        else if (scancode >= 2 && scancode <= 11)
         {
             if (!gbCore.cartridge.ROMLoaded) return;
             std::string statePath = gbCore.saveFolderName + "/save" + std::to_string(scancode - 1) + ".mbs";
@@ -453,6 +498,23 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
             else if (mods & GLFW_MOD_CONTROL)
                 loadFile(statePath.c_str());
 
+            return;
+        }
+
+        if (key == GLFW_KEY_Q)
+        {
+            if (gbCore.cartridge.ROMLoaded)
+                gbCore.saveState(gbCore.saveFolderName + "/quicksave.mbs");
+
+            return;
+        }
+        if (key == GLFW_KEY_GRAVE_ACCENT)
+        {
+            if (gbCore.cartridge.ROMLoaded)
+            {
+                std::string statePath = gbCore.saveFolderName + "/quicksave.mbs";
+                loadFile(statePath.c_str());
+            }
             return;
         }
     }

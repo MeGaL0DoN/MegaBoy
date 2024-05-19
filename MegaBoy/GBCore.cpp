@@ -24,6 +24,8 @@ void GBCore::reset()
 
 void GBCore::loadBootROM()
 {
+	cpu.disableBootROM();
+
 	if (runBootROM)
 	{
 		std::ifstream ifs("data/boot_rom.bin", std::ios::binary | std::ios::ate);
@@ -79,24 +81,46 @@ FileLoadResult GBCore::loadFile(std::ifstream& st)
 	std::string filePrefix(SAVE_STATE_SIGNATURE.length(), 0);
 	st.read(filePrefix.data(), SAVE_STATE_SIGNATURE.length());
 
+	FileLoadResult result;
+	bool success { true };
+
 	if (filePrefix == SAVE_STATE_SIGNATURE)
 	{
-		if (!loadState(st))
-			return FileLoadResult::SaveStateROMNotFound;
+		if (loadState(st))
+			result = FileLoadResult::SuccessState;
+		else
+		{
+			result = FileLoadResult::SaveStateROMNotFound;
+			success = false;
+		}
 	}
 	else
 	{
+		bool romWasLoaded = cartridge.ROMLoaded;
+
 		if (cartridge.loadROM(st))
 		{
+			if (romWasLoaded)
+			{
+				gbCore.autoSave();
+				gbCore.backupSave();
+			}
+
 			romFilePath = filePath;
 			loadBootROM();
+			result = FileLoadResult::SuccessROM;
 		}
 		else
-			return FileLoadResult::InvalidROM;
+		{
+			result = FileLoadResult::InvalidROM;
+			success = false;
+		}
 	}
 
-	saveFolderName = "saves/" + gbCore.gameTitle + " (" + std::to_string(cartridge.checksum) + ")";
-	return FileLoadResult::Success;
+	if (success)
+		saveFolderName = "saves/" + gbCore.gameTitle + " (" + std::to_string(cartridge.checksum) + ")";
+
+	return result;
 }
 
 void GBCore::autoSave()
@@ -104,6 +128,7 @@ void GBCore::autoSave()
 	if (!cartridge.ROMLoaded) return;
 	saveState(saveFolderName + "/autosave.mbs");
 }
+
 void GBCore::backupSave()
 {
 	if (!cartridge.ROMLoaded || !std::filesystem::exists(saveFolderName + "/autosave.mbs"))
@@ -122,6 +147,9 @@ void GBCore::backupSave()
 
 void GBCore::saveState(std::ofstream& st)
 {
+	if (!cartridge.ROMLoaded || cpu.isExecutingBootROM())
+		return;
+
 	if (!std::filesystem::exists(saveFolderName))
 		std::filesystem::create_directories(saveFolderName);
 
@@ -182,6 +210,8 @@ bool GBCore::loadState(std::ifstream& st)
 		else
 			return false;
 	}
+
+	cpu.disableBootROM();
 
 	mmu.loadState(st);
 	cpu.loadState(st);

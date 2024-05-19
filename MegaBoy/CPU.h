@@ -38,10 +38,16 @@ public:
 
 	void reset();
 
-	inline void enableBootROM()
+	constexpr bool isExecutingBootROM() { return executingBootROM; }
+
+	constexpr void enableBootROM()
 	{
 		s.PC = 0x0;
 		executingBootROM = true;
+	}
+	constexpr void disableBootROM()
+	{
+		executingBootROM = false;
 	}
 
 	void saveState(std::ofstream& st);

@@ -52,7 +52,7 @@ uniform COMPAT_PRECISION float BRIGHTEN_SCANLINES;
 uniform COMPAT_PRECISION float BRIGHTEN_LCD;
 #else
 #define BRIGHTEN_SCANLINES 16.0
-#define BRIGHTEN_LCD 4.0
+#define BRIGHTEN_LCD 12.0
 #endif
 
 // Magic Numbers

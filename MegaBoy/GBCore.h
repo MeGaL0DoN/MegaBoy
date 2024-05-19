@@ -11,7 +11,8 @@
 
 enum class FileLoadResult
 {
-	Success,
+	SuccessROM,
+	SuccessState,
 	InvalidROM,
 	SaveStateROMNotFound
 };
