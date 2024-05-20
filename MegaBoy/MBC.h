@@ -24,28 +24,33 @@ public:
 			ram.resize(0x2000 * cartridge.ramBanks);
 	}
 
-	void saveState(std::ofstream& st) const
+	virtual void saveBattery(std::ofstream& st) const override
 	{
-		st.write(reinterpret_cast<const char*>(&s), sizeof(s));
-
 		if (cartridge.hasRAM)
 			st.write(reinterpret_cast<const char*>(ram.data()), ram.size());
 	}
-
-	void loadState(std::ifstream& st)
+	virtual void loadBattery(std::ifstream& st) override
 	{
-		st.read(reinterpret_cast<char*>(&s), sizeof(s));
-
 		if (cartridge.hasRAM)
 			st.read(reinterpret_cast<char*>(ram.data()), ram.size());
 	}
 
-	void reset(bool resetBattery)
+	void saveState(std::ofstream& st) const override
+	{
+		st.write(reinterpret_cast<const char*>(&s), sizeof(s));
+		saveBattery(st);
+	}
+
+	void loadState(std::ifstream& st) override
+	{
+		st.read(reinterpret_cast<char*>(&s), sizeof(s));
+		loadBattery(st);
+	}
+
+	void reset(bool resetBattery) override
 	{
 		s = {};
-
-		if (resetBattery) 
-			std::fill(ram.begin(), ram.end(), static_cast<uint8_t>(0));
+		if (resetBattery) resetBatteryState();
 	}
 
 protected:
@@ -55,4 +60,9 @@ protected:
 	std::vector<uint8_t> ram;
 
 	T s;
+
+	virtual void resetBatteryState()
+	{
+		std::fill(ram.begin(), ram.end(), static_cast<uint8_t>(0));
+	}
 };

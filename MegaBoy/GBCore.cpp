@@ -96,22 +96,36 @@ FileLoadResult GBCore::loadFile(std::ifstream& st)
 	}
 	else
 	{
-		if (cartridge.ROMLoaded)
-		{
-			gbCore.autoSave();
-			gbCore.backupSave();
-		}
+		saveCurrentROM();
 
-		if (cartridge.loadROM(st))
+		if (filePath.ends_with(".sav"))
 		{
-			romFilePath = filePath;
-			loadBootROM();
-			result = FileLoadResult::SuccessROM;
+			if (cartridge.ROMLoaded && cartridge.hasBattery)
+			{
+				restartROM();
+				st.seekg(0, std::ios::beg);
+				cartridge.getMapper()->loadBattery(st);
+				result = FileLoadResult::SuccessState;
+			}
+			else
+			{
+				result = FileLoadResult::SaveStateROMNotFound;
+				success = false;
+			}
 		}
 		else
 		{
-			result = FileLoadResult::InvalidROM;
-			success = false;
+			if (cartridge.loadROM(st))
+			{
+				romFilePath = filePath;
+				loadBootROM();
+				result = FileLoadResult::SuccessROM;
+			}
+			else
+			{
+				result = FileLoadResult::InvalidROM;
+				success = false;
+			}
 		}
 	}
 
@@ -180,6 +194,7 @@ bool GBCore::loadState(std::ifstream& st)
 
 	if (!gbCore.cartridge.ROMLoaded || gbCore.cartridge.checksum != checkSum)
 	{
+		saveCurrentROM();
 		bool romExists{ true };
 
 		#ifdef _WIN32

@@ -32,7 +32,7 @@ public:
 
 	#ifdef  _WIN32
 
-	FileLoadResult loadFile(const wchar_t* _filePath)
+	inline FileLoadResult loadFile(const wchar_t* _filePath)
 	{
 		std::ifstream st(_filePath, std::ios::in | std::ios::binary);
 		this->filePath = StringUtils::ToUTF8(_filePath);
@@ -41,7 +41,7 @@ public:
 
 	#endif
 
-	FileLoadResult loadFile(const char* _filePath)
+	inline FileLoadResult loadFile(const char* _filePath)
 	{
 		std::ifstream st(_filePath, std::ios::in | std::ios::binary);
 		this->filePath = _filePath;
@@ -51,16 +51,33 @@ public:
 	std::string saveFolderName;
 
 	template <typename T>
-	void saveState(T filePath)
+	inline void saveState(T filePath)
 	{
 		std::ofstream st(filePath, std::ios::out | std::ios::binary);
 		saveState(st);
 	}
 
-	void loadBattery()
+	template <typename T>
+	inline void saveBattery(T filePath)
+	{
+		std::ofstream st(filePath, std::ios::out | std::ios::binary);
+		cartridge.getMapper()->saveBattery(st);
+	}
+
+	inline void loadBattery()
 	{
 		if (!cartridge.ROMLoaded || !cartridge.hasBattery) return;
+		saveCurrentROM();
 		restartROM(false);
+	}
+
+	inline void saveCurrentROM()
+	{
+		if (cartridge.ROMLoaded)
+		{
+			autoSave();
+			backupSave();
+		}
 	}
 
 	void autoSave();

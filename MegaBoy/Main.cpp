@@ -44,8 +44,9 @@ const std::string defaultPath{ std::filesystem::current_path().string() };
 
 bool fileDialogOpen;
 
-constexpr nfdnfilteritem_t openFilterItem[] = { {L"Game ROM/Save", L"gb,gbc,mbs"} };
-constexpr nfdnfilteritem_t saveFilterItem[] = { {L"Save State", L"mbs"} };
+constexpr nfdnfilteritem_t openFilterItem[] = { {L"Game ROM/Save", L"gb,gbc,mbs,sav"} };
+constexpr nfdnfilteritem_t saveStateFilterItem[] = { {L"Save State", L"mbs"} };
+constexpr nfdnfilteritem_t batterySaveFilterItem[] = { {L"Battery Save", L"sav"} };
 
 const char* errorPopupTitle = "Error Loading the ROM!";
 bool errorLoadingROM{false};
@@ -179,7 +180,7 @@ void renderImGUI()
     {
         if (ImGui::BeginMenu("File"))
         {
-            if (ImGui::MenuItem("Load Game"))
+            if (ImGui::MenuItem("Load File"))
             {
                 fileDialogOpen = true;
                 NFD::UniquePathN outPath;
@@ -193,18 +194,18 @@ void renderImGUI()
 
             if (gbCore.cartridge.ROMLoaded)
             {
-                if (ImGui::MenuItem("Save State As"))
+                if (ImGui::MenuItem("Export State"))
                 {
                     fileDialogOpen = true;
                     NFD::UniquePathN outPath;
 
                     #ifdef _WIN32
-                        const std::wstring defaultName = StringUtils::ToUTF16(gbCore.gameTitle.c_str()) + L" - Save";          
+                        const std::wstring defaultName = StringUtils::ToUTF16(gbCore.gameTitle.c_str()) + L" - Save State";          
                     #else
-                        const std::string defaultName = gbCore.gameTitle + " - Save";
+                        const std::string defaultName = gbCore.gameTitle + " - Save State";
                     #endif
 
-                    nfdresult_t result = NFD::SaveDialog(outPath, saveFilterItem, 1, nullptr, defaultName.c_str());
+                    nfdresult_t result = NFD::SaveDialog(outPath, saveStateFilterItem, 1, nullptr, defaultName.c_str());
 
                     if (result == NFD_OKAY)
                         gbCore.saveState(outPath.get());
@@ -212,10 +213,26 @@ void renderImGUI()
                     fileDialogOpen = false;
                 }
 
-                if (gbCore.cartridge.hasBattery)
+                if (gbCore.cartridge.ROMLoaded && gbCore.cartridge.hasBattery)
                 {
-                    if (ImGui::MenuItem("Load Battery"))
-                        gbCore.loadBattery();
+                    if (ImGui::MenuItem("Export Battery"))
+                    {
+                        fileDialogOpen = true;
+                        NFD::UniquePathN outPath;
+
+                        #ifdef _WIN32
+                            const std::wstring defaultName = StringUtils::ToUTF16(gbCore.gameTitle.c_str()) + L" - Battery Save";
+                        #else
+                            const std::string defaultName = gbCore.gameTitle + " - Battery Save";
+                        #endif
+
+                        nfdresult_t result = NFD::SaveDialog(outPath, batterySaveFilterItem, 1, nullptr, defaultName.c_str());
+
+                        if (result == NFD_OKAY)
+                            gbCore.saveBattery(outPath.get());
+
+                        fileDialogOpen = false;
+                    }
                 }
             }
 
@@ -310,11 +327,19 @@ void renderImGUI()
             if (ImGui::MenuItem(gbCore.paused ? "Resume" : "Pause", "(Tab)"))
                 gbCore.paused = !gbCore.paused;
 
-            if (ImGui::MenuItem("Reset State"))
+            if (gbCore.cartridge.ROMLoaded)
             {
-                gbCore.autoSave();
-                gbCore.backupSave();
-                gbCore.restartROM();
+                if (gbCore.cartridge.hasBattery)
+                {
+                    if (ImGui::MenuItem("Load Battery"))
+                        gbCore.loadBattery();
+                }
+
+                if (ImGui::MenuItem("Reset State"))
+                {
+                    gbCore.saveCurrentROM();
+                    gbCore.restartROM();
+                }
             }
 
             ImGui::EndMenu();
@@ -674,8 +699,6 @@ int main()
             glfwWaitEvents();
     }
 
-    gbCore.autoSave();
-    gbCore.backupSave();
-
+    gbCore.saveCurrentROM();
     return 1;
 }
