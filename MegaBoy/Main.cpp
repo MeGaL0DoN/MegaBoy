@@ -20,6 +20,7 @@ GLFWwindow* window;
 
 bool blending{ false };
 bool pauseOnFocus { false };
+bool autosaves { true };
 
 bool fpsLock{ true };
 bool vsync { true };
@@ -75,20 +76,11 @@ inline void loadFile(T path)
             errorPopupTitle = "ROM not found! Load the ROM first.";
             errorLoadingROM = true;
             break;
-        default:
+        case FileLoadResult::Success:
         {
             std::string title = "MegaBoy - " + gbCore.gameTitle;
             glfwSetWindowTitle(window, title.c_str());
             debugUI::clearBuffers();
-
-            if (result == FileLoadResult::SuccessROM)
-            {
-                if (std::filesystem::exists(gbCore.saveFolderName + "/autosave.mbs"))
-                {
-                    fileSaveAskPopup = true;
-                    gbCore.paused = true;
-                }
-            }
         }
         }
     }
@@ -243,6 +235,9 @@ void renderImGUI()
             ImGui::Checkbox("Run Boot ROM", &gbCore.runBootROM);
             ImGui::Checkbox("Pause when unfocused", &pauseOnFocus);
 
+            if (gbCore.cartridge.ROMLoaded && gbCore.getSaveNum() != 0)
+                ImGui::Checkbox("Autosave current file", &autosaves);
+
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Graphics"))
@@ -352,6 +347,12 @@ void renderImGUI()
             ImGui::Separator();
             ImGui::Text("Emulation Paused");
         }
+        else if (gbCore.cartridge.ROMLoaded && gbCore.getSaveNum() != 0)
+        {
+            std::string text = "Save: " + std::to_string(gbCore.getSaveNum());
+            ImGui::Separator();
+            ImGui::Text(text.c_str());
+        }
 
         float text_width = ImGui::CalcTextSize(FPS_text.data()).x;
         float available_width = ImGui::GetContentRegionAvail().x;
@@ -390,37 +391,37 @@ void renderImGUI()
         ImGui::EndPopup();
     }
 
-    if (ImGui::BeginPopupModal(fileSaveAskTitle, 0, ImGuiWindowFlags_NoMove))
-    {
-        float windowWidth = ImGui::GetWindowSize().x;
-        ImGui::SetCursorPosX((windowWidth - (170.0f * scaleFactor)) * 0.5f);
+    //if (ImGui::BeginPopupModal(fileSaveAskTitle, 0, ImGuiWindowFlags_NoMove))
+    //{
+    //    float windowWidth = ImGui::GetWindowSize().x;
+    //    ImGui::SetCursorPosX((windowWidth - (170.0f * scaleFactor)) * 0.5f);
 
-        bool closed { false };
+    //    bool closed { false };
 
-        if (ImGui::Button("Load", ImVec2(85 * scaleFactor, 30 * scaleFactor)))
-        {
-            std::string autoSavePath = gbCore.saveFolderName + "/autosave.mbs";
-            gbCore.loadFile(autoSavePath.c_str());
-            closed = true;
-        }
+    //    if (ImGui::Button("Load", ImVec2(85 * scaleFactor, 30 * scaleFactor)))
+    //    {
+    //        std::string autoSavePath = gbCore.saveFolderName + "/autosave.mbs";
+    //        gbCore.loadFile(autoSavePath.c_str());
+    //        closed = true;
+    //    }
 
-        ImGui::SameLine();
+    //    ImGui::SameLine();
 
-        if (ImGui::Button("New File", ImVec2(85 * scaleFactor, 30 * scaleFactor)))
-        {
-            gbCore.backupSave();
-            closed = true;
-        }
+    //    if (ImGui::Button("New File", ImVec2(85 * scaleFactor, 30 * scaleFactor)))
+    //    {
+    //        gbCore.backupSave();
+    //        closed = true;
+    //    }
 
-        if (closed)
-        {
-            ImGui::CloseCurrentPopup();
-            gbCore.paused = false;
-        }
+    //    if (closed)
+    //    {
+    //        ImGui::CloseCurrentPopup();
+    //        gbCore.paused = false;
+    //    }
 
-        ImGui::SetWindowSize(ImVec2(ImGui::CalcTextSize(fileSaveAskTitle).x + ImGui::GetStyle().FramePadding.x, ImGui::GetContentRegionAvail().y));
-        ImGui::EndPopup();
-    }
+    //    ImGui::SetWindowSize(ImVec2(ImGui::CalcTextSize(fileSaveAskTitle).x + ImGui::GetStyle().FramePadding.x, ImGui::GetContentRegionAvail().y));
+    //    ImGui::EndPopup();
+    //}
 
     debugUI::updateWindows(scaleFactor);
 
@@ -512,16 +513,15 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
             return;
         }
         // number keys 1 though 0
-        else if (scancode >= 2 && scancode <= 11)
+        if (scancode >= 2 && scancode <= 11)
         {
             if (!gbCore.cartridge.ROMLoaded) return;
-            std::string statePath = gbCore.saveFolderName + "/save" + std::to_string(scancode - 1) + ".mbs";
 
-            if (mods & GLFW_MOD_SHIFT)
-                gbCore.saveState(statePath.c_str());
+            if (mods & GLFW_MOD_CONTROL)
+                gbCore.saveState(scancode - 1);
 
-            else if (mods & GLFW_MOD_CONTROL)
-                loadFile(statePath.c_str());
+            else if (mods & GLFW_MOD_SHIFT)
+                gbCore.loadState(scancode - 1);
 
             return;
         }
@@ -529,7 +529,7 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
         if (key == GLFW_KEY_Q)
         {
             if (gbCore.cartridge.ROMLoaded)
-                gbCore.saveState(gbCore.saveFolderName + "/quicksave.mbs");
+                gbCore.saveState(gbCore.getSaveFolderPath() + "/quicksave.mbs");
 
             return;
         }
@@ -537,7 +537,7 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
         {
             if (gbCore.cartridge.ROMLoaded)
             {
-                std::string statePath = gbCore.saveFolderName + "/quicksave.mbs";
+                std::string statePath = gbCore.getSaveFolderPath() + "/quicksave.mbs";
                 loadFile(statePath.c_str());
             }
             return;
@@ -622,7 +622,7 @@ void setWindowSize()
     glfwSetWindowSizeLimits(window, PPU::SCR_WIDTH * 2, PPU::SCR_HEIGHT * 2, maxHeight * (PPU::SCR_WIDTH / PPU::SCR_HEIGHT), maxHeight);
     glViewport(0, 0, viewport_width, viewport_height);
 
-    vsyncCPUCycles = GBCore::getCycles(1.0 / mode->refreshRate);
+    vsyncCPUCycles = GBCore::calculateCycles(1.0 / mode->refreshRate);
 }
 
 void setImGUI()
@@ -688,7 +688,7 @@ int main()
             frameCount = 0;
             fpsTimer = 0;
 
-            if (!gbCore.paused) 
+            if (!gbCore.paused && autosaves) 
                 gbCore.autoSave(); // Autosave once a second.
         }
 

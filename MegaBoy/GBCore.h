@@ -11,8 +11,7 @@
 
 enum class FileLoadResult
 {
-	SuccessROM,
-	SuccessState,
+	Success,
 	InvalidROM,
 	SaveStateROMNotFound
 };
@@ -25,7 +24,7 @@ public:
 
 	GBCore();
 
-	static constexpr int getCycles(double deltaTime) { return static_cast<int>((CYCLES_PER_FRAME * (deltaTime / FRAME_RATE))); }
+	static constexpr int calculateCycles(double deltaTime) { return static_cast<int>((CYCLES_PER_FRAME * (deltaTime / FRAME_RATE))); }
 
 	void update(int cyclesToExecute = CYCLES_PER_FRAME);
 	void stepComponents();
@@ -48,7 +47,47 @@ public:
 		return loadFile(st);
 	}
 
-	std::string saveFolderName;
+	inline void loadState(int num)
+	{
+		if (!cartridge.ROMLoaded) return;
+
+		const auto saveName = "/save" + std::to_string(num);
+		const auto _filePath = saveFolderName + saveName + ".mbs";
+		std::ifstream st(_filePath, std::ios::in | std::ios::binary);
+
+		currentSaveName = saveName;
+		currentSave = num;
+
+		if (st)
+		{
+			if (isSaveStateFile(st));
+				loadState(st);
+		}
+		else
+			restartROM();
+	}
+
+	inline void saveState(int num)
+	{
+		if (!cartridge.ROMLoaded) return;
+
+		const auto saveName = "/save" + std::to_string(num);
+		const auto _filePath = saveFolderName + saveName + ".mbs";
+
+		if (currentSave != num && std::filesystem::exists(_filePath))
+			backupSave(num);
+
+		saveState(_filePath);
+
+		if (currentSave == 0)
+		{ 
+			currentSaveName = saveName;
+			currentSave = num;
+		}
+	}
+
+	constexpr int getSaveNum() { return currentSave; }
+	constexpr std::string& getSaveFolderPath() { return saveFolderName; }
 
 	template <typename T>
 	inline void saveState(T filePath)
@@ -73,15 +112,12 @@ public:
 
 	inline void saveCurrentROM()
 	{
-		if (cartridge.ROMLoaded)
-		{
-			autoSave();
-			backupSave();
-		}
+		autoSave();
+		backupSave(currentSave);
 	}
 
 	void autoSave();
-	void backupSave();
+	void backupSave(int num);
 
 	void reset();
 	void restartROM(bool resetBattery = true);
@@ -98,10 +134,15 @@ public:
 	serialPort serial { cpu };
 	Cartridge cartridge { *this };
 private:
-	std::string romFilePath;
 	std::string filePath;
+	std::string romFilePath;
+
+	std::string saveFolderName;
+	std::string currentSaveName {""};
+	int currentSave {0};
 
 	static constexpr std::string_view SAVE_STATE_SIGNATURE = "MegaBoy Emulator Save State";
+	bool isSaveStateFile(std::ifstream& st);
 
 	void saveState(std::ofstream& st);
 	bool loadState(std::ifstream& st);
