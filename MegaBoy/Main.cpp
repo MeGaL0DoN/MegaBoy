@@ -91,14 +91,14 @@ void drawCallback(const uint8_t* framebuffer)
     if (pauseOnVBlank)
     {
         pauseOnVBlank = false;
-        gbCore.paused = true;
+        gbCore.options.paused = true;
         gbCore.autoSave();
     }
 
     OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
     std::swap(gbFramebufferTextures[0], gbFramebufferTextures[1]);
 
-    debugUI::updateTextures(gbCore.paused);
+    debugUI::updateTextures(gbCore.options.paused);
 }
 
 void refreshGBTextures()
@@ -232,11 +232,15 @@ void renderImGUI()
         }
         if (ImGui::BeginMenu("Settings", "Ctrl+Q"))
         {
-            ImGui::Checkbox("Run Boot ROM", &gbCore.runBootROM);
+            ImGui::Checkbox("Run Boot ROM", &gbCore.options.runBootROM);
             ImGui::Checkbox("Pause when unfocused", &pauseOnFocus);
+            ImGui::Checkbox("Battery Saves", &gbCore.options.batterySaves);
 
             if (gbCore.cartridge.ROMLoaded && gbCore.getSaveNum() != 0)
-                ImGui::Checkbox("Autosave current file", &autosaves);
+            {
+                if (gbCore.getSaveNum() != 0)
+                    ImGui::Checkbox("Autosave state", &autosaves);
+            }
 
             ImGui::EndMenu();
         }
@@ -309,7 +313,7 @@ void renderImGUI()
             if (ImGui::ListBox("Palette", &palette, palettes, 3))
             {
                 auto colors = palette == 0 ? PPU::BGB_GREEN_PALETTE : palette == 1 ? PPU::GRAY_PALETTE : PPU::CLASSIC_PALETTE;
-                if (gbCore.paused || !gbCore.cartridge.ROMLoaded) gbCore.ppu.updateScreenColors(colors);
+                if (gbCore.options.paused || !gbCore.cartridge.ROMLoaded) gbCore.ppu.updateScreenColors(colors);
 
                 gbCore.ppu.setColorsPalette(colors);
                 refreshGBTextures();
@@ -319,8 +323,8 @@ void renderImGUI()
         }
         if (ImGui::BeginMenu("Emulation"))
         {
-            if (ImGui::MenuItem(gbCore.paused ? "Resume" : "Pause", "(Tab)"))
-                gbCore.paused = !gbCore.paused;
+            if (ImGui::MenuItem(gbCore.options.paused ? "Resume" : "Pause", "(Tab)"))
+                gbCore.options.paused = !gbCore.options.paused;
 
             if (gbCore.cartridge.ROMLoaded)
             {
@@ -342,7 +346,7 @@ void renderImGUI()
 
         debugUI::updateMenu();
 
-        if (gbCore.paused)
+        if (gbCore.options.paused)
         {
             ImGui::Separator();
             ImGui::Text("Emulation Paused");
@@ -390,38 +394,6 @@ void renderImGUI()
         ImGui::SetWindowSize(ImVec2(ImGui::CalcTextSize(errorPopupTitle).x + ImGui::GetStyle().FramePadding.x, ImGui::GetContentRegionAvail().y));
         ImGui::EndPopup();
     }
-
-    //if (ImGui::BeginPopupModal(fileSaveAskTitle, 0, ImGuiWindowFlags_NoMove))
-    //{
-    //    float windowWidth = ImGui::GetWindowSize().x;
-    //    ImGui::SetCursorPosX((windowWidth - (170.0f * scaleFactor)) * 0.5f);
-
-    //    bool closed { false };
-
-    //    if (ImGui::Button("Load", ImVec2(85 * scaleFactor, 30 * scaleFactor)))
-    //    {
-    //        std::string autoSavePath = gbCore.saveFolderName + "/autosave.mbs";
-    //        gbCore.loadFile(autoSavePath.c_str());
-    //        closed = true;
-    //    }
-
-    //    ImGui::SameLine();
-
-    //    if (ImGui::Button("New File", ImVec2(85 * scaleFactor, 30 * scaleFactor)))
-    //    {
-    //        gbCore.backupSave();
-    //        closed = true;
-    //    }
-
-    //    if (closed)
-    //    {
-    //        ImGui::CloseCurrentPopup();
-    //        gbCore.paused = false;
-    //    }
-
-    //    ImGui::SetWindowSize(ImVec2(ImGui::CalcTextSize(fileSaveAskTitle).x + ImGui::GetStyle().FramePadding.x, ImGui::GetContentRegionAvail().y));
-    //    ImGui::EndPopup();
-    //}
 
     debugUI::updateWindows(scaleFactor);
 
@@ -475,11 +447,11 @@ void window_iconify_callback(GLFWwindow* _window, int iconified)
 
     if (iconified)
     {
-        pausedPreEvent = gbCore.paused;
-        gbCore.paused = true;
+        pausedPreEvent = gbCore.options.paused;
+        gbCore.options.paused = true;
     }
     else
-        gbCore.paused = pausedPreEvent;
+        gbCore.options.paused = pausedPreEvent;
 }
 void window_focus_callback(GLFWwindow* _window, int focused)
 {
@@ -489,11 +461,11 @@ void window_focus_callback(GLFWwindow* _window, int focused)
 
     if (!focused)
     {
-        pausedPreEvent = gbCore.paused;
-        gbCore.paused = true;
+        pausedPreEvent = gbCore.options.paused;
+        gbCore.options.paused = true;
     }
     else
-        gbCore.paused = pausedPreEvent;
+        gbCore.options.paused = pausedPreEvent;
 }
 
 void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mods)
@@ -504,11 +476,11 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
     {
         if (key == GLFW_KEY_TAB)
         {
-            if (gbCore.paused) gbCore.paused = false;
+            if (gbCore.options.paused) gbCore.options.paused = false;
             else
             {
                 if (gbCore.cartridge.ROMLoaded) pauseOnVBlank = true;
-                else gbCore.paused = true;
+                else gbCore.options.paused = true;
             }
             return;
         }
@@ -544,7 +516,7 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
         }
     }
 
-    if (!gbCore.paused)
+    if (!gbCore.options.paused)
         gbCore.input.update(scancode, action);
 }
 
@@ -688,14 +660,14 @@ int main()
             frameCount = 0;
             fpsTimer = 0;
 
-            if (!gbCore.paused && autosaves) 
+            if (!gbCore.options.paused && autosaves) 
                 gbCore.autoSave(); // Autosave once a second.
         }
 
         lastFrameTime = currentFrameTime;
         std::this_thread::sleep_for(std::chrono::milliseconds(0));
 
-        if (gbCore.paused)
+        if (gbCore.options.paused)
             glfwWaitEvents();
     }
 

@@ -5,18 +5,18 @@ uint8_t MBC1::read(uint16_t addr) const
 {
 	if (addr <= 0x3FFF)
 	{
-		return rom[addr + s.lowROMOffset];
+		return rom[(addr + s.lowROMOffset) % rom.size()];
 	}
 	if (addr <= 0x7FFF)
 	{
-		return rom[(addr & 0x3FFF) + s.highROMOffset];
+		return rom[((addr & 0x3FFF) + s.highROMOffset) % rom.size()];
 	}
 	if (addr <= 0xBFFF)
 	{
 		if (!cartridge.hasRAM || !s.ramEnable)
 			return 0xFF;
 
-		return ram[s.RAMOffset + (addr - 0xA000)];
+		return ram[(s.RAMOffset + (addr - 0xA000)) % ram.size()];
 	}
 
 	return 0xFF;
@@ -48,7 +48,7 @@ void MBC1::write(uint16_t addr, uint8_t val)
 	else if (addr <= 0xBFFF)
 	{
 		if (!cartridge.hasRAM || !s.ramEnable) return;
-		ram[s.RAMOffset + (addr - 0xA000)] = val;
+		ram[(s.RAMOffset + (addr - 0xA000)) % ram.size()] = val;
 	}
 }
 

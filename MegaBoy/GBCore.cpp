@@ -7,12 +7,12 @@ GBCore gbCore{};
 
 GBCore::GBCore()
 {
-	runBootROM = std::filesystem::exists("data/boot_rom.bin");
+	options.runBootROM = std::filesystem::exists("data/boot_rom.bin");
 }
 
 void GBCore::reset()
 {
-	paused = false;
+	options.paused = false;
 
 	input.reset();
 	serial.reset();
@@ -26,7 +26,7 @@ void GBCore::loadBootROM()
 {
 	cpu.disableBootROM();
 
-	if (runBootROM)
+	if (options.runBootROM)
 	{
 		std::ifstream ifs("data/boot_rom.bin", std::ios::binary | std::ios::ate);
 
@@ -45,16 +45,21 @@ void GBCore::loadBootROM()
 	}
 }
 
-void GBCore::update(int cyclesToExecute)
+void GBCore::update(int32_t cyclesToExecute)
 {
-	if (!cartridge.ROMLoaded || paused) return;
+	if (!cartridge.ROMLoaded || options.paused) return;
 
-	int currentCycles { 0 };
+	int32_t currentCycles { 0 };
 
 	while (currentCycles < cyclesToExecute)
 	{
+		int32_t prevCycles = currentCycles;
+
 		currentCycles += cpu.execute();
 		currentCycles += cpu.handleInterrupts();
+
+		if (cartridge.hasTimer)
+			cartridge.timer.addRTCcycles(currentCycles - prevCycles);
 	}
 }
 
@@ -83,6 +88,18 @@ bool GBCore::isSaveStateFile(std::ifstream& st)
 	return filePrefix == SAVE_STATE_SIGNATURE;
 }
 
+inline auto replaceExtension(const std::string& source, const char* newExt)
+{
+	size_t lastindex = source.find_last_of(".");
+	const auto newStr = source.substr(0, lastindex) + newExt;
+
+	#ifdef _WIN32
+		return StringUtils::ToUTF16(newStr.c_str());
+	#else
+		return std::move(newStr);
+	#endif
+}
+
 FileLoadResult GBCore::loadFile(std::ifstream& st)
 {
 	FileLoadResult result;
@@ -102,10 +119,31 @@ FileLoadResult GBCore::loadFile(std::ifstream& st)
 	{
 		if (filePath.ends_with(".sav"))
 		{
-			if (cartridge.ROMLoaded && cartridge.hasBattery)
+			st.seekg(0, std::ios::beg);
+
+			const auto gbRomPath = replaceExtension(filePath, ".gb");
+			const auto gbcRomPath = replaceExtension(filePath, ".gbc");
+
+			auto loadRomAndBattery = [this, &st, &result, &success](std::ifstream& ifs)
+			{
+				if (!cartridge.loadROM(ifs))
+				{
+					result = FileLoadResult::InvalidROM;
+					success = false;
+				}
+				else
+					cartridge.getMapper()->loadBattery(st);
+			};
+
+			if (std::ifstream ifs{ gbRomPath, std::ios::in | std::ios::binary })
+				loadRomAndBattery(ifs);
+
+			else if (std::ifstream ifs{ gbcRomPath, std::ios::in | std::ios::binary })
+				loadRomAndBattery(ifs);
+
+			else if (cartridge.ROMLoaded && cartridge.hasBattery)
 			{
 				restartROM();
-				st.seekg(0, std::ios::beg);
 				cartridge.getMapper()->loadBattery(st);
 			}
 			else
@@ -118,8 +156,17 @@ FileLoadResult GBCore::loadFile(std::ifstream& st)
 		{
 			if (cartridge.loadROM(st))
 			{
-				currentSave = 0;
 				romFilePath = filePath;
+				currentSave = 0;
+
+				if (cartridge.hasBattery && options.batterySaves)
+				{
+					const auto batterySavePath = replaceExtension(filePath, ".sav");
+
+					if (std::ifstream ifs{ batterySavePath, std::ios::in | std::ios::binary })
+						cartridge.getMapper()->loadBattery(ifs);
+				}
+
 				loadBootROM();
 			}
 			else
@@ -145,6 +192,27 @@ void GBCore::autoSave()
 	saveState(saveFolderName + currentSaveName + ".mbs");
 }
 
+void GBCore::batteryAutoSave()
+{
+	if (cartridge.hasBattery && options.batterySaves)
+	{
+		const auto batterySavePath = replaceExtension(romFilePath, ".sav");
+
+		if (std::filesystem::exists(batterySavePath))
+		{
+			#ifdef _WIN32
+				const std::wstring batteryBackupPath = replaceExtension(romFilePath, "") + L" - BACKUP.sav";
+			#else
+				const std::string batteryBackupPath = replaceExtension(romFilePath, "") + " - BACKUP.sav";
+			#endif
+
+			std::filesystem::copy_file(batterySavePath, batteryBackupPath, std::filesystem::copy_options::overwrite_existing);
+		}
+
+		saveBattery(batterySavePath);
+	}
+}
+
 void GBCore::backupSave(int num)
 {
 	const auto saveFilePath = saveFolderName + "/save" + std::to_string(num) + ".mbs";
@@ -160,7 +228,7 @@ void GBCore::backupSave(int num)
 	if (!std::filesystem::exists(backupPath))
 		std::filesystem::create_directories(backupPath);
 
-	std::filesystem::copy_file(saveFilePath, backupPath + currentSaveName + " (" + timeStr + ").mbs");
+	std::filesystem::copy_file(saveFilePath, backupPath + currentSaveName + " (" + timeStr + ").mbs", std::filesystem::copy_options::overwrite_existing);
 }
 
 void GBCore::saveState(std::ofstream& st)

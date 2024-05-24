@@ -3,6 +3,7 @@
 #include <memory>
 #include <vector>
 #include "MBCBase.h"
+#include "RTCTimer.h"
 
 class GBCore;
 
@@ -22,6 +23,9 @@ public:
 	bool hasBattery { false };
 	uint16_t romBanks { 0 };
 	uint16_t ramBanks { 0 };
+
+	bool hasTimer { false };
+	RTCTimer timer{};
 
 	bool loadROM(std::ifstream& ifs);
 

@@ -167,6 +167,7 @@
     <ClCompile Include="Libs\ImGUI\imgui_widgets.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="MMU.cpp" />
+    <ClCompile Include="RTCTimer.cpp" />
     <ClCompile Include="serialPort.cpp" />
     <ClCompile Include="Shader.cpp" />
   </ItemGroup>
@@ -199,6 +200,7 @@
     <ClInclude Include="Libs\ImGUI\imstb_textedit.h" />
     <ClInclude Include="Libs\ImGUI\imstb_truetype.h" />
     <ClInclude Include="MMU.h" />
+    <ClInclude Include="RTCTimer.h" />
     <ClInclude Include="serialPort.h" />
     <ClInclude Include="Shader.h" />
     <ClInclude Include="stringUtils.h" />

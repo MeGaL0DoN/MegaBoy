@@ -54,7 +54,7 @@ public:
 	}
 
 protected:
-	const Cartridge& cartridge;
+	Cartridge& cartridge;
 
 	const std::vector<uint8_t>& rom;
 	std::vector<uint8_t> ram;

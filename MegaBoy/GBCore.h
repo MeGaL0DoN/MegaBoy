@@ -16,17 +16,24 @@ enum class FileLoadResult
 	SaveStateROMNotFound
 };
 
+struct GBCoreOptions
+{
+	bool paused{ false };
+	bool runBootROM{ false };
+	bool batterySaves{ true };
+};
+
 class GBCore
 {
 public:
-	static constexpr int CYCLES_PER_FRAME = 17556;
+	static constexpr int32_t CYCLES_PER_FRAME = 17556;
 	static constexpr double FRAME_RATE = 1.0 / 59.7;
 
 	GBCore();
 
-	static constexpr int calculateCycles(double deltaTime) { return static_cast<int>((CYCLES_PER_FRAME * (deltaTime / FRAME_RATE))); }
+	static constexpr int32_t calculateCycles(double deltaTime) { return static_cast<int>((CYCLES_PER_FRAME * (deltaTime / FRAME_RATE))); }
 
-	void update(int cyclesToExecute = CYCLES_PER_FRAME);
+	void update(int32_t cyclesToExecute = CYCLES_PER_FRAME);
 	void stepComponents();
 
 	#ifdef  _WIN32
@@ -51,20 +58,19 @@ public:
 	{
 		if (!cartridge.ROMLoaded) return;
 
+		if (currentSave != 0)
+			saveState(currentSave);
+
 		const auto saveName = "/save" + std::to_string(num);
 		const auto _filePath = saveFolderName + saveName + ".mbs";
 		std::ifstream st(_filePath, std::ios::in | std::ios::binary);
 
-		currentSaveName = saveName;
-		currentSave = num;
-
-		if (st)
+		if (st && isSaveStateFile(st))
 		{
-			if (isSaveStateFile(st));
-				loadState(st);
+			loadState(st);
+			currentSaveName = saveName;
+			currentSave = num;
 		}
-		else
-			restartROM();
 	}
 
 	inline void saveState(int num)
@@ -114,17 +120,19 @@ public:
 	{
 		autoSave();
 		backupSave(currentSave);
+		batteryAutoSave();
 	}
 
 	void autoSave();
 	void backupSave(int num);
 
+	void batteryAutoSave();
+
 	void reset();
 	void restartROM(bool resetBattery = true);
 
-	bool paused { false };
-	bool runBootROM { false };
-	std::string gameTitle { };
+	GBCoreOptions options {};
+;	std::string gameTitle { };
 
 	MMU mmu { *this };
 	CPU cpu { *this };

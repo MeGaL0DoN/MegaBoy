@@ -84,6 +84,7 @@ bool Cartridge::proccessCartridgeHeader(const std::vector<uint8_t>& buffer)
 
 	hasBattery = false;
 	hasRAM = false; 
+	hasTimer = false;
 
 	switch (buffer[0x147]) // MBC type
 	{
@@ -108,22 +109,22 @@ bool Cartridge::proccessCartridgeHeader(const std::vector<uint8_t>& buffer)
 		mapper = std::make_unique<MBC2>(*this);
 		break;
 	case 0x0F:
-		hasBattery = true;
-		mapper = std::make_unique<MBC3>(*this, true);
+		hasBattery = true; hasTimer = true;
+		mapper = std::make_unique<MBC3>(*this);
 		break;
 	case 0x10:
-		hasBattery = true;
-		mapper = std::make_unique<MBC3>(*this, true);
+		hasBattery = true; hasTimer = true;
+		mapper = std::make_unique<MBC3>(*this);
 		break;
 	case 0x11:
-		mapper = std::make_unique<MBC3>(*this, false);
+		mapper = std::make_unique<MBC3>(*this);
 		break;
 	case 0x12:
-		mapper = std::make_unique<MBC3>(*this, false);
+		mapper = std::make_unique<MBC3>(*this);
 		break;
 	case 0x13:
 		hasBattery = true;
-		mapper = std::make_unique<MBC3>(*this, false);
+		mapper = std::make_unique<MBC3>(*this);
 		break;
 	case 0x19:
 		mapper = std::make_unique<MBC5>(*this, false);
@@ -155,11 +156,14 @@ bool Cartridge::proccessCartridgeHeader(const std::vector<uint8_t>& buffer)
 		return false;
 	}
 
+	if (hasTimer)
+		timer.reset();
+
 	gbCore.gameTitle = "";
 
 	for (int i = 0x134; i <= 0x143; i++)
 	{
-		if (buffer[i] == 0x00) break;
+		if (buffer[i] == 0x00 || buffer[i] > 127) break; // If reached the end, or found illegal character
 		gbCore.gameTitle += buffer[i];
 	}
 
