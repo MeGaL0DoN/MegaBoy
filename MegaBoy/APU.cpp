@@ -1,26 +1,50 @@
-#include "APU.h"
+#define MINIAUDIO_IMPLEMENTATION
+#include <MiniAudio/miniaudio.h>
 
-void APU::reset() 
+#include "APU.h"
+#include "GBCore.h"
+#include <iostream>
+
+extern GBCore gbCore;
+
+struct soundData
 {
-	NR10 = 0x80;
-	NR11 = 0xBF;
-	NR12 = 0xF3;
-	NR13 = 0xFF;
-	NR14 = 0xBF;
-	NR21 = 0x3F;
-	NR22 = 0x00;
-	NR23 = 0xFF;
-	NR24 = 0xBF;
-	NR30 = 0x7F;
-	NR31 = 0xFF;
-	NR32 = 0x9F;
-	NR33 = 0xFF;
-	NR34 = 0xBF;
-	NR41 = 0xFF;
-	NR42 = 0x00;
-	NR43 = 0x00;
-	NR44 = 0xBF;
-	NR50 = 0x77;
-	NR51 = 0xF3;
-	NR52 = 0xF1;
+	APU* apu;
+	ma_waveform* waveForm;
+};
+
+soundData sound_data;
+
+void sound_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
+{
+	//ma_waveform_read_pcm_frames(sound_data.waveForm, pOutput, frameCount, nullptr);
+
+	const int32_t cpuCycles = GBCore::calculateCycles(static_cast<double>(frameCount) / APU::SAMPLE_RATE);
+	gbCore.update(cpuCycles);
+}
+
+ma_device soundDevice;
+ma_waveform squareWave;
+
+void APU::initMiniAudio()
+{
+	constexpr int frequency = 440;
+
+	ma_waveform_config config;
+	ma_device_config deviceConfig;
+
+	config = ma_waveform_config_init(ma_format_f32, 2, SAMPLE_RATE, ma_waveform_type_square, 1.0, frequency);
+	ma_waveform_init(&config, &squareWave);
+
+	deviceConfig = ma_device_config_init(ma_device_type_playback);
+	deviceConfig.playback.format = ma_format_f32;
+	deviceConfig.playback.channels = 2;
+	deviceConfig.sampleRate = SAMPLE_RATE;
+	deviceConfig.dataCallback = sound_data_callback;
+
+	sound_data.waveForm = &squareWave;
+	sound_data.apu = this;
+
+	ma_device_init(NULL, &deviceConfig, &soundDevice);
+	ma_device_start(&soundDevice);
 }

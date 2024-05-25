@@ -52,9 +52,6 @@ constexpr nfdnfilteritem_t batterySaveFilterItem[] = { {L"Battery Save", L"sav"}
 const char* errorPopupTitle = "Error Loading the ROM!";
 bool errorLoadingROM{false};
 
-bool fileSaveAskPopup { false };
-constexpr const char* fileSaveAskTitle = "Existing save file found for this ROM!";
-
 bool pauseOnVBlank {false};
 extern GBCore gbCore;
 std::string FPS_text{ "FPS: 00.00" };
@@ -86,7 +83,7 @@ inline void loadFile(T path)
     }
 }
 
-void drawCallback(const uint8_t* framebuffer)
+void updateFramebuffer()
 {
     if (pauseOnVBlank)
     {
@@ -95,14 +92,18 @@ void drawCallback(const uint8_t* framebuffer)
         gbCore.autoSave();
     }
 
-    OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
-    std::swap(gbFramebufferTextures[0], gbFramebufferTextures[1]);
+    {
+        std::lock_guard<std::mutex> lock(gbCore.ppu.framebuffer_mutex);
+        OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu.getFrameBuffer());
+    }
 
+    std::swap(gbFramebufferTextures[0], gbFramebufferTextures[1]);
     debugUI::updateTextures(gbCore.options.paused);
 }
 
 void refreshGBTextures()
 {
+    std::lock_guard<std::mutex> lock(gbCore.ppu.framebuffer_mutex);
     OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu.getFrameBuffer());
     OpenGL::updateTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu.getFrameBuffer());
 }
@@ -147,7 +148,7 @@ void setBuffers()
     OpenGL::createTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
     OpenGL::createTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
 
-    gbCore.ppu.drawCallback = drawCallback;
+//    gbCore.ppu.drawCallback = drawCallback;
     refreshGBTextures();
 }
 
@@ -375,12 +376,6 @@ void renderImGUI()
     {
         ImGui::OpenPopup(errorPopupTitle);
         errorLoadingROM = false;
-    }
-
-    if (fileSaveAskPopup)
-    {
-        ImGui::OpenPopup(fileSaveAskTitle);
-        fileSaveAskPopup = false;
     }
 
     if (ImGui::BeginPopupModal(errorPopupTitle, 0, ImGuiWindowFlags_NoMove))
@@ -624,7 +619,6 @@ int main()
     setBuffers();
 
     double lastFrameTime = glfwGetTime();
-    double timer{};
     double fpsTimer{};
     int frameCount{};
 
@@ -633,19 +627,25 @@ int main()
         double currentFrameTime = glfwGetTime();
         double deltaTime = currentFrameTime - lastFrameTime;
 
-        timer += deltaTime;
         fpsTimer += deltaTime;
 
-        const bool updateCPU = vsync || timer >= GBCore::FRAME_RATE;  
-        const bool updateRender = updateCPU || (!vsync && !fpsLock);
+      //  const bool updateCPU = vsync || timer >= GBCore::FRAME_RATE;  
+        //const bool updateRender = updateCPU || (!vsync && !fpsLock);
 
-        if (updateCPU)
+        //if (updateCPU)
+        //{
+        //    gbCore.update(vsync ? vsyncCPUCycles : GBCore::CYCLES_PER_FRAME);
+        //    timer = 0;
+        //}
+
+       // if (updateRender)
+
+        if (gbCore.ppu.drawCallback)
         {
-            gbCore.update(vsync ? vsyncCPUCycles : GBCore::CYCLES_PER_FRAME);
-            timer = 0;
+            updateFramebuffer();
+            gbCore.ppu.drawCallback = false;
         }
 
-        if (updateRender)
         {
             glfwPollEvents();
             render();
@@ -665,7 +665,7 @@ int main()
         }
 
         lastFrameTime = currentFrameTime;
-        std::this_thread::sleep_for(std::chrono::milliseconds(0));
+//        std::this_thread::sleep_for(std::chrono::milliseconds(0));
 
         if (gbCore.options.paused)
             glfwWaitEvents();

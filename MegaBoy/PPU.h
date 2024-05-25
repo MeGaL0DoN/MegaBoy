@@ -4,6 +4,7 @@
 #include "bitOps.h"
 #include <array>
 #include <vector>
+#include <mutex>
 
 #include "pixelOps.h"
 using color = PixelOps::color;
@@ -52,7 +53,9 @@ public:
 	void (*onWindowRender)(const uint8_t*, const std::vector<uint8_t>& updatedPixels, uint8_t LY);
 	void (*onOAMRender)(const uint8_t* buffer, const std::vector<uint8_t>& updatedPixels, uint8_t LY);
 
-	void (*drawCallback)(const uint8_t* framebuffer);
+	std::mutex framebuffer_mutex;
+	std::atomic<bool> drawCallback { false };
+	//void (*drawCallback)(const uint8_t* framebuffer);
 
 	constexpr void resetRenderCallbacks()
 	{
@@ -143,12 +146,14 @@ private:
 	static constexpr uint8_t HBLANK_CYCLES = 51;
 	static constexpr uint8_t VBLANK_CYCLES = 114;
 
-	constexpr void invokeDrawCallback() { if (drawCallback != nullptr) drawCallback(framebuffer.data()); }
+	//constexpr void invokeDrawCallback() { if (drawCallback != nullptr) drawCallback(framebuffer.data()); }
 
-	constexpr void clearBuffer()
+	inline void clearBuffer()
 	{
+		std::lock_guard<std::mutex> lock(framebuffer_mutex);
 		PixelOps::clearBuffer(framebuffer.data(), SCR_WIDTH, SCR_HEIGHT, colors[0]);
-		invokeDrawCallback();
+		drawCallback = true;
+//		invokeDrawCallback();
 	}
 
 	std::array<color, 4> colors;

@@ -206,7 +206,8 @@ void PPU::handleHBlank()
 		{
 			SetPPUMode(PPUMode::VBlank);
 			cpu.requestInterrupt(Interrupt::VBlank);
-			invokeDrawCallback();
+			drawCallback = true;
+			//invokeDrawCallback();
 		}
 		else
 			SetPPUMode(PPUMode::OAMSearch);
@@ -300,6 +301,8 @@ void PPU::renderOAM()
 
 void PPU::renderScanLine()
 {
+	std::lock_guard<std::mutex> lock(framebuffer_mutex);
+
 	if (TileMapsEnable())
 	{
 		renderBackground(); 

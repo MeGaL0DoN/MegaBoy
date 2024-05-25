@@ -174,47 +174,47 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 
 		case 0xFF10: 
-			gbCore.apu.NR10 = val; break;
+			gbCore.apu.regs.NR10 = val; break;
 		case 0xFF11:
-			gbCore.apu.NR11 = val; break;
+			gbCore.apu.regs.NR11 = val; break;
 		case 0xFF12: 
-			gbCore.apu.NR12 = val; break;
+			gbCore.apu.regs.NR12 = val; break;
 		case 0xFF13:
-			gbCore.apu.NR13 = val; break;
+			gbCore.apu.regs.NR13 = val; break;
 		case 0xFF14: 
-			gbCore.apu.NR14 = val; break;
+			gbCore.apu.regs.NR14 = val; break;
 		case 0xFF16: 
-			gbCore.apu.NR21 = val; break;
+			gbCore.apu.regs.NR21 = val; break;
 		case 0xFF17: 
-			gbCore.apu.NR22 = val; break;
+			gbCore.apu.regs.NR22 = val; break;
 		case 0xFF18: 
-			gbCore.apu.NR23 = val; break;
+			gbCore.apu.regs.NR23 = val; break;
 		case 0xFF19: 
-			gbCore.apu.NR24 = val; break;
+			gbCore.apu.regs.NR24 = val; break;
 		case 0xFF1A: 
-			gbCore.apu.NR30 = val; break;
+			gbCore.apu.regs.NR30 = val; break;
 		case 0xFF1B: 
-			gbCore.apu.NR31 = val; break;
+			gbCore.apu.regs.NR31 = val; break;
 		case 0xFF1C: 
-			gbCore.apu.NR32 = val; break;
+			gbCore.apu.regs.NR32 = val; break;
 		case 0xFF1D:
-			gbCore.apu.NR33 = val; break;
+			gbCore.apu.regs.NR33 = val; break;
 		case 0xFF1E: 
-			gbCore.apu.NR34 = val; break;
+			gbCore.apu.regs.NR34 = val; break;
 		case 0xFF20: 
-			gbCore.apu.NR41 = val; break;
+			gbCore.apu.regs.NR41 = val; break;
 		case 0xFF21:
-			gbCore.apu.NR42 = val; break;
+			gbCore.apu.regs.NR42 = val; break;
 		case 0xFF22: 
-			gbCore.apu.NR43 = val; break;
+			gbCore.apu.regs.NR43 = val; break;
 		case 0xFF23: 
-			gbCore.apu.NR44 = val; break;
+			gbCore.apu.regs.NR44 = val; break;
 		case 0xFF24: 
-			gbCore.apu.NR50 = val; break;
+			gbCore.apu.regs.NR50 = val; break;
 		case 0xFF25:
-			gbCore.apu.NR51 = val; break;
+			gbCore.apu.regs.NR51 = val; break;
 		case 0xFF26: 
-			gbCore.apu.NR52 = val; break;
+			gbCore.apu.regs.NR52 = val; break;
 		}
 	}
 	else if (addr <= 0xFFFE)
@@ -316,47 +316,47 @@ uint8_t MMU::read8(uint16_t addr) const
 			return gbCore.ppu.regs.WX;
 
 		case 0xFF10: 
-			return gbCore.apu.NR10;
+			return gbCore.apu.regs.NR10;
 		case 0xFF11: 
-			return gbCore.apu.NR11;
+			return gbCore.apu.regs.NR11;
 		case 0xFF12: 
-			return gbCore.apu.NR12;
+			return gbCore.apu.regs.NR12;
 		case 0xFF13: 
-			return gbCore.apu.NR13;
+			return gbCore.apu.regs.NR13;
 		case 0xFF14: 
-			return gbCore.apu.NR14;
+			return gbCore.apu.regs.NR14;
 		case 0xFF16: 
-			return gbCore.apu.NR21;
+			return gbCore.apu.regs.NR21;
 		case 0xFF17: 
-			return gbCore.apu.NR22;
+			return gbCore.apu.regs.NR22;
 		case 0xFF18: 
-			return gbCore.apu.NR23;
+			return gbCore.apu.regs.NR23;
 		case 0xFF19: 
-			return gbCore.apu.NR24;
+			return gbCore.apu.regs.NR24;
 		case 0xFF1A: 
-			return gbCore.apu.NR30;
+			return gbCore.apu.regs.NR30;
 		case 0xFF1B:
-			return gbCore.apu.NR31;
+			return gbCore.apu.regs.NR31;
 		case 0xFF1C: 
-			return gbCore.apu.NR32;
+			return gbCore.apu.regs.NR32;
 		case 0xFF1D: 
-			return gbCore.apu.NR33;
+			return gbCore.apu.regs.NR33;
 		case 0xFF1E: 
-			return gbCore.apu.NR34;
+			return gbCore.apu.regs.NR34;
 		case 0xFF20: 
-			return gbCore.apu.NR41;
+			return gbCore.apu.regs.NR41;
 		case 0xFF21: 
-			return gbCore.apu.NR42;
+			return gbCore.apu.regs.NR42;
 		case 0xFF22:
-			return gbCore.apu.NR43;
+			return gbCore.apu.regs.NR43;
 		case 0xFF23: 
-			return gbCore.apu.NR44;
+			return gbCore.apu.regs.NR44;
 		case 0xFF24: 
-			return gbCore.apu.NR50;
+			return gbCore.apu.regs.NR50;
 		case 0xFF25: 
-			return gbCore.apu.NR51;
+			return gbCore.apu.regs.NR51;
 		case 0xFF26:
-			return gbCore.apu.NR52;
+			return gbCore.apu.regs.NR52;
 
 		default:
 			return 0xFF;

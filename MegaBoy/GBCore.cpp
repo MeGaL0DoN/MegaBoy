@@ -124,22 +124,30 @@ FileLoadResult GBCore::loadFile(std::ifstream& st)
 			const auto gbRomPath = replaceExtension(filePath, ".gb");
 			const auto gbcRomPath = replaceExtension(filePath, ".gbc");
 
-			auto loadRomAndBattery = [this, &st, &result, &success](std::ifstream& ifs)
+			auto loadRomAndBattery = [this, &st](const auto romPath) -> bool
 			{
-				if (!cartridge.loadROM(ifs))
+				if (std::ifstream ifs{ romPath, std::ios::in | std::ios::binary })
 				{
-					result = FileLoadResult::InvalidROM;
-					success = false;
+					if (cartridge.loadROM(ifs))
+					{
+						cartridge.getMapper()->loadBattery(st);
+						loadBootROM();
+
+						#ifdef _WIN32
+							romFilePath = StringUtils::ToUTF8(romPath);
+						#else
+							romFilePath = romPath;
+						#endif
+
+						return true;
+					}
 				}
-				else
-					cartridge.getMapper()->loadBattery(st);
+
+				return false;
 			};
 
-			if (std::ifstream ifs{ gbRomPath, std::ios::in | std::ios::binary })
-				loadRomAndBattery(ifs);
-
-			else if (std::ifstream ifs{ gbcRomPath, std::ios::in | std::ios::binary })
-				loadRomAndBattery(ifs);
+			if (loadRomAndBattery(gbRomPath.c_str())) ;
+			else if (loadRomAndBattery(gbcRomPath.c_str())) ;
 
 			else if (cartridge.ROMLoaded && cartridge.hasBattery)
 			{
@@ -233,9 +241,6 @@ void GBCore::backupSave(int num)
 
 void GBCore::saveState(std::ofstream& st)
 {
-	if (!cartridge.ROMLoaded || cpu.isExecutingBootROM())
-		return;
-
 	if (!std::filesystem::exists(saveFolderName))
 		std::filesystem::create_directories(saveFolderName);
 

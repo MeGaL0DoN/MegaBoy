@@ -1,5 +1,7 @@
 #pragma once
 #include <filesystem>
+#include <atomic>
+
 #include "MMU.h"
 #include "CPU.h"
 #include "PPU.h"
@@ -18,7 +20,7 @@ enum class FileLoadResult
 
 struct GBCoreOptions
 {
-	bool paused{ false };
+	std::atomic<bool> paused{ false };
 	bool runBootROM{ false };
 	bool batterySaves{ true };
 };
@@ -98,6 +100,9 @@ public:
 	template <typename T>
 	inline void saveState(T filePath)
 	{
+		if (!cartridge.ROMLoaded || cpu.isExecutingBootROM())
+			return;
+
 		std::ofstream st(filePath, std::ios::out | std::ios::binary);
 		saveState(st);
 	}
