@@ -1,18 +1,14 @@
 ﻿#include "GBCore.h"
+#include "appConfig.h"
 #include <fstream>
 #include <string>
 #include <chrono>
 
 GBCore gbCore{};
 
-GBCore::GBCore()
-{
-	options.runBootROM = std::filesystem::exists("data/boot_rom.bin");
-}
-
 void GBCore::reset()
 {
-	options.paused = false;
+	emulationPaused = false;
 
 	input.reset();
 	serial.reset();
@@ -26,7 +22,7 @@ void GBCore::loadBootROM()
 {
 	cpu.disableBootROM();
 
-	if (options.runBootROM)
+	if (appConfig::runBootROM)
 	{
 		std::ifstream ifs("data/boot_rom.bin", std::ios::binary | std::ios::ate);
 
@@ -47,7 +43,7 @@ void GBCore::loadBootROM()
 
 void GBCore::update(int32_t cyclesToExecute)
 {
-	if (!cartridge.ROMLoaded || options.paused) return;
+	if (!cartridge.ROMLoaded || emulationPaused) return;
 
 	int32_t currentCycles { 0 };
 
@@ -167,7 +163,7 @@ FileLoadResult GBCore::loadFile(std::ifstream& st)
 				romFilePath = filePath;
 				currentSave = 0;
 
-				if (cartridge.hasBattery && options.batterySaves)
+				if (cartridge.hasBattery && appConfig::batterySaves)
 				{
 					const auto batterySavePath = replaceExtension(filePath, ".sav");
 
@@ -202,7 +198,7 @@ void GBCore::autoSave()
 
 void GBCore::batteryAutoSave()
 {
-	if (cartridge.hasBattery && options.batterySaves)
+	if (cartridge.hasBattery && appConfig::batterySaves)
 	{
 		const auto batterySavePath = replaceExtension(romFilePath, ".sav");
 

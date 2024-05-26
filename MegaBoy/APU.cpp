@@ -9,10 +9,12 @@ extern GBCore gbCore;
 
 void sound_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
 {
-	if (gbCore.options.paused)
+	if (gbCore.emulationPaused)
 		return;
 
 	APU* apu = (APU*)pDevice->pUserData;
+
+
 
 	//int16_t* pOutput16 = (int16_t*)pOutput;
 	//static double t = 0;
@@ -57,6 +59,11 @@ void APU::initMiniAudio()
 
 	ma_device_init(NULL, &deviceConfig, &soundDevice);
 	ma_device_start(&soundDevice);
+}
+
+void APU::deallocMiniAudio()
+{
+	ma_device_uninit(&soundDevice);
 }
 
 void APU::execute()

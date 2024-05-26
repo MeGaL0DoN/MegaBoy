@@ -1,5 +1,7 @@
 #pragma once
 #include <filesystem>
+#include <mini/ini.h>
+
 #include "MMU.h"
 #include "CPU.h"
 #include "PPU.h"
@@ -16,20 +18,11 @@ enum class FileLoadResult
 	SaveStateROMNotFound
 };
 
-struct GBCoreOptions
-{
-	bool paused{ false };
-	bool runBootROM{ false };
-	bool batterySaves{ true };
-};
-
 class GBCore
 {
 public:
 	static constexpr int32_t CYCLES_PER_FRAME = 17556;
 	static constexpr double FRAME_RATE = 1.0 / 59.7;
-
-	GBCore();
 
 	static constexpr int32_t calculateCycles(double deltaTime) { return static_cast<int>((CYCLES_PER_FRAME * (deltaTime / FRAME_RATE))); }
 
@@ -134,7 +127,7 @@ public:
 	void reset();
 	void restartROM(bool resetBattery = true);
 
-	GBCoreOptions options {};
+	bool emulationPaused { false };
 ;	std::string gameTitle { };
 
 	MMU mmu { *this };

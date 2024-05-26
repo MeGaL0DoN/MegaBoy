@@ -15,15 +15,10 @@
 #include "debugUI.h"
 #include "glFunctions.h"
 #include "stringUtils.h"
+#include "appConfig.h"
 
 GLFWwindow* window;
 
-bool blending{ false };
-bool pauseOnFocus { false };
-bool autosaves { true };
-
-bool fpsLock{ true };
-bool vsync { true };
 int vsyncCPUCycles;
 
 int menuBarHeight;
@@ -88,20 +83,69 @@ void drawCallback(const uint8_t* framebuffer)
     if (pauseOnVBlank)
     {
         pauseOnVBlank = false;
-        gbCore.options.paused = true;
+        gbCore.emulationPaused = true;
         gbCore.autoSave();
     }
 
     OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
     std::swap(gbFramebufferTextures[0], gbFramebufferTextures[1]);
 
-    debugUI::updateTextures(gbCore.options.paused);
+    debugUI::updateTextures(gbCore.emulationPaused);
 }
 
 void refreshGBTextures()
 {
     OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu.getFrameBuffer());
     OpenGL::updateTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu.getFrameBuffer());
+}
+
+void updateSelectedFilter()
+{
+    currentShader = appConfig::filter == 1 ? &lcdShader : appConfig::filter == 2 ? &scalingShader : &regularShader;
+
+    if (currentShader->compiled())
+        currentShader->use();
+    else
+    {
+        switch (appConfig::filter)
+        {
+        case 1:
+            lcdShader.compile("data/shaders/lcd1x_vertex.glsl", "data/shaders/lcd1x_frag.glsl");
+            lcdShader.setFloat2("TextureSize", PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
+            break;
+        case 2:
+            scalingShader.compile("data/shaders/omniscale_vertex.glsl", "data/shaders/omniscale_frag.glsl");
+            scalingShader.setFloat2("OutputSize", PPU::SCR_WIDTH * 6, PPU::SCR_HEIGHT * 6);
+            scalingShader.setFloat2("TextureSize", PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
+            break;
+        default:
+            regularShader.compile("data/shaders/regular_vertex.glsl", "data/shaders/regular_frag.glsl");
+            break;
+        }
+    }
+}
+
+void updateSelectedBlending()
+{
+    if (appConfig::blending)
+    {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    }
+    else
+    {
+        glDisable(GL_BLEND);
+        currentShader->setFloat("alpha", 1.0f);
+    }
+}
+
+void updateSelectedPalette()
+{
+    auto colors = appConfig::palette == 0 ? PPU::BGB_GREEN_PALETTE : appConfig::palette == 1 ? PPU::GRAY_PALETTE : PPU::CLASSIC_PALETTE;
+    if (gbCore.emulationPaused || !gbCore.cartridge.ROMLoaded) gbCore.ppu.updateScreenColors(colors);
+
+    gbCore.ppu.setColorsPalette(colors);
+    refreshGBTextures();
 }
 
 void setBuffers()
@@ -137,15 +181,14 @@ void setBuffers()
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
-    regularShader.compile("data/shaders/regular_vertex.glsl", "data/shaders/regular_frag.glsl");
-    regularShader.use();
-    currentShader = &regularShader;
-
     OpenGL::createTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
     OpenGL::createTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
 
     gbCore.ppu.drawCallback = drawCallback;
-    refreshGBTextures();
+
+    updateSelectedFilter();
+    updateSelectedPalette();
+    updateSelectedBlending();
 }
 
 inline void updateImGUIViewports()
@@ -229,99 +272,78 @@ void renderImGUI()
         }
         if (ImGui::BeginMenu("Settings", "Ctrl+Q"))
         {
-            ImGui::Checkbox("Run Boot ROM", &gbCore.options.runBootROM);
-            ImGui::Checkbox("Pause when unfocused", &pauseOnFocus);
-            ImGui::Checkbox("Battery Saves", &gbCore.options.batterySaves);
+            if (ImGui::Checkbox("Run Boot ROM", &appConfig::runBootROM))
+                appConfig::updateConfigFile();
 
-            if (gbCore.cartridge.ROMLoaded && gbCore.getSaveNum() != 0)
-            {
-                if (gbCore.getSaveNum() != 0)
-                    ImGui::Checkbox("Autosave state", &autosaves);
-            }
+            if (ImGui::Checkbox("Pause when unfocused", &appConfig::pauseOnFocus))
+                appConfig::updateConfigFile();
+
+            ImGui::SeparatorText("Saves");
+
+            if (ImGui::Checkbox("Battery Saves", &appConfig::batterySaves))
+                appConfig::updateConfigFile();
+
+            if (ImGui::Checkbox("Autosave State", &appConfig::autosaveState))
+                appConfig::updateConfigFile();
 
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Graphics"))
         {
-            if (ImGui::Checkbox("VSync", &vsync))
-                glfwSwapInterval(vsync ? 1 : 0);
+            if (ImGui::Checkbox("VSync", &appConfig::vsync))
+            {
+                glfwSwapInterval(appConfig::vsync ? 1 : 0);
+                appConfig::updateConfigFile();
+            }
 
-            if (!vsync)
+            if (!appConfig::vsync)
             {
                 ImGui::Spacing();
                 ImGui::Separator();
                 ImGui::Spacing();
-                ImGui::Checkbox("FPS Lock", &fpsLock);
+
+                if (ImGui::Checkbox("FPS Lock", &appConfig::fpsLock))
+                    appConfig::updateConfigFile();
             }
 
             ImGui::SeparatorText("UI");
 
-            if (ImGui::Checkbox("Alpha Blending", &blending))
+            if (ImGui::Checkbox("Alpha Blending", &appConfig::blending))
             {
-                if (blending)
-                {
-                    glEnable(GL_BLEND);
-                    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-                }
-                else
-                {
-                    glDisable(GL_BLEND);
-                    currentShader->setFloat("alpha", 1.0f);
-                }
+                updateSelectedBlending();
+                appConfig::updateConfigFile();
             }
 
             ImGui::Spacing();
             ImGui::Separator();
             ImGui::Spacing();
 
-            static int filter{ 0 };
             constexpr const char* filters[] = { "None", "LCD", "Upscaling" };
 
-            if (ImGui::ListBox("Filter", &filter, filters, 3))
+            if (ImGui::ListBox("Filter", &appConfig::filter, filters, 3))
             {
-                currentShader = filter == 0 ? &regularShader : filter == 1 ? &lcdShader : &scalingShader;
-
-                if (currentShader->compiled())
-                    currentShader->use();
-                else
-                {
-                    switch (filter)
-                    {
-                    case 1:
-                        lcdShader.compile("data/shaders/lcd1x_vertex.glsl", "data/shaders/lcd1x_frag.glsl");
-                        lcdShader.setFloat2("TextureSize", PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
-                        break;
-                    case 2:
-                        scalingShader.compile("data/shaders/omniscale_vertex.glsl", "data/shaders/omniscale_frag.glsl");
-                        scalingShader.setFloat2("OutputSize", PPU::SCR_WIDTH * 6, PPU::SCR_HEIGHT * 6);
-                        scalingShader.setFloat2("TextureSize", PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
-                        break;
-                    }
-                }
+                updateSelectedFilter();
+                appConfig::updateConfigFile();
             }
 
             ImGui::Spacing();
             ImGui::Separator();
             ImGui::Spacing();
 
-            static int palette{ 0 };
             constexpr const char* palettes[] = { "BGB Green", "Grayscale", "Classic" };
 
-            if (ImGui::ListBox("Palette", &palette, palettes, 3))
+            if (ImGui::ListBox("Palette", &appConfig::palette, palettes, 3))
             {
-                auto colors = palette == 0 ? PPU::BGB_GREEN_PALETTE : palette == 1 ? PPU::GRAY_PALETTE : PPU::CLASSIC_PALETTE;
-                if (gbCore.options.paused || !gbCore.cartridge.ROMLoaded) gbCore.ppu.updateScreenColors(colors);
-
-                gbCore.ppu.setColorsPalette(colors);
-                refreshGBTextures();
+                updateSelectedPalette();
+                appConfig::updateConfigFile();
             }
 
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Emulation"))
         {
-            if (ImGui::MenuItem(gbCore.options.paused ? "Resume" : "Pause", "(Tab)"))
-                gbCore.options.paused = !gbCore.options.paused;
+            if (ImGui::MenuItem(gbCore.emulationPaused ? "Resume" : "Pause", "(Tab)"))
+                gbCore.emulationPaused = !gbCore.emulationPaused;
 
             if (gbCore.cartridge.ROMLoaded)
             {
@@ -343,7 +365,7 @@ void renderImGUI()
 
         debugUI::updateMenu();
 
-        if (gbCore.options.paused)
+        if (gbCore.emulationPaused)
         {
             ImGui::Separator();
             ImGui::Text("Emulation Paused");
@@ -397,7 +419,7 @@ void renderGameBoy()
 {
     OpenGL::bindTexture(gbFramebufferTextures[0]);
 
-    if (blending)
+    if (appConfig::blending)
     {
         currentShader->setFloat("alpha", 1.0f);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
@@ -438,25 +460,25 @@ void window_iconify_callback(GLFWwindow* _window, int iconified)
 
     if (iconified)
     {
-        pausedPreEvent = gbCore.options.paused;
-        gbCore.options.paused = true;
+        pausedPreEvent = gbCore.emulationPaused;
+        gbCore.emulationPaused = true;
     }
     else
-        gbCore.options.paused = pausedPreEvent;
+        gbCore.emulationPaused = pausedPreEvent;
 }
 void window_focus_callback(GLFWwindow* _window, int focused)
 {
     (void)_window;
 
-    if (!pauseOnFocus) return;
+    if (!appConfig::pauseOnFocus) return;
 
     if (!focused)
     {
-        pausedPreEvent = gbCore.options.paused;
-        gbCore.options.paused = true;
+        pausedPreEvent = gbCore.emulationPaused;
+        gbCore.emulationPaused = true;
     }
     else
-        gbCore.options.paused = pausedPreEvent;
+        gbCore.emulationPaused = pausedPreEvent;
 }
 
 void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mods)
@@ -467,11 +489,11 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
     {
         if (key == GLFW_KEY_TAB)
         {
-            if (gbCore.options.paused) gbCore.options.paused = false;
+            if (gbCore.emulationPaused) gbCore.emulationPaused = false;
             else
             {
                 if (gbCore.cartridge.ROMLoaded) pauseOnVBlank = true;
-                else gbCore.options.paused = true;
+                else gbCore.emulationPaused = true;
             }
             return;
         }
@@ -507,7 +529,7 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
         }
     }
 
-    if (!gbCore.options.paused)
+    if (!gbCore.emulationPaused)
         gbCore.input.update(scancode, action);
 }
 
@@ -542,7 +564,7 @@ bool setGLFW()
     }
 
     glfwMakeContextCurrent(window);
-    glfwSwapInterval(1);
+    glfwSwapInterval(appConfig::vsync ? 1 : 0);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetWindowIconifyCallback(window, window_iconify_callback);
     glfwSetWindowFocusCallback(window, window_focus_callback);
@@ -609,6 +631,8 @@ void setImGUI()
 
 int main()
 {
+    appConfig::loadConfigFile();
+
     if (!setGLFW()) return -1;
     setImGUI();
     setWindowSize();
@@ -627,12 +651,12 @@ int main()
         fpsTimer += deltaTime;
         timer += deltaTime;
 
-        const bool updateCPU = vsync || timer >= GBCore::FRAME_RATE;  
-        const bool updateRender = updateCPU || (!vsync && !fpsLock);
+        const bool updateCPU = appConfig::vsync || timer >= GBCore::FRAME_RATE;  
+        const bool updateRender = updateCPU || (!appConfig::vsync && !appConfig::fpsLock);
 
         if (updateCPU)
         {
-            gbCore.update(vsync ? vsyncCPUCycles : GBCore::CYCLES_PER_FRAME);
+            gbCore.update(appConfig::vsync ? vsyncCPUCycles : GBCore::CYCLES_PER_FRAME);
             timer = 0;
         }
 
@@ -651,14 +675,14 @@ int main()
             frameCount = 0;
             fpsTimer = 0;
 
-            if (!gbCore.options.paused && autosaves) 
+            if (!gbCore.emulationPaused && appConfig::autosaveState) 
                 gbCore.autoSave(); // Autosave once a second.
         }
 
         lastFrameTime = currentFrameTime;
         std::this_thread::sleep_for(std::chrono::milliseconds(0));
 
-        if (gbCore.options.paused)
+        if (gbCore.emulationPaused)
             glfwWaitEvents();
     }
 

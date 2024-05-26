@@ -143,6 +143,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="appConfig.cpp" />
     <ClCompile Include="APU.cpp" />
     <ClCompile Include="Cartridge.cpp" />
     <ClCompile Include="CPU.cpp" />
@@ -172,6 +173,7 @@
     <ClCompile Include="Shader.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="appConfig.h" />
     <ClInclude Include="APU.h" />
     <ClInclude Include="Cartridge.h" />
     <ClInclude Include="EmptyMBC.h" />

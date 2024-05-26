@@ -8,6 +8,7 @@ public:
 	friend class MMU;
 
 	APU() { initMiniAudio(); };
+	~APU() { deallocMiniAudio(); }
 	static constexpr uint32_t SAMPLE_RATE = 44100;
 
 	void execute();
@@ -52,6 +53,7 @@ private:
 	apuRegs regs{};
 
 	void initMiniAudio();
+	void deallocMiniAudio();
 
 	//class ma_device; class ma_uint32;
 	//friend void sound_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount);

@@ -117,6 +117,9 @@
     <ClCompile Include="RTCTimer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="appConfig.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Libs\ImGUI\imconfig.h">
@@ -213,6 +216,9 @@
       <Filter>Header Files\Mappers</Filter>
     </ClInclude>
     <ClInclude Include="RTCTimer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="appConfig.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
