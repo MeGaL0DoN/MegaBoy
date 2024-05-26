@@ -205,6 +205,7 @@
     <ClInclude Include="RTCTimer.h" />
     <ClInclude Include="serialPort.h" />
     <ClInclude Include="Shader.h" />
+    <ClInclude Include="shaders.h" />
     <ClInclude Include="stringUtils.h" />
   </ItemGroup>
   <ItemGroup>

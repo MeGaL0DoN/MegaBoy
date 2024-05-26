@@ -12,6 +12,7 @@
 
 #include "GBCore.h"
 #include "Shader.h"
+#include "shaders.h"
 #include "debugUI.h"
 #include "glFunctions.h"
 #include "stringUtils.h"
@@ -110,16 +111,16 @@ void updateSelectedFilter()
         switch (appConfig::filter)
         {
         case 1:
-            lcdShader.compile("data/shaders/lcd1x_vertex.glsl", "data/shaders/lcd1x_frag.glsl");
+            lcdShader.compile(shaders::lcd1xVertexShader, shaders::lcd1xFragmentShader);
             lcdShader.setFloat2("TextureSize", PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
             break;
         case 2:
-            scalingShader.compile("data/shaders/omniscale_vertex.glsl", "data/shaders/omniscale_frag.glsl");
+            scalingShader.compile(shaders::omniscaleVertexShader, shaders::omniscaleFragmentShader);
             scalingShader.setFloat2("OutputSize", PPU::SCR_WIDTH * 6, PPU::SCR_HEIGHT * 6);
             scalingShader.setFloat2("TextureSize", PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
             break;
         default:
-            regularShader.compile("data/shaders/regular_vertex.glsl", "data/shaders/regular_frag.glsl");
+            regularShader.compile(shaders::regularVertexShader, shaders::regulaFragmentShader);
             break;
         }
     }
@@ -377,14 +378,17 @@ void renderImGUI()
             ImGui::Text(text.c_str());
         }
 
-        float text_width = ImGui::CalcTextSize(FPS_text.data()).x;
-        float available_width = ImGui::GetContentRegionAvail().x;
-
-        if (text_width < available_width)
+        if (gbCore.cartridge.ROMLoaded)
         {
-            ImGui::SameLine(ImGui::GetWindowWidth() - text_width - ImGui::GetStyle().ItemSpacing.x * 3);
-            ImGui::Separator();
-            ImGui::Text(FPS_text.data());
+            float text_width = ImGui::CalcTextSize(FPS_text.data()).x;
+            float available_width = ImGui::GetContentRegionAvail().x;
+
+            if (text_width < available_width)
+            {
+                ImGui::SameLine(ImGui::GetWindowWidth() - text_width - ImGui::GetStyle().ItemSpacing.x * 3);
+                ImGui::Separator();
+                ImGui::Text(FPS_text.data());
+            }
         }
 
         ImGui::EndMainMenuBar();
@@ -682,7 +686,7 @@ int main()
         lastFrameTime = currentFrameTime;
         std::this_thread::sleep_for(std::chrono::milliseconds(0));
 
-        if (gbCore.emulationPaused)
+        if (gbCore.emulationPaused || !gbCore.cartridge.ROMLoaded)
             glfwWaitEvents();
     }
 

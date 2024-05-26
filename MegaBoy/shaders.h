@@ -1,3 +1,160 @@
+#pragma once
+
+namespace shaders
+{
+    inline constexpr const char* regularVertexShader = R"(
+#version 330 core
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec2 aTexCoord;
+
+out vec2 TexCoord;
+
+void main()
+{
+   	gl_Position = vec4(aPos, 1.0);
+	TexCoord = aTexCoord;
+}
+)";
+
+   inline constexpr const char* regulaFragmentShader = R"(
+#version 330 core
+out vec4 FragColor;
+in vec2 TexCoord;
+
+uniform sampler2D texture1;
+uniform float alpha;
+
+void main()
+{
+	vec4 textColor = texture(texture1, TexCoord);
+	FragColor = vec4(textColor.rgb, alpha);
+};
+)";
+
+    inline constexpr const char* lcd1xVertexShader = R"(
+#if __VERSION__ >= 130
+#define COMPAT_VARYING out
+#else
+#define COMPAT_VARYING varying
+#endif
+
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec2 aTexCoord;
+
+COMPAT_VARYING vec2 TexCoord;
+COMPAT_VARYING vec4 TEX0;
+
+void main()
+{
+   gl_Position = vec4(aPos, 1.0);
+	TexCoord = aTexCoord;
+   TEX0.xy = TexCoord.xy * 1.0001;
+}
+)";
+
+    inline constexpr const char* lcd1xFragmentShader = R"(
+#pragma parameter BRIGHTEN_SCANLINES "Brighten Scanlines" 16.0 1.0 32.0 0.5
+#pragma parameter BRIGHTEN_LCD "Brighten LCD" 4.0 1.0 12.0 0.1
+
+#if __VERSION__ >= 130
+#define COMPAT_VARYING in
+#define COMPAT_TEXTURE texture
+out vec4 FragColor;
+#else
+#define COMPAT_VARYING varying
+#define FragColor gl_FragColor
+#define COMPAT_TEXTURE texture2D
+#endif
+
+#ifdef GL_ES
+precision highp float;
+precision highp int;
+#define COMPAT_PRECISION highp
+#else
+#define COMPAT_PRECISION
+#endif
+
+uniform COMPAT_PRECISION int FrameDirection;
+uniform COMPAT_PRECISION int FrameCount;
+uniform COMPAT_PRECISION vec2 OutputSize;
+uniform COMPAT_PRECISION vec2 TextureSize;
+uniform COMPAT_PRECISION vec2 InputSize;
+uniform sampler2D Texture;
+uniform float alpha;
+COMPAT_VARYING vec4 TEX0;
+
+#ifdef PARAMETER_UNIFORM
+// All parameter floats need to have COMPAT_PRECISION in front of them
+uniform COMPAT_PRECISION float BRIGHTEN_SCANLINES;
+uniform COMPAT_PRECISION float BRIGHTEN_LCD;
+#else
+#define BRIGHTEN_SCANLINES 16.0
+#define BRIGHTEN_LCD 12.0
+#endif
+
+// Magic Numbers
+#define PI 3.141592654
+
+void main()
+{
+   // Generate LCD grid effect
+   // > Note the 0.25 pixel offset -> required to ensure that
+   //   scanlines occur *between* pixels
+   COMPAT_PRECISION vec2 angle = 2.0 * PI * ((TEX0.xy * TextureSize.xy) - 0.25);
+
+   COMPAT_PRECISION float yfactor = (BRIGHTEN_SCANLINES + sin(angle.y)) / (BRIGHTEN_SCANLINES + 1.0);
+   COMPAT_PRECISION float xfactor = (BRIGHTEN_LCD + sin(angle.x)) / (BRIGHTEN_LCD + 1.0);
+
+   // Get colour sample
+   COMPAT_PRECISION vec3 colour = COMPAT_TEXTURE(Texture, TEX0.xy).rgb;
+
+   // Apply LCD grid effect
+   colour.rgb = yfactor * xfactor * colour.rgb;
+
+   FragColor = vec4(colour.rgb, alpha);
+} 
+)";
+
+    inline constexpr const char* omniscaleVertexShader = R"(
+#if __VERSION__ >= 130
+#define COMPAT_VARYING out
+#define COMPAT_ATTRIBUTE in
+#else
+#define COMPAT_VARYING varying 
+#define COMPAT_ATTRIBUTE attribute 
+#endif
+
+#ifdef GL_ES
+#define COMPAT_PRECISION mediump
+#else
+#define COMPAT_PRECISION
+#endif
+
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec2 aTexCoord;
+COMPAT_VARYING vec2 TexCoord;
+
+COMPAT_ATTRIBUTE vec4 COLOR;
+COMPAT_VARYING vec4 COL0;
+COMPAT_VARYING vec4 TEX0;
+
+uniform COMPAT_PRECISION vec2 TextureSize;
+uniform COMPAT_PRECISION vec2 InputSize;
+
+// vertex compatibility #defines
+#define vTexCoord TEX0.xy
+#define SourceSize vec4(TextureSize, 1.0 / TextureSize) //either TextureSize or InputSize
+
+void main()
+{
+    gl_Position = vec4(aPos, 1.0);
+	TexCoord = aTexCoord;
+    COL0 = COLOR;
+    TEX0.xy = TexCoord.xy;
+}
+)";
+
+    inline constexpr const char* omniscaleFragmentShader = R"(
 /*
 MIT License
 
@@ -312,3 +469,5 @@ void main()
 	vec4 textColor = scale(Source, vTexCoord);
     FragColor = vec4(textColor.rgb, alpha);
 } 
+)";
+}

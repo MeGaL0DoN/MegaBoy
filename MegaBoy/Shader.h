@@ -8,9 +8,9 @@ public:
     constexpr bool compiled() { return ID != 0; }
 
     Shader() = default;
-    Shader(const char* vertexPath, const char* fragmentPath) { compile(vertexPath, fragmentPath); };
+    Shader(const char* vertexCode, const char* fragmentCode) { compile(vertexCode, fragmentCode); };
 
-    void compile(const char* vertexPath, const char* fragmentPath);
+    void compile(const char* vertexCode, const char* fragmentCode);
     void use();
 
     void setBool(const std::string& name, bool value) const;
