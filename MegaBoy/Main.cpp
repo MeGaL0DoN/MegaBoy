@@ -83,7 +83,7 @@ inline void loadFile(T path)
     }
 }
 
-void updateFramebuffer()
+void drawCallback(const uint8_t* framebuffer)
 {
     if (pauseOnVBlank)
     {
@@ -92,18 +92,14 @@ void updateFramebuffer()
         gbCore.autoSave();
     }
 
-    {
-        std::lock_guard<std::mutex> lock(gbCore.ppu.framebuffer_mutex);
-        OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu.getFrameBuffer());
-    }
-
+    OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
     std::swap(gbFramebufferTextures[0], gbFramebufferTextures[1]);
+
     debugUI::updateTextures(gbCore.options.paused);
 }
 
 void refreshGBTextures()
 {
-    std::lock_guard<std::mutex> lock(gbCore.ppu.framebuffer_mutex);
     OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu.getFrameBuffer());
     OpenGL::updateTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu.getFrameBuffer());
 }
@@ -148,7 +144,7 @@ void setBuffers()
     OpenGL::createTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
     OpenGL::createTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
 
-//    gbCore.ppu.drawCallback = drawCallback;
+    gbCore.ppu.drawCallback = drawCallback;
     refreshGBTextures();
 }
 
@@ -620,6 +616,7 @@ int main()
 
     double lastFrameTime = glfwGetTime();
     double fpsTimer{};
+    double timer{};
     int frameCount{};
 
     while (!glfwWindowShouldClose(window))
@@ -628,24 +625,18 @@ int main()
         double deltaTime = currentFrameTime - lastFrameTime;
 
         fpsTimer += deltaTime;
+        timer += deltaTime;
 
-      //  const bool updateCPU = vsync || timer >= GBCore::FRAME_RATE;  
-        //const bool updateRender = updateCPU || (!vsync && !fpsLock);
+        const bool updateCPU = vsync || timer >= GBCore::FRAME_RATE;  
+        const bool updateRender = updateCPU || (!vsync && !fpsLock);
 
-        //if (updateCPU)
-        //{
-        //    gbCore.update(vsync ? vsyncCPUCycles : GBCore::CYCLES_PER_FRAME);
-        //    timer = 0;
-        //}
-
-       // if (updateRender)
-
-        if (gbCore.ppu.drawCallback)
+        if (updateCPU)
         {
-            updateFramebuffer();
-            gbCore.ppu.drawCallback = false;
+            gbCore.update(vsync ? vsyncCPUCycles : GBCore::CYCLES_PER_FRAME);
+            timer = 0;
         }
 
+        if (updateRender)
         {
             glfwPollEvents();
             render();
@@ -665,7 +656,7 @@ int main()
         }
 
         lastFrameTime = currentFrameTime;
-//        std::this_thread::sleep_for(std::chrono::milliseconds(0));
+        std::this_thread::sleep_for(std::chrono::milliseconds(0));
 
         if (gbCore.options.paused)
             glfwWaitEvents();

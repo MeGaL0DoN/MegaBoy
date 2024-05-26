@@ -215,6 +215,9 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			gbCore.apu.regs.NR51 = val; break;
 		case 0xFF26: 
 			gbCore.apu.regs.NR52 = val; break;
+		default:
+			if (addr <= 0xFF3F)
+				gbCore.apu.waveRAM[addr - 0xFF30] = val;
 		}
 	}
 	else if (addr <= 0xFFFE)
@@ -359,6 +362,9 @@ uint8_t MMU::read8(uint16_t addr) const
 			return gbCore.apu.regs.NR52;
 
 		default:
+			if (addr <= 0xFF3F)
+				return gbCore.apu.waveRAM[addr - 0xFF30];
+
 			return 0xFF;
 		}
 	}

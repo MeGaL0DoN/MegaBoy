@@ -1,7 +1,5 @@
 #pragma once
 #include <filesystem>
-#include <atomic>
-
 #include "MMU.h"
 #include "CPU.h"
 #include "PPU.h"
@@ -20,7 +18,7 @@ enum class FileLoadResult
 
 struct GBCoreOptions
 {
-	std::atomic<bool> paused{ false };
+	bool paused{ false };
 	bool runBootROM{ false };
 	bool batterySaves{ true };
 };

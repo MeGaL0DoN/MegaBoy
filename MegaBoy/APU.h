@@ -1,5 +1,6 @@
 #pragma once
-#include "cstdint"
+#include <cstdint>
+#include <array>
 
 class APU
 {
@@ -7,10 +8,12 @@ public:
 	friend class MMU;
 
 	APU() { initMiniAudio(); };
-
-	inline void reset() { regs = {}; }
-
 	static constexpr uint32_t SAMPLE_RATE = 44100;
+
+	void execute();
+
+	inline void reset() { regs = {}; waveRAM = {}; }
+	std::array<uint8_t, 16> waveRAM{};
 private:
 	struct apuRegs
 	{
@@ -49,4 +52,7 @@ private:
 	apuRegs regs{};
 
 	void initMiniAudio();
+
+	//class ma_device; class ma_uint32;
+	//friend void sound_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount);
 };
