@@ -17,6 +17,11 @@
 #include "glFunctions.h"
 #include "stringUtils.h"
 #include "appConfig.h"
+#include "resources.h"
+
+#ifdef _WIN32
+    #include "windowsExtensionManager.h"
+#endif
 
 GLFWwindow* window;
 
@@ -33,17 +38,19 @@ std::array<uint32_t, 2> gbFramebufferTextures;
 
 Shader* currentShader;
 
-#ifdef _WIN32
-const std::wstring defaultPath{ std::filesystem::current_path().wstring() };
-#else
-const std::string defaultPath{ std::filesystem::current_path().string() };
-#endif 
-
 bool fileDialogOpen;
 
-constexpr nfdnfilteritem_t openFilterItem[] = { {L"Game ROM/Save", L"gb,gbc,mbs,sav"} };
-constexpr nfdnfilteritem_t saveStateFilterItem[] = { {L"Save State", L"mbs"} };
-constexpr nfdnfilteritem_t batterySaveFilterItem[] = { {L"Battery Save", L"sav"} };
+#ifdef _WIN32
+#define STR(s) L##s
+#else
+#define STR(s) s
+#endif
+
+constexpr nfdnfilteritem_t openFilterItem[] = { {STR("Game ROM/Save"), STR("gb,gbc")} };
+constexpr nfdnfilteritem_t saveStateFilterItem[] = { {STR("Save State"), STR("mbs")} };
+constexpr nfdnfilteritem_t batterySaveFilterItem[] = { {STR("Battery Save"), STR("sav")} };
+
+#undef STR
 
 const char* errorPopupTitle = "Error Loading the ROM!";
 bool errorLoadingROM{false};
@@ -85,7 +92,6 @@ void drawCallback(const uint8_t* framebuffer)
     {
         pauseOnVBlank = false;
         gbCore.emulationPaused = true;
-        gbCore.autoSave();
     }
 
     OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
@@ -217,6 +223,8 @@ void renderImGUI()
             {
                 fileDialogOpen = true;
                 NFD::UniquePathN outPath;
+
+                const auto defaultPath = StringUtils::nativePath(StringUtils::executablePath);
                 nfdresult_t result = NFD::OpenDialog(outPath, openFilterItem, 1, defaultPath.c_str());
 
                 if (result == NFD_OKAY)
@@ -232,12 +240,7 @@ void renderImGUI()
                     fileDialogOpen = true;
                     NFD::UniquePathN outPath;
 
-                    #ifdef _WIN32
-                        const std::wstring defaultName = StringUtils::ToUTF16(gbCore.gameTitle.c_str()) + L" - Save State";          
-                    #else
-                        const std::string defaultName = gbCore.gameTitle + " - Save State";
-                    #endif
-
+                    const auto defaultName = StringUtils::nativePath(gbCore.gameTitle + " - Save State");
                     nfdresult_t result = NFD::SaveDialog(outPath, saveStateFilterItem, 1, nullptr, defaultName.c_str());
 
                     if (result == NFD_OKAY)
@@ -246,19 +249,14 @@ void renderImGUI()
                     fileDialogOpen = false;
                 }
 
-                if (gbCore.cartridge.ROMLoaded && gbCore.cartridge.hasBattery)
+                if (gbCore.cartridge.hasBattery)
                 {
                     if (ImGui::MenuItem("Export Battery"))
                     {
                         fileDialogOpen = true;
                         NFD::UniquePathN outPath;
 
-                        #ifdef _WIN32
-                            const std::wstring defaultName = StringUtils::ToUTF16(gbCore.gameTitle.c_str()) + L" - Battery Save";
-                        #else
-                            const std::string defaultName = gbCore.gameTitle + " - Battery Save";
-                        #endif
-
+                        const auto defaultName = StringUtils::nativePath(gbCore.gameTitle + " - Battery Save");
                         nfdresult_t result = NFD::SaveDialog(outPath, batterySaveFilterItem, 1, nullptr, defaultName.c_str());
 
                         if (result == NFD_OKAY)
@@ -518,7 +516,7 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
         if (key == GLFW_KEY_Q)
         {
             if (gbCore.cartridge.ROMLoaded)
-                gbCore.saveState(gbCore.getSaveFolderPath() + "/quicksave.mbs");
+                gbCore.saveState(StringUtils::nativePath(gbCore.getSaveFolderPath() + "/quicksave.mbs"));
 
             return;
         }
@@ -526,9 +524,10 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
         {
             if (gbCore.cartridge.ROMLoaded)
             {
-                std::string statePath = gbCore.getSaveFolderPath() + "/quicksave.mbs";
-                loadFile(statePath.c_str());
+                auto savePath = StringUtils::nativePath(gbCore.getSaveFolderPath() + "/quicksave.mbs");
+                loadFile(savePath.c_str());
             }
+
             return;
         }
     }
@@ -543,12 +542,8 @@ void drop_callback(GLFWwindow* _window, int count, const char** paths)
 
     if (count > 0)
     {
-    #ifdef _WIN32
-        auto utf16 = StringUtils::ToUTF16(paths[0]);
-        loadFile(utf16.c_str());
-    #else
-        loadFile(paths[0]);
-    #endif
+        const auto path = StringUtils::nativePath(std::string(paths[0]));
+        loadFile(path.c_str());
     }
 }
 
@@ -614,17 +609,20 @@ void setWindowSize()
     vsyncCPUCycles = GBCore::calculateCycles(1.0 / mode->refreshRate);
 }
 
+const std::string imguiConfigPath = StringUtils::executablePath + "/data/imgui.ini";
+
 void setImGUI()
 {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
+
     ImGuiIO& io = ImGui::GetIO();
-    io.IniFilename = "data/imgui.ini";
+    io.IniFilename = imguiConfigPath.c_str();
 
     const int resolutionX = glfwGetVideoMode(glfwGetPrimaryMonitor())->width;
     scaleFactor = (resolutionX / 1920.0f);
 
-    io.Fonts->AddFontFromFileTTF("data/robotomono.ttf", scaleFactor * 18.0f);
+    io.Fonts->AddFontFromMemoryTTF((void*)resources::robotoMonoFont, sizeof(resources::robotoMonoFont), scaleFactor * 18.0f);
     ImGui::GetStyle().ScaleAllSizes(scaleFactor);
 
     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
@@ -633,14 +631,28 @@ void setImGUI()
     ImGui_ImplOpenGL3_Init("#version 330");
 }
 
-int main()
+int main(int argc, char* argv[])
 {
     appConfig::loadConfigFile();
+
+#ifdef _WIN32
+   // associateFileExtension(".gb");
+#endif
 
     if (!setGLFW()) return -1;
     setImGUI();
     setWindowSize();
     setBuffers();
+
+    if (argc > 1)
+    {
+        #ifdef _WIN32
+            auto argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+            loadFile(argv[1]);
+        #else
+            loadFile(argv[1]);
+        #endif
+    }
 
     double lastFrameTime = glfwGetTime();
     double fpsTimer{};

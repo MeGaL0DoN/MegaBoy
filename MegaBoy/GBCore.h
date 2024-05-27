@@ -38,7 +38,7 @@ public:
 		return loadFile(st);
 	}
 
-	#endif
+	#else
 
 	inline FileLoadResult loadFile(const char* _filePath)
 	{
@@ -46,6 +46,8 @@ public:
 		this->filePath = _filePath;
 		return loadFile(st);
 	}
+
+	#endif
 
 	inline void loadState(int num)
 	{
@@ -55,7 +57,8 @@ public:
 			saveState(currentSave);
 
 		const auto saveName = "/save" + std::to_string(num);
-		const auto _filePath = saveFolderName + saveName + ".mbs";
+		const auto _filePath = StringUtils::nativePath(saveFolderPath + saveName + ".mbs");
+
 		std::ifstream st(_filePath, std::ios::in | std::ios::binary);
 
 		if (st && isSaveStateFile(st))
@@ -71,7 +74,7 @@ public:
 		if (!cartridge.ROMLoaded) return;
 
 		const auto saveName = "/save" + std::to_string(num);
-		const auto _filePath = saveFolderName + saveName + ".mbs";
+		const auto _filePath = StringUtils::nativePath(saveFolderPath + saveName + ".mbs");
 
 		if (currentSave != num && std::filesystem::exists(_filePath))
 			backupSave(num);
@@ -86,7 +89,7 @@ public:
 	}
 
 	constexpr int getSaveNum() { return currentSave; }
-	constexpr std::string& getSaveFolderPath() { return saveFolderName; }
+	constexpr auto& getSaveFolderPath() { return saveFolderPath; }
 
 	template <typename T>
 	inline void saveState(T filePath)
@@ -138,10 +141,10 @@ public:
 	serialPort serial { cpu };
 	Cartridge cartridge { *this };
 private:
+	std::string saveFolderPath;
 	std::string filePath;
 	std::string romFilePath;
 
-	std::string saveFolderName;
 	std::string currentSaveName {""};
 	int currentSave {0};
 

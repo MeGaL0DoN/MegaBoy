@@ -1,10 +1,11 @@
 #include "appConfig.h"
 #include <filesystem>
 #include <mini/ini.h>
+#include "stringUtils.h"
 
 using namespace appConfig;
 
-mINI::INIFile file{ "data/config.ini" };
+mINI::INIFile file { StringUtils::nativePath(StringUtils::executablePath + "/data/config.ini") };
 mINI::INIStructure config;
 
 inline void to_bool(bool& val, const char* section, const char* valName)
@@ -17,7 +18,7 @@ inline void to_int(int& val, const char* section, const char* valName)
 {
 	if (config[section].has(valName))
 	{
-		std::stringstream ss(config[section][valName]);
+		std::stringstream ss(config.get(section).get(valName));
 		ss >> val;
 	}
 }
@@ -29,12 +30,14 @@ constexpr std::string to_string(bool val)
 
 void appConfig::loadConfigFile()
 {
-	file.read(config);
+	const auto dataFolderPath = StringUtils::nativePath(StringUtils::executablePath + "/data");
 
-	if (!config["options"].has("runBootROM"))
-		runBootROM = std::filesystem::exists("data/boot_rom.bin");
-	else
-		to_bool(runBootROM,"options", "runBootROM");
+	if (!std::filesystem::exists(dataFolderPath))
+		std::filesystem::create_directory(dataFolderPath);
+
+	file.read(config);
+	
+	to_bool(runBootROM, "options", "runBootROM");
 
 	to_bool(batterySaves, "options", "batterySaves");
 	to_bool(pauseOnFocus, "options", "pauseOnFocus");

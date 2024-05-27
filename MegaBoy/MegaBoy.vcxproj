@@ -119,7 +119,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>nfd_d.lib;glfw3.lib;kernel32.lib;opengl32.lib;user32.lib;gdi32.lib;shell32.lib;Ole32.lib</AdditionalDependencies>
+      <AdditionalDependencies>nfd_d.lib;glfw3.lib;kernel32.lib;opengl32.lib;user32.lib;gdi32.lib;shell32.lib;Ole32.lib;advapi32.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -139,7 +139,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>nfd.lib;glfw3_mt.lib;kernel32.lib;opengl32.lib;user32.lib;gdi32.lib;shell32.lib;Ole32.lib</AdditionalDependencies>
+      <AdditionalDependencies>nfd.lib;glfw3_mt.lib;kernel32.lib;opengl32.lib;user32.lib;gdi32.lib;shell32.lib;Ole32.lib;advapi32.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -183,6 +183,7 @@
     <ClInclude Include="MBC3.h" />
     <ClInclude Include="MBC5.h" />
     <ClInclude Include="MBCBase.h" />
+    <ClInclude Include="resources.h" />
     <ClInclude Include="RomOnlyMBC.h" />
     <ClInclude Include="pixelOps.h" />
     <ClInclude Include="CPU.h" />
@@ -207,6 +208,7 @@
     <ClInclude Include="Shader.h" />
     <ClInclude Include="shaders.h" />
     <ClInclude Include="stringUtils.h" />
+    <ClInclude Include="windowsExtensionManager.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bitOps.h" />
