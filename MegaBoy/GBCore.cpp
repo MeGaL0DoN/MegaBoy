@@ -119,12 +119,10 @@ FileLoadResult GBCore::loadFile(std::ifstream& st)
 			{
 				if (std::ifstream ifs{ StringUtils::nativePath(romPath), std::ios::in | std::ios::binary })
 				{
-					if (cartridge.loadROM(ifs))
+					if (loadROM(ifs, filePath))
 					{
 						cartridge.getMapper()->loadBattery(st);
 						loadBootROM();
-
-						romFilePath = romPath;
 						return true;
 					}
 				}
@@ -137,6 +135,7 @@ FileLoadResult GBCore::loadFile(std::ifstream& st)
 
 			else if (cartridge.ROMLoaded && cartridge.hasBattery)
 			{
+				currentSave = 0;
 				restartROM();
 				cartridge.getMapper()->loadBattery(st);
 			}
@@ -148,11 +147,8 @@ FileLoadResult GBCore::loadFile(std::ifstream& st)
 		}
 		else
 		{
-			if (cartridge.loadROM(st))
+			if (loadROM(st, filePath))
 			{
-				romFilePath = filePath;
-				currentSave = 0;
-
 				if (cartridge.hasBattery && appConfig::batterySaves)
 				{
 					const auto batterySavePath = StringUtils::nativePath(replaceExtension(filePath, ".sav"));
@@ -174,6 +170,7 @@ FileLoadResult GBCore::loadFile(std::ifstream& st)
 	if (success)
 	{
 		saveFolderPath = StringUtils::executablePath + "/saves/" + gbCore.gameTitle + " (" + std::to_string(cartridge.checksum) + ")";
+		appConfig::updateConfigFile();
 		return FileLoadResult::Success;
 	}
 
@@ -183,7 +180,7 @@ FileLoadResult GBCore::loadFile(std::ifstream& st)
 void GBCore::autoSave()
 {
 	if (!cartridge.ROMLoaded || currentSave == 0) return;
-	saveState(StringUtils::nativePath(saveFolderPath + currentSaveName + ".mbs"));
+	saveState(getSaveFilePath(currentSave));
 }
 
 void GBCore::batteryAutoSave()
@@ -204,7 +201,7 @@ void GBCore::batteryAutoSave()
 
 void GBCore::backupSave(int num)
 {
-	const auto saveFilePath = StringUtils::nativePath(saveFolderPath + "/save" + std::to_string(num) + ".mbs");
+	const auto saveFilePath = getSaveFilePath(num);
 
 	if (!cartridge.ROMLoaded || !std::filesystem::exists(saveFilePath))
 		return;
@@ -213,12 +210,44 @@ void GBCore::backupSave(int num)
 	const auto timeStr = std::format("{:%d-%m-%Y %H-%M-%OS}", time);
 
 	const auto backupPath = saveFolderPath + "/backups";
-	const auto natuveBackupPath = StringUtils::nativePath(backupPath);
+	const auto nativeBackupPath = StringUtils::nativePath(backupPath);
 
-	if (!std::filesystem::exists(natuveBackupPath))
-		std::filesystem::create_directories(natuveBackupPath);
+	if (!std::filesystem::exists(nativeBackupPath))
+		std::filesystem::create_directories(nativeBackupPath);
 
-	std::filesystem::copy_file(saveFilePath, StringUtils::nativePath(backupPath + currentSaveName + " (" + timeStr + ").mbs"), std::filesystem::copy_options::overwrite_existing);
+	std::filesystem::copy_file(saveFilePath, StringUtils::nativePath(backupPath + "/save" + std::to_string(num) + " (" + timeStr + ").mbs"), std::filesystem::copy_options::overwrite_existing);
+}
+
+void GBCore::loadState(int num)
+{
+	if (!cartridge.ROMLoaded) return;
+
+	if (currentSave != 0)
+		saveState(currentSave);
+
+	const auto _filePath = getSaveFilePath(num);
+	std::ifstream st(_filePath, std::ios::in | std::ios::binary);
+
+	if (st && isSaveStateFile(st))
+	{
+		loadState(st);
+		updateSelectedSaveInfo(num);
+	}
+}
+
+void GBCore::saveState(int num)
+{
+	if (!cartridge.ROMLoaded) return;
+
+	const auto _filePath = getSaveFilePath(num);
+
+	if (currentSave != num && std::filesystem::exists(_filePath))
+		backupSave(num);
+
+	saveState(_filePath);
+
+	if (currentSave == 0)
+		updateSelectedSaveInfo(num);
 }
 
 void GBCore::saveState(std::ofstream& st)
@@ -276,7 +305,10 @@ bool GBCore::loadState(std::ifstream& st)
 			romExists = false;
 
 		if (romExists)
+		{
 			romFilePath = romPath;
+			currentSave = 0;
+		}
 		else
 			return false;
 	}

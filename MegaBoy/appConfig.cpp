@@ -2,8 +2,11 @@
 #include <filesystem>
 #include <mini/ini.h>
 #include "stringUtils.h"
+#include "GBCore.h"
 
 using namespace appConfig;
+
+extern GBCore gbCore;
 
 mINI::INIFile file { StringUtils::nativePath(StringUtils::executablePath + "/data/config.ini") };
 mINI::INIStructure config;
@@ -11,14 +14,14 @@ mINI::INIStructure config;
 inline void to_bool(bool& val, const char* section, const char* valName)
 {
 	if (config[section].has(valName))
-		val = config.get(section).get(valName) == "true";
+		val = config[section][valName] == "true";
 }
 
 inline void to_int(int& val, const char* section, const char* valName)
 {
 	if (config[section].has(valName))
 	{
-		std::stringstream ss(config.get(section).get(valName));
+		std::stringstream ss(config[section][valName]);
 		ss >> val;
 	}
 }
@@ -28,7 +31,7 @@ constexpr std::string to_string(bool val)
 	return val ? "true" : "false";
 }
 
-void appConfig::loadConfigFile()
+void appConfig::loadConfigFile(bool loadSaveStateROM)
 {
 	const auto dataFolderPath = StringUtils::nativePath(StringUtils::executablePath + "/data");
 
@@ -49,6 +52,20 @@ void appConfig::loadConfigFile()
 
 	to_int(palette, "graphics", "palette");
 	to_int(filter, "graphics", "filter");
+
+	if (loadSaveStateROM && config.has("gameState"))
+	{
+		int saveStateNum{ 0 };
+		to_int(saveStateNum, "gameState", "saveStateNum");
+
+		if (saveStateNum >= 0 && saveStateNum <= 10)
+		{
+			const auto filePath = StringUtils::nativePath(config["gameState"]["romPath"]);
+
+			if (gbCore.loadFile(filePath.c_str()) == FileLoadResult::Success);
+				gbCore.loadState(saveStateNum);
+		}
+	}
 }
 
 void appConfig::updateConfigFile()
@@ -64,6 +81,14 @@ void appConfig::updateConfigFile()
 
 	config["graphics"]["palette"] = std::to_string(palette);
 	config["graphics"]["filter"] = std::to_string(filter);
+
+	if (gbCore.cartridge.ROMLoaded && gbCore.getSaveNum() != 0)
+	{
+		config["gameState"]["romPath"] = gbCore.getROMPath();
+		config["gameState"]["saveStateNum"] = std::to_string(gbCore.getSaveNum());
+	}
+	else
+		config.remove("gameState");
 
 	file.generate(config, true);
 }

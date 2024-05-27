@@ -46,7 +46,7 @@ bool fileDialogOpen;
 #define STR(s) s
 #endif
 
-constexpr nfdnfilteritem_t openFilterItem[] = { {STR("Game ROM/Save"), STR("gb,gbc")} };
+constexpr nfdnfilteritem_t openFilterItem[] = { {STR("Game ROM/Save"), STR("gb,gbc,sav,mbs")} };
 constexpr nfdnfilteritem_t saveStateFilterItem[] = { {STR("Save State"), STR("mbs")} };
 constexpr nfdnfilteritem_t batterySaveFilterItem[] = { {STR("Battery Save"), STR("sav")} };
 
@@ -633,7 +633,7 @@ void setImGUI()
 
 int main(int argc, char* argv[])
 {
-    appConfig::loadConfigFile();
+    appConfig::loadConfigFile(argc <= 1);
 
 #ifdef _WIN32
    // associateFileExtension(".gb");

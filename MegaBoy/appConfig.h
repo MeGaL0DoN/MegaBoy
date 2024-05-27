@@ -14,6 +14,6 @@ namespace appConfig
 	inline int filter { 0 };
 	inline int palette { 0 };
 
-	void loadConfigFile();
+	void loadConfigFile(bool loadSaveStateROM);
 	void updateConfigFile();
 }

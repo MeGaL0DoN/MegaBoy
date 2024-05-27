@@ -10,6 +10,7 @@
 #include "serialPort.h"
 #include "Cartridge.h"
 #include "stringUtils.h"
+#include "appConfig.h"
 
 enum class FileLoadResult
 {
@@ -49,47 +50,12 @@ public:
 
 	#endif
 
-	inline void loadState(int num)
-	{
-		if (!cartridge.ROMLoaded) return;
-
-		if (currentSave != 0)
-			saveState(currentSave);
-
-		const auto saveName = "/save" + std::to_string(num);
-		const auto _filePath = StringUtils::nativePath(saveFolderPath + saveName + ".mbs");
-
-		std::ifstream st(_filePath, std::ios::in | std::ios::binary);
-
-		if (st && isSaveStateFile(st))
-		{
-			loadState(st);
-			currentSaveName = saveName;
-			currentSave = num;
-		}
-	}
-
-	inline void saveState(int num)
-	{
-		if (!cartridge.ROMLoaded) return;
-
-		const auto saveName = "/save" + std::to_string(num);
-		const auto _filePath = StringUtils::nativePath(saveFolderPath + saveName + ".mbs");
-
-		if (currentSave != num && std::filesystem::exists(_filePath))
-			backupSave(num);
-
-		saveState(_filePath);
-
-		if (currentSave == 0)
-		{ 
-			currentSaveName = saveName;
-			currentSave = num;
-		}
-	}
+	void loadState(int num);
+	void saveState(int num);
 
 	constexpr int getSaveNum() { return currentSave; }
-	constexpr auto& getSaveFolderPath() { return saveFolderPath; }
+	constexpr std::string& getSaveFolderPath() { return saveFolderPath; }
+	constexpr std::string& getROMPath() { return romFilePath; }
 
 	template <typename T>
 	inline void saveState(T filePath)
@@ -145,8 +111,30 @@ private:
 	std::string filePath;
 	std::string romFilePath;
 
-	std::string currentSaveName {""};
 	int currentSave {0};
+
+	inline auto getSaveFilePath(int saveNum)
+	{
+		return StringUtils::nativePath(saveFolderPath + "/save" + std::to_string(saveNum) + ".mbs");
+	}
+
+	inline void updateSelectedSaveInfo(int saveStateNum)
+	{
+		currentSave = saveStateNum;
+		appConfig::updateConfigFile();
+	}
+
+	inline bool loadROM(std::ifstream& st, const std::string& filePath)
+	{
+		if (cartridge.loadROM(st))
+		{
+			romFilePath = filePath;
+			currentSave = 0;
+			return true;
+		}
+
+		return false;
+	}
 
 	static constexpr std::string_view SAVE_STATE_SIGNATURE = "MegaBoy Emulator Save State";
 	bool isSaveStateFile(std::ifstream& st);
