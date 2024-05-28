@@ -19,10 +19,6 @@
 #include "appConfig.h"
 #include "resources.h"
 
-#ifdef _WIN32
-    #include "windowsExtensionManager.h"
-#endif
-
 GLFWwindow* window;
 
 int vsyncCPUCycles;
@@ -60,7 +56,7 @@ extern GBCore gbCore;
 std::string FPS_text{ "FPS: 00.00" };
 
 template <typename T>
-inline void loadFile(T path)
+inline bool loadFile(T path)
 {
     if (std::filesystem::exists(path))
     {
@@ -81,9 +77,12 @@ inline void loadFile(T path)
             std::string title = "MegaBoy - " + gbCore.gameTitle;
             glfwSetWindowTitle(window, title.c_str());
             debugUI::clearBuffers();
+            return true;
         }
         }
     }
+
+    return false;
 }
 
 void drawCallback(const uint8_t* framebuffer)
@@ -224,8 +223,7 @@ void renderImGUI()
                 fileDialogOpen = true;
                 NFD::UniquePathN outPath;
 
-                const auto defaultPath = StringUtils::nativePath(StringUtils::executablePath);
-                nfdresult_t result = NFD::OpenDialog(outPath, openFilterItem, 1, defaultPath.c_str());
+                nfdresult_t result = NFD::OpenDialog(outPath, openFilterItem, 1);
 
                 if (result == NFD_OKAY)
                     loadFile(outPath.get());
@@ -271,6 +269,9 @@ void renderImGUI()
         }
         if (ImGui::BeginMenu("Settings", "Ctrl+Q"))
         {
+            if (ImGui::Checkbox("Load ROM on Startup", &appConfig::loadLastROM))
+                appConfig::updateConfigFile();
+
             if (ImGui::Checkbox("Run Boot ROM", &appConfig::runBootROM))
                 appConfig::updateConfigFile();
 
@@ -523,10 +524,7 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
         if (key == GLFW_KEY_GRAVE_ACCENT)
         {
             if (gbCore.cartridge.ROMLoaded)
-            {
-                auto savePath = StringUtils::nativePath(gbCore.getSaveFolderPath() + "/quicksave.mbs");
-                loadFile(savePath.c_str());
-            }
+                loadFile(StringUtils::nativePath(gbCore.getSaveFolderPath() + "/quicksave.mbs"));
 
             return;
         }
@@ -541,10 +539,7 @@ void drop_callback(GLFWwindow* _window, int count, const char** paths)
     (void)_window;
 
     if (count > 0)
-    {
-        const auto path = StringUtils::nativePath(std::string(paths[0]));
-        loadFile(path.c_str());
-    }
+        loadFile(StringUtils::nativePath(std::string(paths[0])));
 }
 
 bool setGLFW()
@@ -609,7 +604,7 @@ void setWindowSize()
     vsyncCPUCycles = GBCore::calculateCycles(1.0 / mode->refreshRate);
 }
 
-const std::string imguiConfigPath = StringUtils::executablePath + "/data/imgui.ini";
+const std::string imguiConfigPath = StringUtils::executableFolderPath + "/data/imgui.ini";
 
 void setImGUI()
 {
@@ -633,11 +628,7 @@ void setImGUI()
 
 int main(int argc, char* argv[])
 {
-    appConfig::loadConfigFile(argc <= 1);
-
-#ifdef _WIN32
-   // associateFileExtension(".gb");
-#endif
+    appConfig::loadConfigFile();
 
     if (!setGLFW()) return -1;
     setImGUI();
@@ -652,6 +643,19 @@ int main(int argc, char* argv[])
         #else
             loadFile(argv[1]);
         #endif
+    }
+    else
+    {
+        if (appConfig::loadLastROM && appConfig::romPath != "")
+        {
+            int saveNum = appConfig::saveStateNum;
+
+            if (loadFile(StringUtils::nativePath(appConfig::romPath)))
+            {
+                if (saveNum >= 0 && saveNum <= 10)
+                    gbCore.loadState(saveNum);
+            }
+        }
     }
 
     double lastFrameTime = glfwGetTime();
@@ -703,5 +707,6 @@ int main(int argc, char* argv[])
     }
 
     gbCore.saveCurrentROM();
+    appConfig::updateConfigFile();
     return 1;
 }

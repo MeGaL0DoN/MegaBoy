@@ -32,13 +32,15 @@ public:
 		if (cartridge.hasTimer)
 			cartridge.timer.loadBattery(st);
 	}
-
-	void resetBatteryState() override
-	{
-		if (cartridge.hasTimer)
-			cartridge.timer.reset();
-	}
 private:
 	constexpr RTCTimer& RTC() { return cartridge.timer; }
 	constexpr const RTCTimer& RTC() const { return cartridge.timer; }
+
+	void resetBatteryState() override
+	{
+		MBC::resetBatteryState();
+
+		if (cartridge.hasTimer)
+			cartridge.timer.reset();
+	}
 };

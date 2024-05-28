@@ -45,7 +45,7 @@ public:
 
 	static constexpr int32_t CYCLES_PER_SECOND = 1048576;
 	void addRTCcycles(int32_t cycles);
-	void adjustRTC(uint64_t oldTimestamp, uint64_t newTimestamp);
+	void adjustRTC();
 
 	constexpr void setReg(uint8_t reg) { s.reg = reg; }
 	void writeReg(uint8_t val);
@@ -53,11 +53,11 @@ public:
 	void loadBattery(std::ifstream& st);
 	void saveBattery(std::ofstream& st) const;
 
-	inline void reset() { s = {}; lastTickUnixTime = unix_time(); }
+	inline void reset() { s = {}; lastUnixTime = unix_time(); }
 private:
 	void incrementDay();
 
-	uint64_t lastTickUnixTime{};
+	uint64_t lastUnixTime{};
 	bool wasHalted { false };
 
 	inline uint64_t unix_time() const

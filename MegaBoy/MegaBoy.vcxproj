@@ -208,7 +208,6 @@
     <ClInclude Include="Shader.h" />
     <ClInclude Include="shaders.h" />
     <ClInclude Include="stringUtils.h" />
-    <ClInclude Include="windowsExtensionManager.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bitOps.h" />

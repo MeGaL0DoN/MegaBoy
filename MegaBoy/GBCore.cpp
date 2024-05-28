@@ -24,7 +24,7 @@ void GBCore::loadBootROM()
 
 	if (appConfig::runBootROM)
 	{
-		std::ifstream ifs(StringUtils::nativePath(StringUtils::executablePath + "/data/boot_rom.bin"), std::ios::binary | std::ios::ate);
+		std::ifstream ifs(StringUtils::nativePath(StringUtils::executableFolderPath + "/data/boot_rom.bin"), std::ios::binary | std::ios::ate);
 
 		if (ifs)
 		{
@@ -169,7 +169,7 @@ FileLoadResult GBCore::loadFile(std::ifstream& st)
 
 	if (success)
 	{
-		saveFolderPath = StringUtils::executablePath + "/saves/" + gbCore.gameTitle + " (" + std::to_string(cartridge.checksum) + ")";
+		saveFolderPath = StringUtils::executableFolderPath + "/saves/" + gbCore.gameTitle + " (" + std::to_string(cartridge.checksum) + ")";
 		appConfig::updateConfigFile();
 		return FileLoadResult::Success;
 	}

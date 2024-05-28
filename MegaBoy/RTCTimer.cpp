@@ -32,10 +32,10 @@ void RTCTimer::addRTCcycles(int32_t cycles)
 
 	if (s.cycles >= CYCLES_PER_SECOND)
 	{
-		uint64_t currentUnixTime = unix_time();
+		uint64_t currentTime = unix_time();
 
-		if ((currentUnixTime - lastTickUnixTime) > 1 && !wasHalted)
-			adjustRTC(lastTickUnixTime, currentUnixTime); // Auto-adjusting RTC. (for example: emulation paused unexpectedly).
+		if ((currentTime - lastUnixTime) > 1 && !wasHalted)
+			adjustRTC(); // Auto-adjusting RTC. (for example: emulation paused unexpectedly).
 		else
 		{
 			s.regs.S++;
@@ -58,7 +58,7 @@ void RTCTimer::addRTCcycles(int32_t cycles)
 				}
 			}
 
-			lastTickUnixTime = currentUnixTime;
+			lastUnixTime = currentTime;
 		}
 
 		s.cycles = 0;
@@ -66,9 +66,10 @@ void RTCTimer::addRTCcycles(int32_t cycles)
 	}
 }
 
-void RTCTimer::adjustRTC(uint64_t oldTimestamp, uint64_t newTimestamp)
+void RTCTimer::adjustRTC()
 {
-	uint64_t diff = newTimestamp - oldTimestamp;
+	uint64_t time = unix_time();
+	uint64_t diff = time - lastUnixTime;
 
 	s.regs.S += diff % 60;
 	s.regs.M += (diff / 60) % 60;
@@ -94,7 +95,7 @@ void RTCTimer::adjustRTC(uint64_t oldTimestamp, uint64_t newTimestamp)
 	for (uint16_t i = 0; i < daysToAdd; i++)
 		incrementDay();
 
-	lastTickUnixTime = newTimestamp;
+	lastUnixTime = time;
 }
 
 void RTCTimer::writeReg(uint8_t val)
@@ -135,8 +136,7 @@ void RTCTimer::saveBattery(std::ofstream& st) const
 	WRITE_AS_INT(s.latchedRegs.DL);
 	WRITE_AS_INT(s.latchedRegs.DH);
 
-	const uint64_t time = unix_time();
-	st.write(reinterpret_cast<const char*>(&time), sizeof(time));
+	st.write(reinterpret_cast<const char*>(&lastUnixTime), sizeof(lastUnixTime));
 }
 
 void RTCTimer::loadBattery(std::ifstream& st)
@@ -160,14 +160,14 @@ void RTCTimer::loadBattery(std::ifstream& st)
 	READ_AS_INT(s.regs.DL);
 	READ_AS_INT(s.regs.DH);
 
-	uint64_t time{};
+	lastUnixTime = 0;
 
 	uint32_t pos = st.tellg();
 	st.seekg(0, std::ios::end);
 
 	uint8_t leftBytes = static_cast<uint32_t>(st.tellg()) - pos;
 	st.seekg(pos, std::ios::beg);
-	st.read(reinterpret_cast<char*>(&time), leftBytes <= sizeof(time) ? leftBytes : sizeof(time));
+	st.read(reinterpret_cast<char*>(&lastUnixTime), leftBytes <= sizeof(lastUnixTime) ? leftBytes : sizeof(lastUnixTime));
 
-	adjustRTC(time, unix_time());
+	adjustRTC();
 }

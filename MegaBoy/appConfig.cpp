@@ -8,7 +8,7 @@ using namespace appConfig;
 
 extern GBCore gbCore;
 
-mINI::INIFile file { StringUtils::nativePath(StringUtils::executablePath + "/data/config.ini") };
+mINI::INIFile file { StringUtils::nativePath(StringUtils::executableFolderPath + "/data/config.ini") };
 mINI::INIStructure config;
 
 inline void to_bool(bool& val, const char* section, const char* valName)
@@ -31,9 +31,9 @@ constexpr std::string to_string(bool val)
 	return val ? "true" : "false";
 }
 
-void appConfig::loadConfigFile(bool loadSaveStateROM)
+void appConfig::loadConfigFile()
 {
-	const auto dataFolderPath = StringUtils::nativePath(StringUtils::executablePath + "/data");
+	const auto dataFolderPath = StringUtils::nativePath(StringUtils::executableFolderPath + "/data");
 
 	if (!std::filesystem::exists(dataFolderPath))
 		std::filesystem::create_directory(dataFolderPath);
@@ -45,6 +45,7 @@ void appConfig::loadConfigFile(bool loadSaveStateROM)
 	to_bool(batterySaves, "options", "batterySaves");
 	to_bool(pauseOnFocus, "options", "pauseOnFocus");
 	to_bool(autosaveState, "options", "autosaveState");
+	to_bool(loadLastROM, "options", "loadLastROM");
 
 	to_bool(blending, "graphics", "blending");
 	to_bool(vsync, "graphics", "vsync");
@@ -53,19 +54,8 @@ void appConfig::loadConfigFile(bool loadSaveStateROM)
 	to_int(palette, "graphics", "palette");
 	to_int(filter, "graphics", "filter");
 
-	if (loadSaveStateROM && config.has("gameState"))
-	{
-		int saveStateNum{ 0 };
-		to_int(saveStateNum, "gameState", "saveStateNum");
-
-		if (saveStateNum >= 0 && saveStateNum <= 10)
-		{
-			const auto filePath = StringUtils::nativePath(config["gameState"]["romPath"]);
-
-			if (gbCore.loadFile(filePath.c_str()) == FileLoadResult::Success);
-				gbCore.loadState(saveStateNum);
-		}
-	}
+	romPath = config["gameState"]["romPath"];
+	to_int(saveStateNum, "gameState", "saveStateNum");
 }
 
 void appConfig::updateConfigFile()
@@ -74,6 +64,7 @@ void appConfig::updateConfigFile()
 	config["options"]["batterySaves"] = to_string(batterySaves);
 	config["options"]["pauseOnFocus"] = to_string(pauseOnFocus);
 	config["options"]["autosaveState"] = to_string(autosaveState);
+	config["options"]["loadLastROM"] = to_string(loadLastROM);
 
 	config["graphics"]["blending"] = to_string(blending);
 	config["graphics"]["vsync"] = to_string(vsync);
@@ -82,7 +73,7 @@ void appConfig::updateConfigFile()
 	config["graphics"]["palette"] = std::to_string(palette);
 	config["graphics"]["filter"] = std::to_string(filter);
 
-	if (gbCore.cartridge.ROMLoaded && gbCore.getSaveNum() != 0)
+	if (gbCore.cartridge.ROMLoaded)
 	{
 		config["gameState"]["romPath"] = gbCore.getROMPath();
 		config["gameState"]["saveStateNum"] = std::to_string(gbCore.getSaveNum());

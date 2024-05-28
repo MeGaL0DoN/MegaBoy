@@ -32,16 +32,16 @@ public:
 
 	#ifdef  _WIN32
 
-	inline FileLoadResult loadFile(const wchar_t* _filePath)
+	inline FileLoadResult loadFile(const std::wstring& _filePath)
 	{
 		std::ifstream st(_filePath, std::ios::in | std::ios::binary);
-		this->filePath = StringUtils::ToUTF8(_filePath);
+		this->filePath = StringUtils::ToUTF8(_filePath.c_str());
 		return loadFile(st);
 	}
 
 	#else
 
-	inline FileLoadResult loadFile(const char* _filePath)
+	inline FileLoadResult loadFile(const std::string& _filePath)
 	{
 		std::ifstream st(_filePath, std::ios::in | std::ios::binary);
 		this->filePath = _filePath;

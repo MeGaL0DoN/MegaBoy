@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 
 namespace appConfig
 {
@@ -6,6 +7,7 @@ namespace appConfig
 	inline bool batterySaves { true };;
 	inline bool pauseOnFocus { false };
 	inline bool autosaveState { true };
+	inline bool loadLastROM { true };
 
 	inline bool blending{ false };
 	inline bool fpsLock { true };
@@ -14,6 +16,9 @@ namespace appConfig
 	inline int filter { 0 };
 	inline int palette { 0 };
 
-	void loadConfigFile(bool loadSaveStateROM);
+	inline std::string romPath{};
+	inline int saveStateNum{ 0 };
+
+	void loadConfigFile();
 	void updateConfigFile();
 }

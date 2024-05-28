@@ -75,9 +75,9 @@ namespace StringUtils
             const auto path { pathBuf };
         #endif
         #endif
-
+            
         return path.substr(0, path.find_last_of("\\/"));
     }
 
-    inline std::string executablePath{ getExecutablePath() };
+    inline std::string executableFolderPath { getExecutablePath() };
 }

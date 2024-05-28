@@ -224,9 +224,6 @@
     <ClInclude Include="shaders.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="windowsExtensionManager.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="resources.h">
       <Filter>Header Files</Filter>
     </ClInclude>
