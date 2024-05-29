@@ -14,29 +14,27 @@ namespace StringUtils
 {
     #ifdef _WIN32
 
-    inline std::wstring ToUTF16(const char* utf8Str)
+    inline std::wstring ToUTF16(const std::string& utf8Str)
     {
-        const int len { static_cast<int>(strlen(utf8Str)) };
-        const auto size = MultiByteToWideChar(CP_UTF8, 0, utf8Str, len, nullptr, 0);
+        const auto size = MultiByteToWideChar(CP_UTF8, 0, utf8Str.c_str(), utf8Str.length(), nullptr, 0);
 
         if (size <= 0)
             return L"";
 
         std::wstring result(size, 0);
-        MultiByteToWideChar(CP_UTF8, 0, utf8Str, len, result.data(), size);
+        MultiByteToWideChar(CP_UTF8, 0, utf8Str.c_str(), utf8Str.length(), result.data(), size);
         return result;
     }
 
-    inline std::string ToUTF8(const wchar_t* utf16Str)
+    inline std::string ToUTF8(const std::wstring& utf16Str)
     {
-        const int len { static_cast<int>(wcslen(utf16Str)) };
-        const auto size = WideCharToMultiByte(CP_UTF8, 0, utf16Str, len, nullptr, 0, nullptr, nullptr);
+        const auto size = WideCharToMultiByte(CP_UTF8, 0, utf16Str.c_str(), utf16Str.length(), nullptr, 0, nullptr, nullptr);
 
         if (size <= 0)
             return "";
 
         std::string result(size, 0);
-        WideCharToMultiByte(CP_UTF8, 0, utf16Str, len, result.data(), size, nullptr, nullptr);
+        WideCharToMultiByte(CP_UTF8, 0, utf16Str.c_str(), utf16Str.length(), result.data(), size, nullptr, nullptr);
         return result;
     }
 
@@ -45,18 +43,26 @@ namespace StringUtils
     inline auto nativePath(const std::string& path)
     {
         #ifdef _WIN32
-            return ToUTF16(path.c_str());
+            return ToUTF16(path);
         #else
             return path;
         #endif
     }
 
-    inline std::string getExecutablePath() 
+    inline std::string pathToUTF8(const std::filesystem::path& filePath)
+    {
+        #ifdef _WIN32
+            return ToUTF8(filePath.wstring());
+        #else
+            return filePath.string();
+        #endif
+    }
+
+    inline std::filesystem::path getExecutablePath() 
     {
         #if defined(_WIN32)
             wchar_t pathBuf[MAX_PATH];
             GetModuleFileNameW(NULL, pathBuf, MAX_PATH);
-            const auto path { ToUTF8(pathBuf) };
         #else
             char pathBuf[MAX_PATH];
         #if defined(__linux__) || defined(__unix__)
@@ -64,20 +70,18 @@ namespace StringUtils
             if (count != -1) 
                 pathBuf[count] = '\0';
 
-            const auto path(pathBuf);
         #elif defined(__APPLE__)
             uint32_t size = sizeof(pathBuf);
             if (_NSGetExecutablePath(pathBuf, &size) != 0) 
                 pathBuf[0] = '\0'; // buffer too small (!)
             else 
                 realpath(pathBuf, pathBuf);
-
-            const auto path { pathBuf };
         #endif
         #endif
-            
-        return path.substr(0, path.find_last_of("\\/"));
+           
+        const std::filesystem::path path{ pathBuf };
+        return path.parent_path();
     }
 
-    inline std::string executableFolderPath { getExecutablePath() };
+    inline std::filesystem::path executableFolderPath { getExecutablePath() };
 }

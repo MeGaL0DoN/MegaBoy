@@ -1,4 +1,4 @@
-#include "appConfig.h"
+﻿#include "appConfig.h"
 #include <filesystem>
 #include <mini/ini.h>
 #include "stringUtils.h"
@@ -8,7 +8,7 @@ using namespace appConfig;
 
 extern GBCore gbCore;
 
-mINI::INIFile file { StringUtils::nativePath(StringUtils::executableFolderPath + "/data/config.ini") };
+mINI::INIFile file { StringUtils::executableFolderPath / "data" / "config.ini" };
 mINI::INIStructure config;
 
 inline void to_bool(bool& val, const char* section, const char* valName)
@@ -33,7 +33,7 @@ constexpr std::string to_string(bool val)
 
 void appConfig::loadConfigFile()
 {
-	const auto dataFolderPath = StringUtils::nativePath(StringUtils::executableFolderPath + "/data");
+	const auto dataFolderPath { StringUtils::executableFolderPath / "data" };
 
 	if (!std::filesystem::exists(dataFolderPath))
 		std::filesystem::create_directory(dataFolderPath);
@@ -75,7 +75,7 @@ void appConfig::updateConfigFile()
 
 	if (gbCore.cartridge.ROMLoaded)
 	{
-		config["gameState"]["romPath"] = gbCore.getROMPath();
+		config["gameState"]["romPath"] = StringUtils::pathToUTF8(gbCore.getROMPath());
 		config["gameState"]["saveStateNum"] = std::to_string(gbCore.getSaveNum());
 	}
 	else

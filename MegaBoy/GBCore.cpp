@@ -24,7 +24,7 @@ void GBCore::loadBootROM()
 
 	if (appConfig::runBootROM)
 	{
-		std::ifstream ifs(StringUtils::nativePath(StringUtils::executableFolderPath + "/data/boot_rom.bin"), std::ios::binary | std::ios::ate);
+		std::ifstream ifs(StringUtils::executableFolderPath / "data" / "boot_rom.bin", std::ios::binary | std::ios::ate);
 
 		if (ifs)
 		{
@@ -64,6 +64,7 @@ void GBCore::stepComponents()
 	cpu.updateTimer();
 	mmu.executeDMA();
 	ppu.execute();
+	apu.execute();
 	serial.execute();
 }
 
@@ -84,11 +85,10 @@ bool GBCore::isSaveStateFile(std::ifstream& st)
 	return filePrefix == SAVE_STATE_SIGNATURE;
 }
 
-inline std::string replaceExtension(const std::string& source, const char* newExt)
+inline std::filesystem::path replaceExtension(std::filesystem::path path, const char* newExt)
 {
-	size_t lastindex = source.find_last_of(".");
-	const auto newStr = source.substr(0, lastindex) + newExt;
-	return newStr;
+	path.replace_extension(newExt);
+	return path;
 }
 
 FileLoadResult GBCore::loadFile(std::ifstream& st)
@@ -108,18 +108,18 @@ FileLoadResult GBCore::loadFile(std::ifstream& st)
 	}
 	else
 	{
-		if (filePath.ends_with(".sav"))
+		if (filePath.extension() == ".sav")
 		{
 			st.seekg(0, std::ios::beg);
 
 			const auto gbRomPath = replaceExtension(filePath, ".gb");
 			const auto gbcRomPath = replaceExtension(filePath, ".gbc");
 
-			auto loadRomAndBattery = [this, &st](const std::string& romPath) -> bool
+			auto loadRomAndBattery = [this, &st](const std::filesystem::path& romPath) -> bool
 			{
-				if (std::ifstream ifs{ StringUtils::nativePath(romPath), std::ios::in | std::ios::binary })
+				if (std::ifstream ifs{ romPath, std::ios::in | std::ios::binary })
 				{
-					if (loadROM(ifs, filePath))
+					if (loadROM(ifs, romPath))
 					{
 						cartridge.getMapper()->loadBattery(st);
 						loadBootROM();
@@ -151,7 +151,7 @@ FileLoadResult GBCore::loadFile(std::ifstream& st)
 			{
 				if (cartridge.hasBattery && appConfig::batterySaves)
 				{
-					const auto batterySavePath = StringUtils::nativePath(replaceExtension(filePath, ".sav"));
+					const auto batterySavePath = replaceExtension(filePath, ".sav");
 
 					if (std::ifstream ifs{ batterySavePath, std::ios::in | std::ios::binary })
 						cartridge.getMapper()->loadBattery(ifs);
@@ -169,7 +169,7 @@ FileLoadResult GBCore::loadFile(std::ifstream& st)
 
 	if (success)
 	{
-		saveFolderPath = StringUtils::executableFolderPath + "/saves/" + gbCore.gameTitle + " (" + std::to_string(cartridge.checksum) + ")";
+		saveFolderPath = StringUtils::executableFolderPath / "saves" / (gbCore.gameTitle + " (" + std::to_string(cartridge.checksum) + ")");
 		appConfig::updateConfigFile();
 		return FileLoadResult::Success;
 	}
@@ -187,11 +187,12 @@ void GBCore::batteryAutoSave()
 {
 	if (cartridge.hasBattery && appConfig::batterySaves)
 	{
-		const auto batterySavePath = StringUtils::nativePath(replaceExtension(romFilePath, ".sav"));
+		auto batterySavePath = replaceExtension(romFilePath, ".sav");
 
 		if (std::filesystem::exists(batterySavePath))
 		{
-			const auto batteryBackupPath = StringUtils::nativePath(replaceExtension(romFilePath, "") + " - BACKUP.sav");
+			auto batteryBackupPath { batterySavePath };
+			batteryBackupPath.replace_filename(StringUtils::pathToUTF8(batterySavePath.stem()) + " - BACKUP.sav");
 			std::filesystem::copy_file(batterySavePath, batteryBackupPath, std::filesystem::copy_options::overwrite_existing);
 		}
 
@@ -209,13 +210,12 @@ void GBCore::backupSave(int num)
 	const std::chrono::zoned_time time { std::chrono::current_zone(), std::chrono::system_clock::now() };
 	const auto timeStr = std::format("{:%d-%m-%Y %H-%M-%OS}", time);
 
-	const auto backupPath = saveFolderPath + "/backups";
-	const auto nativeBackupPath = StringUtils::nativePath(backupPath);
+	const auto backupPath = saveFolderPath / "backups";
 
-	if (!std::filesystem::exists(nativeBackupPath))
-		std::filesystem::create_directories(nativeBackupPath);
+	if (!std::filesystem::exists(backupPath))
+		std::filesystem::create_directories(backupPath);
 
-	std::filesystem::copy_file(saveFilePath, StringUtils::nativePath(backupPath + "/save" + std::to_string(num) + " (" + timeStr + ").mbs"), std::filesystem::copy_options::overwrite_existing);
+	std::filesystem::copy_file(saveFilePath, backupPath / ("save" + std::to_string(num) + " (" + timeStr + ").mbs"), std::filesystem::copy_options::overwrite_existing);
 }
 
 void GBCore::loadState(int num)
@@ -252,16 +252,16 @@ void GBCore::saveState(int num)
 
 void GBCore::saveState(std::ofstream& st)
 {
-	const auto nativeSavePath = StringUtils::nativePath(saveFolderPath);
-
-	if (!std::filesystem::exists(nativeSavePath))
-		std::filesystem::create_directories(nativeSavePath);
+	if (!std::filesystem::exists(saveFolderPath))
+		std::filesystem::create_directories(saveFolderPath);
 
 	st << SAVE_STATE_SIGNATURE;
 
-	uint16_t filePathLen { static_cast<uint16_t>(romFilePath.length()) };
+	auto romFilePathStr = StringUtils::pathToUTF8(romFilePath);
+
+	uint16_t filePathLen { static_cast<uint16_t>(romFilePathStr.length()) };
 	st.write(reinterpret_cast<char*>(&filePathLen), sizeof(filePathLen));
-	st << romFilePath;
+	st << romFilePathStr;
 
 	st.write(reinterpret_cast<char*>(&cartridge.checksum), sizeof(cartridge.checksum));
 
@@ -288,8 +288,9 @@ bool GBCore::loadState(std::ifstream& st)
 	{
 		saveCurrentROM();
 		bool romExists{ true };
-
-		std::ifstream romStream(StringUtils::nativePath(romPath), std::ios::in | std::ios::binary);
+		
+		auto nativeRomPath = std::filesystem::path(StringUtils::nativePath(romPath));
+		std::ifstream romStream(nativeRomPath, std::ios::in | std::ios::binary);
 
 		if (romStream)
 		{
@@ -306,7 +307,7 @@ bool GBCore::loadState(std::ifstream& st)
 
 		if (romExists)
 		{
-			romFilePath = romPath;
+			romFilePath = nativeRomPath;
 			currentSave = 0;
 		}
 		else

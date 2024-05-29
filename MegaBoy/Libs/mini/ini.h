@@ -94,12 +94,6 @@
 #include <sys/stat.h>
 #include <cctype>
 
-#ifdef _WIN32
-typedef std::wstring mINIFilePath;
-#else
-typedef std::string mINIFilePath;
-#endif
-
 namespace mINI
 {
 	namespace INIStringUtil
@@ -400,7 +394,7 @@ namespace mINI
 		}
 
 	public:
-		INIReader(mINIFilePath const& filename, bool keepLineData = false)
+		INIReader(std::filesystem::path const& filename, bool keepLineData = false)
 		{
 			fileReadStream.open(filename, std::ios::in | std::ios::binary);
 			if (keepLineData)
@@ -459,7 +453,7 @@ namespace mINI
 	public:
 		bool prettyPrint = false;
 
-		INIGenerator(mINIFilePath filename)
+		INIGenerator(std::filesystem::path filename)
 		{
 			fileWriteStream.open(filename, std::ios::out | std::ios::binary);
 		}
@@ -525,7 +519,7 @@ namespace mINI
 		using T_LineData = std::vector<std::string>;
 		using T_LineDataPtr = std::shared_ptr<T_LineData>;
 
-		mINIFilePath filename;
+		std::filesystem::path filename;
 
 		T_LineData getLazyOutput(T_LineDataPtr const& lineData, INIStructure& data, INIStructure& original)
 		{
@@ -686,7 +680,7 @@ namespace mINI
 	public:
 		bool prettyPrint = false;
 
-		INIWriter(mINIFilePath const& filename)
+		INIWriter(std::filesystem::path const& filename)
 		: filename(filename)
 		{
 		}
@@ -758,10 +752,10 @@ namespace mINI
 	class INIFile
 	{
 	private:
-		mINIFilePath filename;
+		std::filesystem::path filename;
 
 	public:
-		INIFile(mINIFilePath filename)
+		INIFile(std::filesystem::path filename)
 		: filename(filename)
 		{ }
 

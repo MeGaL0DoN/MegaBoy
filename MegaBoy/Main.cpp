@@ -55,8 +55,7 @@ bool pauseOnVBlank {false};
 extern GBCore gbCore;
 std::string FPS_text{ "FPS: 00.00" };
 
-template <typename T>
-inline bool loadFile(T path)
+inline bool loadFile(const std::filesystem::path& path)
 {
     if (std::filesystem::exists(path))
     {
@@ -517,14 +516,14 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
         if (key == GLFW_KEY_Q)
         {
             if (gbCore.cartridge.ROMLoaded)
-                gbCore.saveState(StringUtils::nativePath(gbCore.getSaveFolderPath() + "/quicksave.mbs"));
+                gbCore.saveState(gbCore.getSaveFolderPath() / "quicksave.mbs");
 
             return;
         }
         if (key == GLFW_KEY_GRAVE_ACCENT)
         {
             if (gbCore.cartridge.ROMLoaded)
-                loadFile(StringUtils::nativePath(gbCore.getSaveFolderPath() + "/quicksave.mbs"));
+                loadFile(gbCore.getSaveFolderPath() / "quicksave.mbs");
 
             return;
         }
@@ -604,7 +603,7 @@ void setWindowSize()
     vsyncCPUCycles = GBCore::calculateCycles(1.0 / mode->refreshRate);
 }
 
-const std::string imguiConfigPath = StringUtils::executableFolderPath + "/data/imgui.ini";
+const std::string imguiConfigPath = StringUtils::pathToUTF8(StringUtils::executableFolderPath / "data" / "imgui.ini");
 
 void setImGUI()
 {

@@ -30,50 +30,34 @@ public:
 	void update(int32_t cyclesToExecute = CYCLES_PER_FRAME);
 	void stepComponents();
 
-	#ifdef  _WIN32
-
-	inline FileLoadResult loadFile(const std::wstring& _filePath)
-	{
-		std::ifstream st(_filePath, std::ios::in | std::ios::binary);
-		this->filePath = StringUtils::ToUTF8(_filePath.c_str());
-		return loadFile(st);
-	}
-
-	#else
-
-	inline FileLoadResult loadFile(const std::string& _filePath)
+	inline FileLoadResult loadFile(const std::filesystem::path& _filePath)
 	{
 		std::ifstream st(_filePath, std::ios::in | std::ios::binary);
 		this->filePath = _filePath;
 		return loadFile(st);
 	}
 
-	#endif
-
 	void loadState(int num);
 	void saveState(int num);
 
 	constexpr int getSaveNum() { return currentSave; }
-	constexpr std::string& getSaveFolderPath() { return saveFolderPath; }
-	constexpr std::string& getROMPath() { return romFilePath; }
+	constexpr const std::filesystem::path& getSaveFolderPath() { return saveFolderPath; }
+	constexpr const std::filesystem::path& getROMPath() { return romFilePath; }
 
-	template <typename T>
-	inline void saveState(T filePath)
+	inline void saveState(const std::filesystem::path& _filePath)
 	{
 		if (!cartridge.ROMLoaded || cpu.isExecutingBootROM())
 			return;
 
-		std::ofstream st(filePath, std::ios::out | std::ios::binary);
+		std::ofstream st(_filePath, std::ios::out | std::ios::binary);
 		saveState(st);
 	}
 
-	template <typename T>
-	inline void saveBattery(T filePath)
+	inline void saveBattery(const std::filesystem::path& _filePath)
 	{
-		std::ofstream st(filePath, std::ios::out | std::ios::binary);
+		std::ofstream st(_filePath, std::ios::out | std::ios::binary);
 		cartridge.getMapper()->saveBattery(st);
 	}
-
 	inline void loadBattery()
 	{
 		if (!cartridge.ROMLoaded || !cartridge.hasBattery) return;
@@ -107,15 +91,15 @@ public:
 	serialPort serial { cpu };
 	Cartridge cartridge { *this };
 private:
-	std::string saveFolderPath;
-	std::string filePath;
-	std::string romFilePath;
+	std::filesystem::path saveFolderPath;
+	std::filesystem::path filePath;
+	std::filesystem::path romFilePath;
 
 	int currentSave {0};
 
-	inline auto getSaveFilePath(int saveNum)
+	inline std::filesystem::path getSaveFilePath(int saveNum)
 	{
-		return StringUtils::nativePath(saveFolderPath + "/save" + std::to_string(saveNum) + ".mbs");
+		return saveFolderPath / ("save" + std::to_string(saveNum) + ".mbs");
 	}
 
 	inline void updateSelectedSaveInfo(int saveStateNum)
@@ -124,7 +108,7 @@ private:
 		appConfig::updateConfigFile();
 	}
 
-	inline bool loadROM(std::ifstream& st, const std::string& filePath)
+	inline bool loadROM(std::ifstream& st, const std::filesystem::path& filePath)
 	{
 		if (cartridge.loadROM(st))
 		{
