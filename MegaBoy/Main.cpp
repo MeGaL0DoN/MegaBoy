@@ -307,7 +307,7 @@ void renderImGUI()
 
             ImGui::SeparatorText("UI");
 
-            if (ImGui::Checkbox("Alpha Blending", &appConfig::blending))
+            if (ImGui::Checkbox("Screen Ghosting", &appConfig::blending))
             {
                 updateSelectedBlending();
                 appConfig::updateConfigFile();

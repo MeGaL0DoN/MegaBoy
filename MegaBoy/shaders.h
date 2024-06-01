@@ -4,6 +4,7 @@ namespace shaders
 {
     inline constexpr const char* regularVertexShader = R"(
 #version 330 core
+
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec2 aTexCoord;
 
@@ -18,6 +19,7 @@ void main()
 
    inline constexpr const char* regulaFragmentShader = R"(
 #version 330 core
+
 out vec4 FragColor;
 in vec2 TexCoord;
 
@@ -32,17 +34,13 @@ void main()
 )";
 
     inline constexpr const char* lcd1xVertexShader = R"(
-#if __VERSION__ >= 130
-#define COMPAT_VARYING out
-#else
-#define COMPAT_VARYING varying
-#endif
+#version 330 core
 
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec2 aTexCoord;
 
-COMPAT_VARYING vec2 TexCoord;
-COMPAT_VARYING vec4 TEX0;
+out vec2 TexCoord;
+out vec4 TEX0;
 
 void main()
 {
@@ -53,44 +51,17 @@ void main()
 )";
 
     inline constexpr const char* lcd1xFragmentShader = R"(
-#pragma parameter BRIGHTEN_SCANLINES "Brighten Scanlines" 16.0 1.0 32.0 0.5
-#pragma parameter BRIGHTEN_LCD "Brighten LCD" 4.0 1.0 12.0 0.1
+#version 330 core
 
-#if __VERSION__ >= 130
-#define COMPAT_VARYING in
-#define COMPAT_TEXTURE texture
-out vec4 FragColor;
-#else
-#define COMPAT_VARYING varying
-#define FragColor gl_FragColor
-#define COMPAT_TEXTURE texture2D
-#endif
-
-#ifdef GL_ES
-precision highp float;
-precision highp int;
-#define COMPAT_PRECISION highp
-#else
-#define COMPAT_PRECISION
-#endif
-
-uniform COMPAT_PRECISION int FrameDirection;
-uniform COMPAT_PRECISION int FrameCount;
-uniform COMPAT_PRECISION vec2 OutputSize;
-uniform COMPAT_PRECISION vec2 TextureSize;
-uniform COMPAT_PRECISION vec2 InputSize;
+uniform vec2 TextureSize;
 uniform sampler2D Texture;
 uniform float alpha;
-COMPAT_VARYING vec4 TEX0;
 
-#ifdef PARAMETER_UNIFORM
-// All parameter floats need to have COMPAT_PRECISION in front of them
-uniform COMPAT_PRECISION float BRIGHTEN_SCANLINES;
-uniform COMPAT_PRECISION float BRIGHTEN_LCD;
-#else
+in vec4 TEX0;
+out vec4 FragColor;
+
 #define BRIGHTEN_SCANLINES 16.0
 #define BRIGHTEN_LCD 12.0
-#endif
 
 // Magic Numbers
 #define PI 3.141592654
@@ -100,13 +71,13 @@ void main()
    // Generate LCD grid effect
    // > Note the 0.25 pixel offset -> required to ensure that
    //   scanlines occur *between* pixels
-   COMPAT_PRECISION vec2 angle = 2.0 * PI * ((TEX0.xy * TextureSize.xy) - 0.25);
+   vec2 angle = 2.0 * PI * ((TEX0.xy * TextureSize.xy) - 0.25);
 
-   COMPAT_PRECISION float yfactor = (BRIGHTEN_SCANLINES + sin(angle.y)) / (BRIGHTEN_SCANLINES + 1.0);
-   COMPAT_PRECISION float xfactor = (BRIGHTEN_LCD + sin(angle.x)) / (BRIGHTEN_LCD + 1.0);
+   float yfactor = (BRIGHTEN_SCANLINES + sin(angle.y)) / (BRIGHTEN_SCANLINES + 1.0);
+   float xfactor = (BRIGHTEN_LCD + sin(angle.x)) / (BRIGHTEN_LCD + 1.0);
 
    // Get colour sample
-   COMPAT_PRECISION vec3 colour = COMPAT_TEXTURE(Texture, TEX0.xy).rgb;
+   vec3 colour = texture(Texture, TEX0.xy).rgb;
 
    // Apply LCD grid effect
    colour.rgb = yfactor * xfactor * colour.rgb;
@@ -116,34 +87,23 @@ void main()
 )";
 
     inline constexpr const char* omniscaleVertexShader = R"(
-#if __VERSION__ >= 130
-#define COMPAT_VARYING out
-#define COMPAT_ATTRIBUTE in
-#else
-#define COMPAT_VARYING varying 
-#define COMPAT_ATTRIBUTE attribute 
-#endif
-
-#ifdef GL_ES
-#define COMPAT_PRECISION mediump
-#else
-#define COMPAT_PRECISION
-#endif
+#version 330 core
 
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec2 aTexCoord;
-COMPAT_VARYING vec2 TexCoord;
 
-COMPAT_ATTRIBUTE vec4 COLOR;
-COMPAT_VARYING vec4 COL0;
-COMPAT_VARYING vec4 TEX0;
+out vec2 TexCoord;
+out vec4 COL0;
+out vec4 TEX0;
 
-uniform COMPAT_PRECISION vec2 TextureSize;
-uniform COMPAT_PRECISION vec2 InputSize;
+in vec4 COLOR;
+
+uniform vec2 TextureSize;
+uniform vec2 InputSize;
 
 // vertex compatibility #defines
 #define vTexCoord TEX0.xy
-#define SourceSize vec4(TextureSize, 1.0 / TextureSize) //either TextureSize or InputSize
+#define SourceSize vec4(TextureSize, 1.0 / TextureSize)
 
 void main()
 {
@@ -179,34 +139,16 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#if __VERSION__ >= 130
-#define COMPAT_VARYING in
-#define COMPAT_TEXTURE texture
-out mediump vec4 FragColor;
-#else
-#define COMPAT_VARYING varying
-#define FragColor gl_FragColor
-#define COMPAT_TEXTURE texture2D
-#endif
+#version 330 core
 
-#ifdef GL_ES
-#ifdef GL_FRAGMENT_PRECISION_HIGH
-precision highp float;
-#else
-precision mediump float;
-precision mediump int;
-#endif
-#define COMPAT_PRECISION mediump
-#else
-#define COMPAT_PRECISION
-#endif
-
-uniform COMPAT_PRECISION vec2 OutputSize;
-uniform COMPAT_PRECISION vec2 TextureSize;
-uniform COMPAT_PRECISION vec2 InputSize;
+uniform vec2 OutputSize;
+uniform vec2 TextureSize;
+uniform vec2 InputSize;
 uniform float alpha;
 uniform sampler2D Texture;
-COMPAT_VARYING vec4 TEX0;
+
+out vec4 FragColor;
+in vec4 TEX0;
 
 // fragment compatibility #defines
 #define Source Texture
@@ -255,17 +197,15 @@ vec4 scale(sampler2D image, vec2 coord)
         p.y = 1.0 - p.y;
     }
 
-
-
-    vec4 w0 = COMPAT_TEXTURE(image, texCoord + vec2( -o.x, -o.y));
-    vec4 w1 = COMPAT_TEXTURE(image, texCoord + vec2(    0, -o.y));
-    vec4 w2 = COMPAT_TEXTURE(image, texCoord + vec2(  o.x, -o.y));
-    vec4 w3 = COMPAT_TEXTURE(image, texCoord + vec2( -o.x,    0));
-    vec4 w4 = COMPAT_TEXTURE(image, texCoord + vec2(    0,    0));
-    vec4 w5 = COMPAT_TEXTURE(image, texCoord + vec2(  o.x,    0));
-    vec4 w6 = COMPAT_TEXTURE(image, texCoord + vec2( -o.x,  o.y));
-    vec4 w7 = COMPAT_TEXTURE(image, texCoord + vec2(    0,  o.y));
-    vec4 w8 = COMPAT_TEXTURE(image, texCoord + vec2(  o.x,  o.y));
+    vec4 w0 = texture(image, texCoord + vec2( -o.x, -o.y));
+    vec4 w1 = texture(image, texCoord + vec2(    0, -o.y));
+    vec4 w2 = texture(image, texCoord + vec2(  o.x, -o.y));
+    vec4 w3 = texture(image, texCoord + vec2( -o.x,    0));
+    vec4 w4 = texture(image, texCoord + vec2(    0,    0));
+    vec4 w5 = texture(image, texCoord + vec2(  o.x,    0));
+    vec4 w6 = texture(image, texCoord + vec2( -o.x,  o.y));
+    vec4 w7 = texture(image, texCoord + vec2(    0,  o.y));
+    vec4 w8 = texture(image, texCoord + vec2(  o.x,  o.y));
 
     int pattern = 0;
     if (is_different(w0, w4)) pattern |= 1 << 0;
@@ -431,13 +371,13 @@ vec4 scale(sampler2D image, vec2 coord)
         return w4;
 
     /* We need more samples to "solve" this diagonal */
-    vec4 x0 = COMPAT_TEXTURE(image, texCoord + vec2( -o.x * 2.0, -o.y * 2.0));
-    vec4 x1 = COMPAT_TEXTURE(image, texCoord + vec2( -o.x      , -o.y * 2.0));
-    vec4 x2 = COMPAT_TEXTURE(image, texCoord + vec2(  0.0      , -o.y * 2.0));
-    vec4 x3 = COMPAT_TEXTURE(image, texCoord + vec2(  o.x      , -o.y * 2.0));
-    vec4 x4 = COMPAT_TEXTURE(image, texCoord + vec2( -o.x * 2.0, -o.y      ));
-    vec4 x5 = COMPAT_TEXTURE(image, texCoord + vec2( -o.x * 2.0,  0.0      ));
-    vec4 x6 = COMPAT_TEXTURE(image, texCoord + vec2( -o.x * 2.0,  o.y      ));
+    vec4 x0 = texture(image, texCoord + vec2( -o.x * 2.0, -o.y * 2.0));
+    vec4 x1 = texture(image, texCoord + vec2( -o.x      , -o.y * 2.0));
+    vec4 x2 = texture(image, texCoord + vec2(  0.0      , -o.y * 2.0));
+    vec4 x3 = texture(image, texCoord + vec2(  o.x      , -o.y * 2.0));
+    vec4 x4 = texture(image, texCoord + vec2( -o.x * 2.0, -o.y      ));
+    vec4 x5 = texture(image, texCoord + vec2( -o.x * 2.0,  0.0      ));
+    vec4 x6 = texture(image, texCoord + vec2( -o.x * 2.0,  o.y      ));
 
     if (is_different(x0, w4)) pattern |= 1 << 8;
     if (is_different(x1, w4)) pattern |= 1 << 9;
