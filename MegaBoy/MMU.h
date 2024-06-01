@@ -20,22 +20,13 @@ public:
 
 	inline void reset()
 	{
-		dma.transfer = false;
-		dma.restartRequest = false;
-		dma.reg = 0xFF;
+		s.dma.transfer = false;
+		s.dma.restartRequest = false;
+		s.dma.reg = 0xFF;
 	}
 
 	void saveState(std::ofstream& st);
 	void loadState(std::ifstream& st);
-
-	std::array<uint8_t, 256> bootROM{};
-
-private:
-	GBCore& gbCore;
-	static constexpr uint8_t DMA_CYCLES = 160;
-
-	std::array<uint8_t, 8192> WRAM{};
-	std::array<uint8_t, 127> HRAM{};
 
 	struct DMAstate
 	{
@@ -47,8 +38,24 @@ private:
 		uint8_t delayCycles;
 	};
 
-	DMAstate dma{};
+	struct MMUstate
+	{
+		bool statRegChanged{ false };
+		uint8_t newStatVal{ 0 };
+		DMAstate dma;
+	};
 
-	constexpr bool dmaInProgress() const { return dma.transfer && dma.delayCycles == 0; }
+	MMUstate s{};
+
+	std::array<uint8_t, 256> bootROM{};
+
+private:
+	GBCore& gbCore;
+	static constexpr uint8_t DMA_CYCLES = 160;
+
+	std::array<uint8_t, 8192> WRAM{};
+	std::array<uint8_t, 127> HRAM{};
+
+	constexpr bool dmaInProgress() const { return s.dma.transfer && s.dma.delayCycles == 0; }
 	void startDMATransfer();
 };

@@ -9,7 +9,7 @@ namespace appConfig
 	inline bool autosaveState { true };
 	inline bool loadLastROM { true };
 
-	inline bool blending{ false };
+	inline bool blending { true };
 	inline bool fpsLock { true };
 	inline bool vsync { true };
 

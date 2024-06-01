@@ -8,7 +8,7 @@ using namespace appConfig;
 
 extern GBCore gbCore;
 
-mINI::INIFile file { StringUtils::executableFolderPath / "data" / "config.ini" };
+mINI::INIFile file { mINI::mINIFilePath(StringUtils::executableFolderPath / "data" / "config.ini") };
 mINI::INIStructure config;
 
 inline void to_bool(bool& val, const char* section, const char* valName)

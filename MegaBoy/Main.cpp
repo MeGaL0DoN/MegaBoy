@@ -625,6 +625,42 @@ void setImGUI()
     ImGui_ImplOpenGL3_Init("#version 330");
 }
 
+//void compareFiles()
+//{
+//    std::ifstream newV("megaboyLog.txt");
+//    std::ifstream oldV("otherLogs.txt");
+//
+//    std::vector<std::string> newLines;
+//    std::vector<std::string> oldLines;
+//
+//    newLines.reserve(400000);
+//    oldLines.reserve(400000);
+//
+//    std::string line;
+//
+//    while (std::getline(newV, line))
+//    {
+//        newLines.push_back(line);
+//    }
+//
+//    while (std::getline(oldV, line))
+//    {
+//        oldLines.push_back(line);
+//    }
+//
+//    for (int i = 0; i < 400000; i++)
+//    {
+//        if (newLines[i] != oldLines[i])
+//        {
+//            std::cout << "Difference at line " << i + 1 << "\n";
+//            std::cout << newLines[i] << "\n";
+//            return;
+//        }
+//    }
+//
+//    std::cout << "No differences! \n";
+//}
+
 int main(int argc, char* argv[])
 {
     appConfig::loadConfigFile();
@@ -636,12 +672,10 @@ int main(int argc, char* argv[])
 
     if (argc > 1)
     {
-        #ifdef _WIN32
-            auto argv = CommandLineToArgvW(GetCommandLineW(), &argc);
-            loadFile(argv[1]);
-        #else
-            loadFile(argv[1]);
-        #endif
+#ifdef _WIN32
+        auto argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+#endif
+        loadFile(argv[1]);
     }
     else
     {

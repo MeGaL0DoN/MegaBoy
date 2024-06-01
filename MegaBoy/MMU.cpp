@@ -6,55 +6,55 @@ MMU::MMU(GBCore& gbCore) : gbCore(gbCore) {}
 
 void MMU::saveState(std::ofstream& st)
 {
-	st.write(reinterpret_cast<char*>(&dma), sizeof(dma));
+	st.write(reinterpret_cast<char*>(&s), sizeof(s));
 	st.write(reinterpret_cast<char*>(WRAM.data()), sizeof(WRAM));
 	st.write(reinterpret_cast<char*>(HRAM.data()), sizeof(HRAM));
 }
 
 void MMU::loadState(std::ifstream& st)
 {
-	st.read(reinterpret_cast<char*>(&dma), sizeof(dma));
+	st.read(reinterpret_cast<char*>(&s), sizeof(s));
 	st.read(reinterpret_cast<char*>(WRAM.data()), sizeof(WRAM));
 	st.read(reinterpret_cast<char*>(HRAM.data()), sizeof(HRAM));
 }
 
 void MMU::startDMATransfer()
 {
-	if (dma.transfer)
+	if (s.dma.transfer)
 	{
-		dma.restartRequest = true;
+		s.dma.restartRequest = true;
 		return;
 	}
 
-	dma.transfer = true;
-	dma.cycles = 0;
-	dma.sourceAddr = dma.reg * 0x100;
+	s.dma.transfer = true;
+	s.dma.cycles = 0;
+	s.dma.sourceAddr = s.dma.reg * 0x100;
 
-	if (dma.restartRequest)
+	if (s.dma.restartRequest)
 	{
-		dma.delayCycles = 1;
-		dma.restartRequest = false;
+		s.dma.delayCycles = 1;
+		s.dma.restartRequest = false;
 	}
-	else dma.delayCycles = 2;
+	else s.dma.delayCycles = 2;
 }
 
 void MMU::executeDMA()
 {
-	if (dma.transfer)
+	if (s.dma.transfer)
 	{
-		if (dma.delayCycles > 0)
-			dma.delayCycles--;
+		if (s.dma.delayCycles > 0)
+			s.dma.delayCycles--;
 		else
 		{
-			gbCore.ppu.OAM[dma.cycles++] = read8<false>(dma.sourceAddr++);
+			gbCore.ppu.OAM[s.dma.cycles++] = read8<false>(s.dma.sourceAddr++);
 
-			if (dma.restartRequest)
+			if (s.dma.restartRequest)
 			{
-				dma.transfer = false;
+				s.dma.transfer = false;
 				startDMATransfer();
 			}
-			else if (dma.cycles >= DMA_CYCLES)
-				dma.transfer = false;
+			else if (s.dma.cycles >= DMA_CYCLES)
+				s.dma.transfer = false;
 		}
 	}
 }
@@ -63,7 +63,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 {
 	if (addr == 0xFF46)
 	{
-		dma.reg = val;
+		s.dma.reg = val;
 		startDMATransfer();
 		return;
 	}
@@ -137,9 +137,9 @@ void MMU::write8(uint16_t addr, uint8_t val)
 		case 0xFF41:
 		{
 			// Handle spurious STAT interrupts   // TODO: DISABLE ON GBC!
-			gbCore.ppu.s.newStatVal = (gbCore.ppu.regs.STAT & 0x87) | (val & 0xF8);
+			s.newStatVal = (gbCore.ppu.regs.STAT & 0x87) | (val & 0xF8);
 			gbCore.ppu.regs.STAT = 0xFF;
-			gbCore.ppu.s.statRegChanged = true;
+			s.statRegChanged = true;
 			break;
 		}
 		case 0xFF42:
@@ -306,7 +306,7 @@ uint8_t MMU::read8(uint16_t addr) const
 		case 0xFF45:
 			return gbCore.ppu.regs.LYC;
 		case 0xFF46:
-			return dma.reg;
+			return s.dma.reg;
 		case 0xFF47:
 			return gbCore.ppu.regs.BGP;
 		case 0xFF48:

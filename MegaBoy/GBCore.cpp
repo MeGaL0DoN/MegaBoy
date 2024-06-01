@@ -29,7 +29,7 @@ void GBCore::loadBootROM()
 		if (ifs)
 		{
 			std::ifstream::pos_type pos = ifs.tellg();
-			if (pos != 256) return;
+			if (pos != sizeof(mmu.bootROM)) return;
 
 			ifs.seekg(0, std::ios::beg);
 			ifs.read(reinterpret_cast<char*>(&mmu.bootROM[0]), pos);
@@ -66,6 +66,12 @@ void GBCore::stepComponents()
 	ppu.execute();
 	apu.execute();
 	serial.execute();
+
+	if (mmu.s.statRegChanged)
+	{
+		ppu.regs.STAT = mmu.s.newStatVal;
+		mmu.s.statRegChanged = false;
+	}
 }
 
 void GBCore::restartROM(bool resetBattery)

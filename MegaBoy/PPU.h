@@ -107,9 +107,6 @@ public:
 		bool lycFlag { false };
 		bool blockStat { false };
 
-		bool statRegChanged { false };
-		uint8_t newStatVal { 0 };
-
 		uint8_t LY { 0 };
 		uint8_t WLY { 0 };
 

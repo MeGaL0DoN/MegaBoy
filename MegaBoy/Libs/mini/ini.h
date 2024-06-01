@@ -96,6 +96,18 @@
 
 namespace mINI
 {
+	struct mINIFilePath 
+	{
+		std::filesystem::path value;
+		explicit mINIFilePath(std::filesystem::path const& p) : value(p) {}
+
+		static mINIFilePath fromString(std::string const& str)
+		{
+			mINIFilePath path { str };
+			return path;
+		}
+	};
+
 	namespace INIStringUtil
 	{
 		const char* const whitespaceDelimiters = " \t\n\r\f\v";
@@ -394,14 +406,9 @@ namespace mINI
 		}
 
 	public:
-		INIReader(std::filesystem::path const& filename, bool keepLineData = false)
-		{
-			fileReadStream.open(filename, std::ios::in | std::ios::binary);
-			if (keepLineData)
-			{
-				lineData = std::make_shared<T_LineData>();
-			}
-		}
+		INIReader(mINIFilePath const& filename, bool keepLineData = false) { initialize(filename, keepLineData); };
+		INIReader(std::string const& filename, bool keepLineData = false) { initialize(mINIFilePath::fromString(filename), keepLineData); };
+
 		~INIReader() { }
 
 		bool operator>>(INIStructure& data)
@@ -443,6 +450,16 @@ namespace mINI
 		{
 			return lineData;
 		}
+
+	private:
+		void initialize(mINIFilePath const& filename, bool keepLineData)
+		{
+			fileReadStream.open(filename.value, std::ios::in | std::ios::binary);
+			if (keepLineData)
+			{
+				lineData = std::make_shared<T_LineData>();
+			}
+		}
 	};
 
 	class INIGenerator
@@ -453,10 +470,16 @@ namespace mINI
 	public:
 		bool prettyPrint = false;
 
-		INIGenerator(std::filesystem::path filename)
+		INIGenerator(mINIFilePath const& filename)
+		{
+			fileWriteStream.open(filename.value, std::ios::out | std::ios::binary);
+		}
+
+		INIGenerator(std::string const& filename)
 		{
 			fileWriteStream.open(filename, std::ios::out | std::ios::binary);
 		}
+
 		~INIGenerator() { }
 
 		bool operator<<(INIStructure const& data)
@@ -519,7 +542,7 @@ namespace mINI
 		using T_LineData = std::vector<std::string>;
 		using T_LineDataPtr = std::shared_ptr<T_LineData>;
 
-		std::filesystem::path filename;
+		mINIFilePath filename;
 
 		T_LineData getLazyOutput(T_LineDataPtr const& lineData, INIStructure& data, INIStructure& original)
 		{
@@ -680,22 +703,21 @@ namespace mINI
 	public:
 		bool prettyPrint = false;
 
-		INIWriter(std::filesystem::path const& filename)
+		INIWriter(std::string const& filename)
 		: filename(filename)
 		{
 		}
+		INIWriter(mINIFilePath const& filename)
+			: filename(filename)
+		{
+		}
+
 		~INIWriter() { }
 
 		bool operator<<(INIStructure& data)
 		{
-#ifdef _WIN32
-			struct _stat64i32 buf;
-			bool fileExists = (_wstat(filename.c_str(), &buf) == 0);
-#else
-			struct stat buf;
-			bool fileExists = (stat(filename.c_str(), &buf) == 0);
-#endif
-
+			//struct stat buf;
+			bool fileExists = std::filesystem::exists(filename.value);  //(stat(filename.c_str(), &buf) == 0);
 			if (!fileExists)
 			{
 				INIGenerator generator(filename);
@@ -719,7 +741,7 @@ namespace mINI
 				return false;
 			}
 			T_LineData output = getLazyOutput(lineData, data, originalData);
-			std::ofstream fileWriteStream(filename, std::ios::out | std::ios::binary);
+			std::ofstream fileWriteStream(filename.value, std::ios::out | std::ios::binary);
 			if (fileWriteStream.is_open())
 			{
 				if (fileIsBOM) {
@@ -752,11 +774,13 @@ namespace mINI
 	class INIFile
 	{
 	private:
-		std::filesystem::path filename;
+		mINIFilePath filename;
 
 	public:
-		INIFile(std::filesystem::path filename)
-		: filename(filename)
+		INIFile(mINIFilePath const& filename) : filename(filename)
+		{ }
+
+		INIFile(std::string const& filename) : filename(filename)
 		{ }
 
 		~INIFile() { }
@@ -767,7 +791,7 @@ namespace mINI
 			{
 				data.clear();
 			}
-			if (filename.empty())
+			if (filename.value.empty())
 			{
 				return false;
 			}
@@ -776,7 +800,7 @@ namespace mINI
 		}
 		bool generate(INIStructure const& data, bool pretty = false) const
 		{
-			if (filename.empty())
+			if (filename.value.empty())
 			{
 				return false;
 			}
@@ -786,7 +810,7 @@ namespace mINI
 		}
 		bool write(INIStructure& data, bool pretty = false) const
 		{
-			if (filename.empty())
+			if (filename.value.empty())
 			{
 				return false;
 			}

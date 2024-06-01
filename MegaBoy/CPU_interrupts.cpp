@@ -2,7 +2,6 @@
 #include "bitOps.h"
 #include "instructionsEngine.h"
 #include "GBCore.h"
-extern InstructionsEngine instructions;
 
 bool CPU::interruptsPending()
 {
@@ -13,7 +12,7 @@ uint8_t CPU::handleInterrupts()
 {
 	if (s.IME && s.interruptLatch)
 	{
-		instructions.PUSH(s.PC);
+		instructions->PUSH(s.PC);
 		addCycles(2); // PUSH adds 3, need 5 in total.
 
 		s.IME = false;

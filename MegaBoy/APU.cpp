@@ -137,6 +137,8 @@ int16_t sample1{ 0 };
 
 void APU::execute()
 {
+	return; // TEMP
+
 	play = false;
 	cycleCounter++;
 	square1CYcleCounter++;

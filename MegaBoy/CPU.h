@@ -1,8 +1,9 @@
 #pragma once
 #include <cstdint>
 #include <cstring>
-#include "registers.h"
 #include <iostream>
+#include <memory>
+#include "registers.h"
 
 enum class StatIRQ
 {
@@ -33,7 +34,9 @@ public:
 	void updateTimer();
 
 	CPU(GBCore& gbCore);
-	friend class InstructionsEngine;
+	~CPU();
+
+	friend InstructionsEngine;
 	friend class MMU;
 
 	void reset();
@@ -138,6 +141,7 @@ private:
 
 	uint8_t opcode;
 	uint8_t cycles;
-
 	bool executingBootROM;
+
+	std::unique_ptr<InstructionsEngine> instructions;
 };

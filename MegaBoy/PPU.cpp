@@ -184,12 +184,6 @@ void PPU::execute()
 
 	checkLYC();
 	updateInterrupts();
-
-	if (s.statRegChanged)
-	{
-		regs.STAT = s.newStatVal;
-		s.statRegChanged = false;
-	}
 }
 
 void PPU::handleHBlank()
