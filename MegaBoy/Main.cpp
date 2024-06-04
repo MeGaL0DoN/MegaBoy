@@ -11,6 +11,7 @@
 #include <thread>
 
 #include "GBCore.h"
+#include "GBMultiplayer.h"
 #include "Shader.h"
 #include "shaders.h"
 #include "debugUI.h"
@@ -52,8 +53,10 @@ const char* errorPopupTitle = "Error Loading the ROM!";
 bool errorLoadingROM{false};
 
 bool pauseOnVBlank {false};
-extern GBCore gbCore;
 std::string FPS_text{ "FPS: 00.00" };
+
+extern GBCore gbCore;
+GBMultiplayer multiplayer { gbCore };
 
 inline bool loadFile(const std::filesystem::path& path)
 {
@@ -73,7 +76,7 @@ inline bool loadFile(const std::filesystem::path& path)
             break;
         case FileLoadResult::Success:
         {
-            std::string title = "MegaBoy - " + gbCore.gameTitle;
+            const std::string title = gbCore.gameTitle == "" ? "MegaBoy" : "MegaBoy - " + gbCore.gameTitle;
             glfwSetWindowTitle(window, title.c_str());
             debugUI::clearBuffers();
             return true;
@@ -361,6 +364,16 @@ void renderImGUI()
 
             ImGui::EndMenu();
         }
+        if (ImGui::BeginMenu("Multiplayer"))
+        {
+            if (ImGui::MenuItem("Host"))
+                multiplayer.host();
+
+            if (ImGui::MenuItem("Join"))
+                multiplayer.connect("127.0.0.1");
+
+            ImGui::EndMenu();
+        }
 
         debugUI::updateMenu();
 
@@ -376,7 +389,7 @@ void renderImGUI()
             ImGui::Text(text.c_str());
         }
 
-        if (gbCore.cartridge.ROMLoaded)
+        if (gbCore.cartridge.ROMLoaded && !gbCore.emulationPaused)
         {
             float text_width = ImGui::CalcTextSize(FPS_text.data()).x;
             float available_width = ImGui::GetContentRegionAvail().x;
@@ -525,6 +538,7 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
             if (gbCore.cartridge.ROMLoaded)
                 loadFile(gbCore.getSaveFolderPath() / "quicksave.mbs");
 
+            //multiplayer.testMessage();
             return;
         }
     }
@@ -571,9 +585,6 @@ bool setGLFW()
         return false;
     }
 
-    glClearColor(PPU::BGB_GREEN_PALETTE[0].R, PPU::BGB_GREEN_PALETTE[0].G, PPU::BGB_GREEN_PALETTE[0].B, 0);
-    glClear(GL_COLOR_BUFFER_BIT);
-
     return true;
 }
 
@@ -590,6 +601,8 @@ void setWindowSize()
     updateImGUIViewports();
 
     const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+    vsyncCPUCycles = GBCore::calculateCycles(1.0 / mode->refreshRate);
+
     viewport_width = { static_cast<int>(mode->width * 0.4f) };
     viewport_height = { static_cast<int>(viewport_width / (static_cast<float>(PPU::SCR_WIDTH) / PPU::SCR_HEIGHT)) };
 
@@ -600,7 +613,9 @@ void setWindowSize()
     glfwSetWindowSizeLimits(window, PPU::SCR_WIDTH * 2, PPU::SCR_HEIGHT * 2, maxHeight * (PPU::SCR_WIDTH / PPU::SCR_HEIGHT), maxHeight);
     glViewport(0, 0, viewport_width, viewport_height);
 
-    vsyncCPUCycles = GBCore::calculateCycles(1.0 / mode->refreshRate);
+    const auto clearColor = gbCore.ppu.getCurrentPalette()[0];
+    glClearColor(clearColor.R, clearColor.G, clearColor.B, 0);
+    glClear(GL_COLOR_BUFFER_BIT);
 }
 
 const std::string imguiConfigPath = StringUtils::pathToUTF8(StringUtils::executableFolderPath / "data" / "imgui.ini");
@@ -616,7 +631,7 @@ void setImGUI()
     const int resolutionX = glfwGetVideoMode(glfwGetPrimaryMonitor())->width;
     scaleFactor = (resolutionX / 1920.0f);
 
-    io.Fonts->AddFontFromMemoryTTF((void*)resources::robotoMonoFont, sizeof(resources::robotoMonoFont), scaleFactor * 18.0f);
+    io.Fonts->AddFontFromMemoryTTF((void*)resources::robotoMonoFont, sizeof(resources::robotoMonoFont), scaleFactor * 17.0f);
     ImGui::GetStyle().ScaleAllSizes(scaleFactor);
 
     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;

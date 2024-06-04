@@ -1,21 +1,36 @@
 #pragma once
 #include <cstdint>
 #include <array>
-#include <vector>
+#include <atomic>
+#include <memory>
 
 class APU
 {
 public:
 	friend class MMU;
 
-	APU() { initMiniAudio(); };
-	~APU() { deallocMiniAudio(); }
-	static constexpr uint32_t SAMPLE_RATE = 44100;
+	APU();
+	~APU();
 
 	void execute();
-
 	inline void reset() { regs = {}; waveRAM = {}; }
-	std::array<uint8_t, 16> waveRAM{};
+
+	static constexpr uint32_t CPU_FREQUENCY = 1053360;
+	static constexpr uint32_t SAMPLE_RATE = 44100;
+	static constexpr uint32_t CYCLES_PER_SAMPLE = CPU_FREQUENCY / SAMPLE_RATE;
+
+	int16_t sample;
+
+	//static constexpr uint32_t BUFFER_SIZE = SAMPLE_RATE;
+	//std::array<int16_t, BUFFER_SIZE> sampleBuffer {};
+
+	//std::atomic<size_t> writeIndex{ 0 };
+	//std::atomic<size_t> readIndex{ 0 };
+private:
+	void initMiniAudio();
+
+	typedef class ma_device ma_device;
+	std::unique_ptr<ma_device> soundDevice;
 
 	struct apuRegs
 	{
@@ -51,13 +66,18 @@ public:
 		uint8_t NR52{ 0xF1 };
 	};
 
-	std::vector<int16_t> buffer;
 	apuRegs regs{};
-private:
+	std::array<uint8_t, 16> waveRAM{};
 
-	void initMiniAudio();
-	void deallocMiniAudio();
+	uint32_t cycles{ 0 };
+	uint32_t channel2Cycles { 0 };
+	uint8_t dutyStep2{ 0 };
 
-	//class ma_device; class ma_uint32;
-	//friend void sound_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount);
+	static constexpr uint8_t dutyCycles[4][8]
+	{
+		{0, 0, 0, 0, 0, 0, 0, 1}, // 00000001, 12.5%
+		{1, 0, 0, 0, 0, 0, 0, 1}, // 10000001, 25%
+		{1, 0, 0, 0, 0, 1, 1, 1}, // 10000111, 50%
+		{0, 1, 1, 1, 1, 1, 1, 0}, // 01111110, 75%
+	};
 };

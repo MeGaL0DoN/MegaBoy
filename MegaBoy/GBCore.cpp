@@ -64,7 +64,7 @@ void GBCore::stepComponents()
 	cpu.updateTimer();
 	mmu.executeDMA();
 	ppu.execute();
-	apu.execute();
+	//apu.execute();
 	serial.execute();
 
 	if (mmu.s.statRegChanged)

@@ -78,7 +78,7 @@ public:
 	static constexpr std::array<color, 4> BGB_GREEN_PALETTE = { color {224, 248, 208}, color {136, 192, 112 }, color {52, 104, 86}, color{8, 24, 32} };
 
 	constexpr void setColorsPalette(const std::array<color, 4>& newColors) { colors = newColors; }
-	constexpr const std::array<color, 4> getCurrentPalette() { return colors; }
+	constexpr const std::array<color, 4>& getCurrentPalette() { return colors; }
 
 	void updateScreenColors(const std::array<color, 4>& newColors);
 

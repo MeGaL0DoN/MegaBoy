@@ -13,7 +13,7 @@ namespace appConfig
 	inline bool fpsLock { true };
 	inline bool vsync { true };
 
-	inline int filter { 0 };
+	inline int filter { 1 };
 	inline int palette { 0 };
 
 	inline std::string romPath{};

@@ -150,6 +150,7 @@
     <ClCompile Include="CPU_interrupts.cpp" />
     <ClCompile Include="debugUI.cpp" />
     <ClCompile Include="GBCore.cpp" />
+    <ClCompile Include="GBMultiplayer.cpp" />
     <ClCompile Include="glFunctions.cpp" />
     <ClCompile Include="HuC1.cpp" />
     <ClCompile Include="inputManager.cpp" />
@@ -183,6 +184,7 @@
     <ClInclude Include="MBC3.h" />
     <ClInclude Include="MBC5.h" />
     <ClInclude Include="MBCBase.h" />
+    <ClInclude Include="GBMultiplayer.h" />
     <ClInclude Include="resources.h" />
     <ClInclude Include="RomOnlyMBC.h" />
     <ClInclude Include="pixelOps.h" />
