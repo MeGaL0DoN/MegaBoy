@@ -46,17 +46,30 @@ bool fileDialogOpen;
 constexpr nfdnfilteritem_t openFilterItem[] = { {STR("Game ROM/Save"), STR("gb,gbc,sav,mbs")} };
 constexpr nfdnfilteritem_t saveStateFilterItem[] = { {STR("Save State"), STR("mbs")} };
 constexpr nfdnfilteritem_t batterySaveFilterItem[] = { {STR("Battery Save"), STR("sav")} };
+constexpr nfdnfilteritem_t audioSaveFilterItem[] = { {STR("WAV File"), STR("wav")} };
 
 #undef STR
 
 const char* errorPopupTitle = "Error Loading the ROM!";
 bool errorLoadingROM{false};
 
-bool pauseOnVBlank {false};
 std::string FPS_text{ "FPS: 00.00" };
 
 extern GBCore gbCore;
 GBMultiplayer multiplayer { gbCore };
+
+inline void updateWindowTitle()
+{
+    std::string title = (gbCore.gameTitle == "" ? "MegaBoy" : "MegaBoy - " + gbCore.gameTitle) + " (" + (gbCore.emulationPaused ? "Emulation Paused" : FPS_text) + ")";
+    glfwSetWindowTitle(window, title.c_str());
+}
+
+inline void setEmulationPaused(bool val)
+{
+    gbCore.emulationPaused = val;
+    if (val) debugUI::updateTextures(true);
+    updateWindowTitle();
+}
 
 inline bool loadFile(const std::filesystem::path& path)
 {
@@ -76,8 +89,7 @@ inline bool loadFile(const std::filesystem::path& path)
             break;
         case FileLoadResult::Success:
         {
-            const std::string title = gbCore.gameTitle == "" ? "MegaBoy" : "MegaBoy - " + gbCore.gameTitle;
-            glfwSetWindowTitle(window, title.c_str());
+            updateWindowTitle();
             debugUI::clearBuffers();
             return true;
         }
@@ -89,16 +101,9 @@ inline bool loadFile(const std::filesystem::path& path)
 
 void drawCallback(const uint8_t* framebuffer)
 {
-    if (pauseOnVBlank)
-    {
-        pauseOnVBlank = false;
-        gbCore.emulationPaused = true;
-    }
-
     OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
     std::swap(gbFramebufferTextures[0], gbFramebufferTextures[1]);
-
-    debugUI::updateTextures(gbCore.emulationPaused);
+    debugUI::updateTextures(false);
 }
 
 void refreshGBTextures()
@@ -210,6 +215,28 @@ inline void updateImGUIViewports()
     }
 }
 
+std::pair<bool, std::filesystem::path> saveFileDialog(const std::string& defaultName, const nfdnfilteritem_t* filter)
+{
+    fileDialogOpen = true;
+    NFD::UniquePathN outPath;
+
+    const auto NdefaultName = StringUtils::nativePath(defaultName);
+    nfdresult_t result = NFD::SaveDialog(outPath, filter, 1, nullptr, NdefaultName.c_str());
+
+    fileDialogOpen = false;
+    return std::make_pair(result == NFD_OKAY, outPath.get());
+}
+
+std::pair<bool, std::filesystem::path> openFileDialog(const nfdnfilteritem_t* filter)
+{
+    fileDialogOpen = true;
+    NFD::UniquePathN outPath;
+    nfdresult_t result = NFD::OpenDialog(outPath, filter, 1);
+
+    fileDialogOpen = false;
+    return std::make_pair(result == NFD_OKAY, outPath.get());
+}
+
 void renderImGUI()
 {
     ImGui_ImplOpenGL3_NewFrame();
@@ -221,48 +248,31 @@ void renderImGUI()
         if (ImGui::BeginMenu("File"))
         {
             if (ImGui::MenuItem("Load File"))
-            {
-                fileDialogOpen = true;
-                NFD::UniquePathN outPath;
+            {           
+                auto result = openFileDialog(openFilterItem);
 
-                nfdresult_t result = NFD::OpenDialog(outPath, openFilterItem, 1);
-
-                if (result == NFD_OKAY)
-                    loadFile(outPath.get());
-
-                fileDialogOpen = false;
+                if (result.first)
+                    loadFile(result.second);
             }
 
             if (gbCore.cartridge.ROMLoaded)
             {
                 if (ImGui::MenuItem("Export State"))
                 {
-                    fileDialogOpen = true;
-                    NFD::UniquePathN outPath;
+                    auto result = saveFileDialog(gbCore.gameTitle + " - Save State", saveStateFilterItem);
 
-                    const auto defaultName = StringUtils::nativePath(gbCore.gameTitle + " - Save State");
-                    nfdresult_t result = NFD::SaveDialog(outPath, saveStateFilterItem, 1, nullptr, defaultName.c_str());
-
-                    if (result == NFD_OKAY)
-                        gbCore.saveState(outPath.get());
-
-                    fileDialogOpen = false;
+                    if (result.first)
+                        gbCore.saveState(result.second);
                 }
 
                 if (gbCore.cartridge.hasBattery)
                 {
                     if (ImGui::MenuItem("Export Battery"))
                     {
-                        fileDialogOpen = true;
-                        NFD::UniquePathN outPath;
+                        auto result = saveFileDialog(gbCore.gameTitle + " - Battery Save", batterySaveFilterItem);
 
-                        const auto defaultName = StringUtils::nativePath(gbCore.gameTitle + " - Battery Save");
-                        nfdresult_t result = NFD::SaveDialog(outPath, batterySaveFilterItem, 1, nullptr, defaultName.c_str());
-
-                        if (result == NFD_OKAY)
-                            gbCore.saveBattery(outPath.get());
-
-                        fileDialogOpen = false;
+                        if (result.first)
+                            gbCore.saveBattery(result.second);
                     }
                 }
             }
@@ -342,6 +352,33 @@ void renderImGUI()
 
             ImGui::EndMenu();
         }
+        if (ImGui::BeginMenu("Audio"))
+        {
+            ImGui::SeparatorText("Settings");
+
+            ImGui::Checkbox("Enable Audio", &gbCore.apu.enableAudio);
+            static int volume { static_cast<int>(gbCore.apu.volume * 100) };
+
+            if (ImGui::SliderInt("Volume", &volume, 0, 100))
+                gbCore.apu.volume = volume / 100.0;
+
+            ImGui::SeparatorText("Misc.");
+
+            if (ImGui::Button(gbCore.apu.recording ? "Stop Recording" : "Start Recording"))
+            {
+                if (gbCore.apu.recording)
+                    gbCore.apu.stopRecording();
+                else
+                {
+                    auto result = saveFileDialog(gbCore.gameTitle + " - Recording", audioSaveFilterItem);
+
+                    if (result.first)
+                        gbCore.apu.startRecording(result.second);
+                }
+            }
+
+            ImGui::EndMenu();
+        }
         if (ImGui::BeginMenu("Emulation"))
         {
             if (ImGui::MenuItem(gbCore.emulationPaused ? "Resume" : "Pause", "(Tab)"))
@@ -364,42 +401,27 @@ void renderImGUI()
 
             ImGui::EndMenu();
         }
-        if (ImGui::BeginMenu("Multiplayer"))
-        {
-            if (ImGui::MenuItem("Host"))
-                multiplayer.host();
 
-            if (ImGui::MenuItem("Join"))
-                multiplayer.connect("127.0.0.1");
+        // TODO AFTER GBC: MULTIPLAYER
 
-            ImGui::EndMenu();
-        }
+        //if (ImGui::BeginMenu("Multiplayer"))
+        //{
+        //    if (ImGui::MenuItem("Host"))
+        //        multiplayer.host();
+
+        //    if (ImGui::MenuItem("Join"))
+        //        multiplayer.connect("127.0.0.1");
+
+        //    ImGui::EndMenu();
+        //}
 
         debugUI::updateMenu();
 
-        if (gbCore.emulationPaused)
-        {
-            ImGui::Separator();
-            ImGui::Text("Emulation Paused");
-        }
-        else if (gbCore.cartridge.ROMLoaded && gbCore.getSaveNum() != 0)
+        if (gbCore.cartridge.ROMLoaded && gbCore.getSaveNum() != 0)
         {
             std::string text = "Save: " + std::to_string(gbCore.getSaveNum());
             ImGui::Separator();
             ImGui::Text(text.c_str());
-        }
-
-        if (gbCore.cartridge.ROMLoaded && !gbCore.emulationPaused)
-        {
-            float text_width = ImGui::CalcTextSize(FPS_text.data()).x;
-            float available_width = ImGui::GetContentRegionAvail().x;
-
-            if (text_width < available_width)
-            {
-                ImGui::SameLine(ImGui::GetWindowWidth() - text_width - ImGui::GetStyle().ItemSpacing.x * 3);
-                ImGui::Separator();
-                ImGui::Text(FPS_text.data());
-            }
         }
 
         ImGui::EndMainMenuBar();
@@ -476,10 +498,10 @@ void window_iconify_callback(GLFWwindow* _window, int iconified)
     if (iconified)
     {
         pausedPreEvent = gbCore.emulationPaused;
-        gbCore.emulationPaused = true;
+        setEmulationPaused(true);
     }
     else
-        gbCore.emulationPaused = pausedPreEvent;
+        setEmulationPaused(pausedPreEvent);
 }
 void window_focus_callback(GLFWwindow* _window, int focused)
 {
@@ -490,10 +512,10 @@ void window_focus_callback(GLFWwindow* _window, int focused)
     if (!focused)
     {
         pausedPreEvent = gbCore.emulationPaused;
-        gbCore.emulationPaused = true;
+        setEmulationPaused(true);
     }
     else
-        gbCore.emulationPaused = pausedPreEvent;
+        setEmulationPaused(pausedPreEvent);
 }
 
 void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mods)
@@ -504,12 +526,7 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
     {
         if (key == GLFW_KEY_TAB)
         {
-            if (gbCore.emulationPaused) gbCore.emulationPaused = false;
-            else
-            {
-                if (gbCore.cartridge.ROMLoaded) pauseOnVBlank = true;
-                else gbCore.emulationPaused = true;
-            }
+            setEmulationPaused(!gbCore.emulationPaused);
             return;
         }
         // number keys 1 though 0
@@ -538,13 +555,11 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
             if (gbCore.cartridge.ROMLoaded)
                 loadFile(gbCore.getSaveFolderPath() / "quicksave.mbs");
 
-            //multiplayer.testMessage();
             return;
         }
     }
-
-    if (!gbCore.emulationPaused)
-        gbCore.input.update(scancode, action);
+    
+    gbCore.input.update(scancode, action);
 }
 
 void drop_callback(GLFWwindow* _window, int count, const char** paths)
@@ -739,6 +754,7 @@ int main(int argc, char* argv[])
         {
             double fps = frameCount / fpsTimer;
             FPS_text = "FPS: " + std::format("{:.2f}", fps);
+            updateWindowTitle();
 
             frameCount = 0;
             fpsTimer = 0;

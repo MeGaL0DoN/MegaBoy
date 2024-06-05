@@ -1,5 +1,6 @@
 #include "debugUI.h"
 #include <ImGUI/imgui.h>
+#include <nfd/nfd.hpp>
 
 void debugUI::backgroundRenderEvent(const uint8_t* buffer, uint8_t LY)
 {
@@ -57,6 +58,10 @@ void debugUI::updateMenu()
             }
             else
                 gbCore.ppu.resetRenderCallbacks();
+        }
+        if (ImGui::MenuItem("Audio"))
+        {
+            showAudioView = !showAudioView;
         }
 
         ImGui::EndMenu();
@@ -137,21 +142,21 @@ enum class VRAMTab
 
 VRAMTab currentTab;
 
-void debugUI::updateTextures(bool forceUpdate)
+void debugUI::updateTextures(bool all)
 {
     if (showVRAMView)
     {
-        switch (forceUpdate ? VRAMTab::Background : currentTab)
+        switch (all ? VRAMTab::Background : currentTab)
         {
         case VRAMTab::Background:
             OpenGL::updateTexture(backgroundTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, BGFrameBuffer.get());
-            if (!forceUpdate) break;
+            if (!all) break;
         case VRAMTab::Window:
             OpenGL::updateTexture(windowTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, windowFrameBuffer.get());
-            if (!forceUpdate) break;
+            if (!all) break;
         case VRAMTab::OAM:
             OpenGL::updateTexture(OAMTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, OAMFrameBuffer.get());
-            if (!forceUpdate) break;
+            if (!all) break;
         case VRAMTab::TileData:
             gbCore.ppu.renderTileData(tileDataFrameBuffer.get());
             OpenGL::updateTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileDataFrameBuffer.get());
@@ -291,6 +296,21 @@ void debugUI::updateWindows(float scaleFactor)
 
             ImGui::EndTabBar();
         }
+
+        ImGui::End();
+    }
+
+    if (showAudioView)
+    {
+        ImGui::SetNextWindowSizeConstraints(ImVec2(-1.f, -1.f), ImVec2(INFINITY, INFINITY));
+        ImGui::Begin("Audio", &showAudioView);
+
+        ImGui::SeparatorText("Channel Options");
+
+        ImGui::Checkbox("Channel 1", &gbCore.apu.enableChannel1);
+        ImGui::Checkbox("Channel 2", &gbCore.apu.enableChannel2);
+        ImGui::Checkbox("Channel 3", &gbCore.apu.enableChannel3);
+        ImGui::Checkbox("Channel 4", &gbCore.apu.enableChannel4);
 
         ImGui::End();
     }

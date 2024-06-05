@@ -1,7 +1,10 @@
 #pragma once
 #include <cstdint>
 #include <array>
-#include <atomic>
+//#include <atomic>
+#include <vector>
+#include <filesystem>
+#include <fstream>
 #include <memory>
 
 class APU
@@ -19,7 +22,25 @@ public:
 	static constexpr uint32_t SAMPLE_RATE = 44100;
 	static constexpr uint32_t CYCLES_PER_SAMPLE = CPU_FREQUENCY / SAMPLE_RATE;
 
+	static constexpr uint16_t CHANNELS = 2;
+	static constexpr uint16_t BITS_PER_SAMPLE = sizeof(int16_t) * CHAR_BIT;
+
+	float volume { 1.0 };
+	bool enableAudio { true };
+
+	bool enableChannel1 { true };
+	bool enableChannel2 { true };
+	bool enableChannel3 { true };
+	bool enableChannel4 { true };
+
 	int16_t sample;
+
+	bool recording{ false };
+	void startRecording(const std::filesystem::path& filePath);
+	void stopRecording();
+
+	std::ofstream recordingStream;
+	std::vector<int16_t> recordingBuffer;
 
 	//static constexpr uint32_t BUFFER_SIZE = SAMPLE_RATE;
 	//std::array<int16_t, BUFFER_SIZE> sampleBuffer {};
@@ -31,6 +52,8 @@ private:
 
 	typedef class ma_device ma_device;
 	std::unique_ptr<ma_device> soundDevice;
+
+	void writeWAVHeader();
 
 	struct apuRegs
 	{
@@ -80,4 +103,25 @@ private:
 		{1, 0, 0, 0, 0, 1, 1, 1}, // 10000111, 50%
 		{0, 1, 1, 1, 1, 1, 1, 0}, // 01111110, 75%
 	};
+
+	uint16_t frameSequencerCycles{ 0 };
+	uint8_t frameSequencerStep{ 0 };
+	void executeFrameSequencer();
+
+	bool channel2Triggered { false };
+	uint8_t channel2LengthTimer;
+	void executeChannel2Length();
+
+	inline void triggerChannel2() { channel2Triggered = true; if (channel2LengthTimer == 0) updateChannel2LengthTimer(); channel2PeriodTimer = (regs.NR22 & 0x07); channel2Amplitude = (regs.NR22 >> 4); }
+	inline void updateChannel2LengthTimer() { channel2LengthTimer = 64 - (regs.NR21 & 0x3F); }
+
+	uint8_t channel2PeriodTimer { 0 };
+	uint8_t channel2Amplitude{ 0 };
+
+	void executeChannel2Envelope();
+
+	inline void updateChannel2Period()
+	{
+
+	}
 };

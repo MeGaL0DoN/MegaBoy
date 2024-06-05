@@ -184,13 +184,19 @@ void MMU::write8(uint16_t addr, uint8_t val)
 		case 0xFF14: 
 			gbCore.apu.regs.NR14 = val; break;
 		case 0xFF16: 
-			gbCore.apu.regs.NR21 = val; break;
+			gbCore.apu.regs.NR21 = val; 
+			gbCore.apu.updateChannel2LengthTimer();
+			break;
 		case 0xFF17: 
-			gbCore.apu.regs.NR22 = val; break;
+			gbCore.apu.regs.NR22 = val; 
+			gbCore.apu.updateChannel2Period();
+			break;
 		case 0xFF18: 
 			gbCore.apu.regs.NR23 = val; break;
 		case 0xFF19: 
-			gbCore.apu.regs.NR24 = val; break;
+			gbCore.apu.regs.NR24 = val; 
+			if (getBit(val, 7)) gbCore.apu.triggerChannel2();
+			break;
 		case 0xFF1A: 
 			gbCore.apu.regs.NR30 = val; break;
 		case 0xFF1B: 

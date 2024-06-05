@@ -4,15 +4,17 @@
 #include "APU.h"
 #include "GBCore.h"
 #include <iostream>
+#include "bitOps.h"
 
 extern GBCore gbCore;
 
 void sound_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
 {
-	if (gbCore.emulationPaused)
+	APU* apu = (APU*)pDevice->pUserData;
+
+	if (gbCore.emulationPaused || !gbCore.cartridge.ROMLoaded || !apu->enableAudio)
 		return;
 
-	APU* apu = (APU*)pDevice->pUserData;
 	int16_t* pOutput16 = (int16_t*)pOutput;
 
 	for (uint32_t i = 0; i < frameCount; i++)
@@ -28,12 +30,91 @@ void sound_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, 
 		//else
 		{
 			//auto sample = apu->sampleBuffer[apu->readIndex];
-			pOutput16[i * 2] = apu->sample;
-			pOutput16[i * 2 + 1] = apu->sample;
+
+			const auto sample = apu->sample * apu->volume;
+			pOutput16[i * 2] = sample;
+			pOutput16[i * 2 + 1] = sample;
 			//apu->readIndex = (apu->readIndex + 1) % APU::BUFFER_SIZE;
 		}
 	}
+
+	if (apu->recording)
+	{
+		size_t bufferLen = apu->recordingBuffer.size();
+		size_t newBufferLen = bufferLen + (frameCount * APU::CHANNELS);
+
+		apu->recordingBuffer.resize(newBufferLen);
+		std::memcpy(&apu->recordingBuffer[bufferLen], pOutput16, sizeof(int16_t) * APU::CHANNELS * frameCount);
+
+		if (newBufferLen >= APU::SAMPLE_RATE)
+		{
+			apu->recordingStream.write(reinterpret_cast<char*>(&apu->recordingBuffer[0]), newBufferLen * sizeof(int16_t));
+			apu->recordingBuffer.clear();
+		}
+	}
 }
+
+void APU::startRecording(const std::filesystem::path& filePath)
+{
+	recording = true;
+	recordingStream = std::ofstream(filePath);
+	recordingBuffer.reserve(APU::SAMPLE_RATE);
+	writeWAVHeader();
+}
+
+#define WRITE(val) recordingStream.write(reinterpret_cast<const char*>(&val), sizeof(val));
+
+void APU::writeWAVHeader()
+{
+	recordingStream.write("RIFF", 4);
+
+	uint32_t lengthReserve{};
+	WRITE(lengthReserve);
+	recordingStream.write("WAVE", 4);
+	recordingStream.write("fmt ", 4);
+
+	constexpr uint32_t SECTION_CHUNK_SIZE = 16;
+	WRITE(SECTION_CHUNK_SIZE);
+
+	constexpr uint16_t PCM_FORMAT = 1;
+	WRITE(PCM_FORMAT);
+
+	WRITE(APU::CHANNELS);
+	WRITE(APU::SAMPLE_RATE);
+
+	constexpr uint32_t BYTE_RATE = (SAMPLE_RATE * sizeof(int16_t) * CHANNELS) / 8;
+	WRITE(BYTE_RATE);
+
+	constexpr uint16_t BLOCK_ALIGN = (BITS_PER_SAMPLE * CHANNELS) / 8;
+	WRITE(BLOCK_ALIGN);
+	WRITE(BITS_PER_SAMPLE);
+
+	recordingStream.write("data", 4);
+
+	uint32_t dataLengthReserve{};
+	WRITE(dataLengthReserve);
+}
+
+void APU::stopRecording()
+{
+	recording = false;
+
+	recordingStream.seekp(0, std::ios::end);
+	const uint32_t fileSize = static_cast<uint32_t>(recordingStream.tellp()) - 8;
+
+	recordingStream.seekp(4, std::ios::beg);
+	WRITE(fileSize);
+
+	const uint32_t dataSize = fileSize - 36; // Header is 44 bytes, 44 - 8 = 36.
+	recordingStream.seekp(40, std::ios::beg);
+	WRITE(dataSize);
+
+	recordingStream.close();
+	recordingBuffer.clear();
+	recordingBuffer.shrink_to_fit();
+}
+
+#undef WRITE
 
 void APU::initMiniAudio()
 {
@@ -41,7 +122,7 @@ void APU::initMiniAudio()
 
 	ma_device_config deviceConfig = ma_device_config_init(ma_device_type_playback);
 	deviceConfig.playback.format = ma_format_s16;
-	deviceConfig.playback.channels = 2;
+	deviceConfig.playback.channels = CHANNELS;
 	deviceConfig.sampleRate = SAMPLE_RATE;
 	deviceConfig.dataCallback = sound_data_callback;
 	deviceConfig.pUserData = this;
@@ -58,6 +139,7 @@ APU::APU()
 APU::~APU()
 {
 	ma_device_uninit(soundDevice.get());
+	if (recording) stopRecording();
 }
 
 
@@ -166,11 +248,13 @@ APU::~APU()
 
 void APU::execute()
 {
+	executeFrameSequencer();
+
 	uint16_t period2 = regs.NR23;
 	period2 |= ((regs.NR24 & 0x07) << 8);
 	const uint32_t freq2 = 131072 / (2048 - period2);
 
-	const double amplitude2 = (regs.NR22 >> 4) / 15.0;
+	const double amplitude2 = channel2Amplitude / 15.0;
 	uint8_t dutyType2 = regs.NR21 >> 6;
 
 	if (++channel2Cycles >= CPU_FREQUENCY / (freq2 * 8))
@@ -181,11 +265,80 @@ void APU::execute()
 
 	if (++cycles >= CYCLES_PER_SAMPLE)
 	{
-		/*int16_t*/ sample = (dutyCycles[dutyType2][dutyStep2] * amplitude2) * 32767;
+		/*int16_t*/
+
+		sample = 0;
+		
+		if (channel2Triggered && enableChannel2)
+			sample += (dutyCycles[dutyType2][dutyStep2] * amplitude2) * 32767;
+
+
 		cycles = 0;
 
 		//sampleBuffer[writeIndex] = sample;
 		//writeIndex = (writeIndex + 1) % BUFFER_SIZE;
+	}
+}
+
+void APU::executeFrameSequencer()
+{
+	frameSequencerCycles++;
+
+	if (frameSequencerCycles >= 2048)
+	{
+		frameSequencerCycles = 0;
+		frameSequencerStep = (frameSequencerStep + 1) % 8;
+
+		if (frameSequencerStep % 2 == 0)
+		{
+			// run length;
+			executeChannel2Length();
+
+			if (frameSequencerStep == 2 || frameSequencerStep == 6)
+			{
+				// run sweep
+			}
+		}
+		else if (frameSequencerStep == 7)
+		{
+			// run envelope
+			executeChannel2Envelope();
+		}
+	}
+}
+
+void APU::executeChannel2Length()
+{
+	if (!getBit(6, regs.NR24))
+		return;
+
+	channel2LengthTimer--;
+
+	if (channel2LengthTimer = 0)
+		channel2Triggered = false;
+}
+
+void APU::executeChannel2Envelope()
+{
+	if ((regs.NR22 & 0x07) == 0) return;
+
+	if (channel2PeriodTimer > 0)
+		channel2PeriodTimer--;
+
+	if (channel2PeriodTimer == 0)
+	{
+		channel2PeriodTimer = (regs.NR22 & 0x07);
+
+		if (getBit(regs.NR22, 3))
+		{
+			if (channel2Amplitude < 0xF)
+				channel2Amplitude++;
+		}
+		else
+		{
+			if (channel2Amplitude > 0)
+				channel2Amplitude--;
+		}
 	}
 }
 

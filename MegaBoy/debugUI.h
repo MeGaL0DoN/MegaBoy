@@ -12,7 +12,7 @@ class debugUI
 public:
 	static void updateMenu();
 	static void updateWindows(float scaleFactor);
-	static void updateTextures(bool forceUpdate);
+	static void updateTextures(bool all);
 
 	static inline void clearBuffers()
 	{
@@ -36,6 +36,8 @@ private:
 	static inline uint32_t windowTexture{ 0 };
 	static inline uint32_t OAMTexture{ 0 };
 	static inline uint32_t tileDataTexture {0};
+
+	static inline bool showAudioView{ false };
 
 	static inline void clearBGBuffer(uint8_t* buffer) { PixelOps::clearBuffer(buffer, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu.getCurrentPalette()[0]); }
 	static inline void clearTileDataBuffer() { PixelOps::clearBuffer(tileDataFrameBuffer.get(), PPU::TILES_WIDTH, PPU::TILES_HEIGHT, gbCore.ppu.getCurrentPalette()[0]); }
