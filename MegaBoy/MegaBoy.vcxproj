@@ -172,6 +172,7 @@
     <ClCompile Include="RTCTimer.cpp" />
     <ClCompile Include="serialPort.cpp" />
     <ClCompile Include="Shader.cpp" />
+    <ClCompile Include="squareWave.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="appConfig.h" />
@@ -209,6 +210,7 @@
     <ClInclude Include="serialPort.h" />
     <ClInclude Include="Shader.h" />
     <ClInclude Include="shaders.h" />
+    <ClInclude Include="squareWave.h" />
     <ClInclude Include="stringUtils.h" />
   </ItemGroup>
   <ItemGroup>

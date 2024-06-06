@@ -142,6 +142,25 @@ APU::~APU()
 	if (recording) stopRecording();
 }
 
+void APU::resetRegs()
+{
+	regs = {}; // to remove
+
+	channel1.reset();
+
+	channel1.regs.NRx1 = 0xBF;
+	channel1.regs.NRx2 = 0xF3;
+	channel1.regs.NRx3 = 0xFF;
+	channel1.regs.NRx4 = 0xBF;
+
+	channel2.reset();
+
+	channel2.regs.NRx1 = 0x3F;
+	channel2.regs.NRx2 = 0xF3;
+	channel2.regs.NRx3 = 0xFF;
+	channel2.regs.NRx4 = 0xBF;
+}
+
 
 
 //void sound_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
@@ -249,31 +268,27 @@ APU::~APU()
 void APU::execute()
 {
 	executeFrameSequencer();
+	channel1.executeDuty();
+	channel2.executeDuty();
 
-	uint16_t period2 = regs.NR23;
-	period2 |= ((regs.NR24 & 0x07) << 8);
-	const uint32_t freq2 = 131072 / (2048 - period2);
-
-	const double amplitude2 = channel2Amplitude / 15.0;
-	uint8_t dutyType2 = regs.NR21 >> 6;
-
-	if (++channel2Cycles >= CPU_FREQUENCY / (freq2 * 8))
+	if (++sampleCycles >= CYCLES_PER_SAMPLE)
 	{
-		dutyStep2 = (dutyStep2 + 1) % 8;
-		channel2Cycles = 0;
-	}
+		uint8_t enabledChannels { 0 };
+		float newSample { 0 };
 
-	if (++cycles >= CYCLES_PER_SAMPLE)
-	{
-		/*int16_t*/
+		if (enableChannel1 && channel1.s.triggered)
+		{
+			enabledChannels++;
+			newSample += channel1.getSample();
+		}
+		if (enableChannel2 && channel2.s.triggered)
+		{
+			enabledChannels++;
+			newSample += channel2.getSample();
+		}
 
-		sample = 0;
-		
-		if (channel2Triggered && enableChannel2)
-			sample += (dutyCycles[dutyType2][dutyStep2] * amplitude2) * 32767;
-
-
-		cycles = 0;
+		sample = (newSample / enabledChannels) * 32767;
+		sampleCycles = 0;
 
 		//sampleBuffer[writeIndex] = sample;
 		//writeIndex = (writeIndex + 1) % BUFFER_SIZE;
@@ -292,7 +307,8 @@ void APU::executeFrameSequencer()
 		if (frameSequencerStep % 2 == 0)
 		{
 			// run length;
-			executeChannel2Length();
+			channel1.executeLength();
+			channel2.executeLength();
 
 			if (frameSequencerStep == 2 || frameSequencerStep == 6)
 			{
@@ -302,45 +318,46 @@ void APU::executeFrameSequencer()
 		else if (frameSequencerStep == 7)
 		{
 			// run envelope
-			executeChannel2Envelope();
+			channel1.executeEnvelope();
+			channel2.executeEnvelope();
 		}
 	}
 }
 
-void APU::executeChannel2Length()
-{
-	if (!getBit(6, regs.NR24))
-		return;
-
-	channel2LengthTimer--;
-
-	if (channel2LengthTimer = 0)
-		channel2Triggered = false;
-}
-
-void APU::executeChannel2Envelope()
-{
-	if ((regs.NR22 & 0x07) == 0) return;
-
-	if (channel2PeriodTimer > 0)
-		channel2PeriodTimer--;
-
-	if (channel2PeriodTimer == 0)
-	{
-		channel2PeriodTimer = (regs.NR22 & 0x07);
-
-		if (getBit(regs.NR22, 3))
-		{
-			if (channel2Amplitude < 0xF)
-				channel2Amplitude++;
-		}
-		else
-		{
-			if (channel2Amplitude > 0)
-				channel2Amplitude--;
-		}
-	}
-}
+//void APU::executeChannel2Length()
+//{
+//	if (!getBit(6, regs.NR24))
+//		return;
+//
+//	channel2LengthTimer--;
+//
+//	if (channel2LengthTimer = 0)
+//		channel2Triggered = false;
+//}
+//
+//void APU::executeChannel2Envelope()
+//{
+//	if ((regs.NR22 & 0x07) == 0) return;
+//
+//	if (channel2PeriodTimer > 0)
+//		channel2PeriodTimer--;
+//
+//	if (channel2PeriodTimer == 0)
+//	{
+//		channel2PeriodTimer = (regs.NR22 & 0x07);
+//
+//		if (getBit(regs.NR22, 3))
+//		{
+//			if (channel2Amplitude < 0xF)
+//				channel2Amplitude++;
+//		}
+//		else
+//		{
+//			if (channel2Amplitude > 0)
+//				channel2Amplitude--;
+//		}
+//	}
+//}
 
 
 //void APU::execute()

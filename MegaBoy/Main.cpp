@@ -60,7 +60,8 @@ GBMultiplayer multiplayer { gbCore };
 
 inline void updateWindowTitle()
 {
-    std::string title = (gbCore.gameTitle == "" ? "MegaBoy" : "MegaBoy - " + gbCore.gameTitle) + " (" + (gbCore.emulationPaused ? "Emulation Paused" : FPS_text) + ")";
+    std::string title = (gbCore.gameTitle == "" ? "MegaBoy" : "MegaBoy - " + gbCore.gameTitle);
+    if (gbCore.cartridge.ROMLoaded) title += " (" + (gbCore.emulationPaused ? "Emulation Paused" : FPS_text) + ")";
     glfwSetWindowTitle(window, title.c_str());
 }
 
@@ -215,7 +216,7 @@ inline void updateImGUIViewports()
     }
 }
 
-std::pair<bool, std::filesystem::path> saveFileDialog(const std::string& defaultName, const nfdnfilteritem_t* filter)
+std::optional<std::filesystem::path> saveFileDialog(const std::string& defaultName, const nfdnfilteritem_t* filter)
 {
     fileDialogOpen = true;
     NFD::UniquePathN outPath;
@@ -224,17 +225,17 @@ std::pair<bool, std::filesystem::path> saveFileDialog(const std::string& default
     nfdresult_t result = NFD::SaveDialog(outPath, filter, 1, nullptr, NdefaultName.c_str());
 
     fileDialogOpen = false;
-    return std::make_pair(result == NFD_OKAY, outPath.get());
+    return result == NFD_OKAY ? std::make_optional(outPath.get()) : std::nullopt;
 }
 
-std::pair<bool, std::filesystem::path> openFileDialog(const nfdnfilteritem_t* filter)
+std::optional<std::filesystem::path> openFileDialog(const nfdnfilteritem_t* filter)
 {
     fileDialogOpen = true;
     NFD::UniquePathN outPath;
     nfdresult_t result = NFD::OpenDialog(outPath, filter, 1);
 
     fileDialogOpen = false;
-    return std::make_pair(result == NFD_OKAY, outPath.get());
+    return result == NFD_OKAY ? std::make_optional(outPath.get()) : std::nullopt;
 }
 
 void renderImGUI()
@@ -251,8 +252,8 @@ void renderImGUI()
             {           
                 auto result = openFileDialog(openFilterItem);
 
-                if (result.first)
-                    loadFile(result.second);
+                if (result.has_value())
+                    loadFile(result.value());
             }
 
             if (gbCore.cartridge.ROMLoaded)
@@ -261,8 +262,8 @@ void renderImGUI()
                 {
                     auto result = saveFileDialog(gbCore.gameTitle + " - Save State", saveStateFilterItem);
 
-                    if (result.first)
-                        gbCore.saveState(result.second);
+                    if (result.has_value())
+                        gbCore.saveState(result.value());
                 }
 
                 if (gbCore.cartridge.hasBattery)
@@ -271,8 +272,8 @@ void renderImGUI()
                     {
                         auto result = saveFileDialog(gbCore.gameTitle + " - Battery Save", batterySaveFilterItem);
 
-                        if (result.first)
-                            gbCore.saveBattery(result.second);
+                        if (result.has_value())
+                            gbCore.saveBattery(result.value());
                     }
                 }
             }
@@ -372,8 +373,8 @@ void renderImGUI()
                 {
                     auto result = saveFileDialog(gbCore.gameTitle + " - Recording", audioSaveFilterItem);
 
-                    if (result.first)
-                        gbCore.apu.startRecording(result.second);
+                    if (result.has_value())
+                        gbCore.apu.startRecording(result.value());
                 }
             }
 

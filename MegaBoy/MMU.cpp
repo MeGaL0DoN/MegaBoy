@@ -176,26 +176,31 @@ void MMU::write8(uint16_t addr, uint8_t val)
 		case 0xFF10: 
 			gbCore.apu.regs.NR10 = val; break;
 		case 0xFF11:
-			gbCore.apu.regs.NR11 = val; break;
+			gbCore.apu.channel1.regs.NRx1 = val; 
+			gbCore.apu.channel1.updateLengthTimer();
+			break;
 		case 0xFF12: 
-			gbCore.apu.regs.NR12 = val; break;
+			gbCore.apu.channel1.regs.NRx2 = val; 
+			break;
 		case 0xFF13:
-			gbCore.apu.regs.NR13 = val; break;
+			gbCore.apu.channel1.regs.NRx3 = val; 
+			break;
 		case 0xFF14: 
-			gbCore.apu.regs.NR14 = val; break;
+			gbCore.apu.channel1.regs.NRx4 = val; 
+			if (getBit(val, 7)) gbCore.apu.channel1.trigger();
+			break;
 		case 0xFF16: 
-			gbCore.apu.regs.NR21 = val; 
-			gbCore.apu.updateChannel2LengthTimer();
+			gbCore.apu.channel2.regs.NRx1 = val; 
+			gbCore.apu.channel2.updateLengthTimer();
 			break;
 		case 0xFF17: 
-			gbCore.apu.regs.NR22 = val; 
-			gbCore.apu.updateChannel2Period();
+			gbCore.apu.channel2.regs.NRx2 = val; 
 			break;
 		case 0xFF18: 
-			gbCore.apu.regs.NR23 = val; break;
+			gbCore.apu.channel2.regs.NRx3 = val; break;
 		case 0xFF19: 
-			gbCore.apu.regs.NR24 = val; 
-			if (getBit(val, 7)) gbCore.apu.triggerChannel2();
+			gbCore.apu.channel2.regs.NRx4 = val; 
+			if (getBit(val, 7)) gbCore.apu.channel2.trigger();
 			break;
 		case 0xFF1A: 
 			gbCore.apu.regs.NR30 = val; break;
@@ -327,21 +332,21 @@ uint8_t MMU::read8(uint16_t addr) const
 		case 0xFF10: 
 			return gbCore.apu.regs.NR10;
 		case 0xFF11: 
-			return gbCore.apu.regs.NR11;
+			return gbCore.apu.channel1.regs.NRx1;
 		case 0xFF12: 
-			return gbCore.apu.regs.NR12;
+			return gbCore.apu.channel1.regs.NRx2;
 		case 0xFF13: 
-			return gbCore.apu.regs.NR13;
+			return gbCore.apu.channel1.regs.NRx3;
 		case 0xFF14: 
-			return gbCore.apu.regs.NR14;
+			return gbCore.apu.channel1.regs.NRx4;
 		case 0xFF16: 
-			return gbCore.apu.regs.NR21;
+			return gbCore.apu.channel2.regs.NRx1;
 		case 0xFF17: 
-			return gbCore.apu.regs.NR22;
+			return gbCore.apu.channel2.regs.NRx2;
 		case 0xFF18: 
-			return gbCore.apu.regs.NR23;
+			return gbCore.apu.channel2.regs.NRx3;
 		case 0xFF19: 
-			return gbCore.apu.regs.NR24;
+			return gbCore.apu.channel2.regs.NRx4;
 		case 0xFF1A: 
 			return gbCore.apu.regs.NR30;
 		case 0xFF1B:

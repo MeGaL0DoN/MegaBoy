@@ -34,6 +34,18 @@
     <Filter Include="Header Files\Mappers">
       <UniqueIdentifier>{8d81a30c-7a6f-4c96-aa70-b1c924a466d4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\APU">
+      <UniqueIdentifier>{ed61e44f-05e6-43ba-aef6-73daa5cbb297}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\APU">
+      <UniqueIdentifier>{1ed6cd0b-5676-44db-b7e8-aa34ac3c680f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\CPU">
+      <UniqueIdentifier>{f5eadda9-6f9a-4875-b051-450874605e82}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\CPU">
+      <UniqueIdentifier>{9d6658e5-a39c-4c06-8ee4-77fc45ed4029}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Main.cpp">
@@ -63,9 +75,6 @@
     <ClCompile Include="Libs\glad\glad.c">
       <Filter>Source Files\glad</Filter>
     </ClCompile>
-    <ClCompile Include="CPU.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="PPU.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -73,9 +82,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="GBCore.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="CPU_interrupts.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="inputManager.cpp">
@@ -99,9 +105,6 @@
     <ClCompile Include="MBC1.cpp">
       <Filter>Source Files\Mappers</Filter>
     </ClCompile>
-    <ClCompile Include="APU.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="MBC2.cpp">
       <Filter>Source Files\Mappers</Filter>
     </ClCompile>
@@ -122,6 +125,18 @@
     </ClCompile>
     <ClCompile Include="GBMultiplayer.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="APU.cpp">
+      <Filter>Source Files\APU</Filter>
+    </ClCompile>
+    <ClCompile Include="CPU.cpp">
+      <Filter>Source Files\CPU</Filter>
+    </ClCompile>
+    <ClCompile Include="CPU_interrupts.cpp">
+      <Filter>Source Files\CPU</Filter>
+    </ClCompile>
+    <ClCompile Include="squareWave.cpp">
+      <Filter>Source Files\APU</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -155,13 +170,7 @@
     <ClInclude Include="Shader.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CPU.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="PPU.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="instructionsEngine.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="MMU.h">
@@ -193,9 +202,6 @@
     </ClInclude>
     <ClInclude Include="MBC1.h">
       <Filter>Header Files\Mappers</Filter>
-    </ClInclude>
-    <ClInclude Include="APU.h">
-      <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="EmptyMBC.h">
       <Filter>Header Files\Mappers</Filter>
@@ -233,13 +239,25 @@
     <ClInclude Include="GBMultiplayer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="APU.h">
+      <Filter>Header Files\APU</Filter>
+    </ClInclude>
+    <ClInclude Include="CPU.h">
+      <Filter>Header Files\CPU</Filter>
+    </ClInclude>
+    <ClInclude Include="instructionsEngine.h">
+      <Filter>Header Files\CPU</Filter>
+    </ClInclude>
+    <ClInclude Include="squareWave.h">
+      <Filter>Header Files\APU</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="registers.h">
-      <Filter>Header Files</Filter>
-    </None>
     <None Include="bitOps.h">
       <Filter>Header Files</Filter>
+    </None>
+    <None Include="registers.h">
+      <Filter>Header Files\CPU</Filter>
     </None>
   </ItemGroup>
 </Project>
