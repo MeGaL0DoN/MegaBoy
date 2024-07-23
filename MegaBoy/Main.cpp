@@ -432,17 +432,24 @@ void renderImGUI()
     {
         ImGui::OpenPopup(errorPopupTitle);
         errorLoadingROM = false;
+        ImGui::SetNextWindowSize(ImVec2(ImGui::CalcTextSize(errorPopupTitle).x + (ImGui::GetStyle().WindowPadding.x * 2), -1.0f), ImGuiCond_Appearing);
     }
 
-    if (ImGui::BeginPopupModal(errorPopupTitle, 0, ImGuiWindowFlags_NoMove))
+    if (ImGui::BeginPopupModal(errorPopupTitle, NULL, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize))
     {
-        float windowWidth = ImGui::GetWindowSize().x;
-        ImGui::SetCursorPosX((windowWidth - (75.0f * scaleFactor)) * 0.5f);
+        ImVec2 viewportCenter = ImGui::GetMainViewport()->GetCenter();
+        ImVec2 windowSize = ImGui::GetWindowSize();
 
-        if (ImGui::Button("Ok", ImVec2(75 * scaleFactor, 30 * scaleFactor)))
+        ImVec2 windowPos = ImVec2(viewportCenter.x - windowSize.x * 0.5f, viewportCenter.y - windowSize.y * 0.5f);
+        ImGui::SetWindowPos(windowPos);
+
+        const float buttonWidth = ImGui::GetContentRegionAvail().x * 0.5f;
+        const float windowWidth = ImGui::GetWindowSize().x;
+        ImGui::SetCursorPosX((windowWidth - buttonWidth) * 0.5f);
+
+        if (ImGui::Button("OK", ImVec2(buttonWidth, 0)))
             ImGui::CloseCurrentPopup();
 
-        ImGui::SetWindowSize(ImVec2(ImGui::CalcTextSize(errorPopupTitle).x + ImGui::GetStyle().FramePadding.x, ImGui::GetContentRegionAvail().y));
         ImGui::EndPopup();
     }
 
@@ -521,7 +528,7 @@ void window_focus_callback(GLFWwindow* _window, int focused)
 
 void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mods)
 {
-    (void)_window;
+    (void)_window; (void)scancode;
 
     if (action == 1)
     {
@@ -531,15 +538,15 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
             return;
         }
         // number keys 1 though 0
-        if (scancode >= 2 && scancode <= 11)
+        if (key >= 48 && key <= 57)
         {
             if (!gbCore.cartridge.ROMLoaded) return;
 
             if (mods & GLFW_MOD_CONTROL)
-                gbCore.saveState(scancode - 1);
+                gbCore.saveState(key - 48);
 
             else if (mods & GLFW_MOD_SHIFT)
-                gbCore.loadState(scancode - 1);
+                gbCore.loadState(key - 48);
 
             return;
         }
@@ -560,7 +567,7 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
         }
     }
     
-    gbCore.input.update(scancode, action);
+    gbCore.input.update(key, action);
 }
 
 void drop_callback(GLFWwindow* _window, int count, const char** paths)
@@ -656,41 +663,7 @@ void setImGUI()
     ImGui_ImplOpenGL3_Init("#version 330");
 }
 
-//void compareFiles()
-//{
-//    std::ifstream newV("megaboyLog.txt");
-//    std::ifstream oldV("otherLogs.txt");
-//
-//    std::vector<std::string> newLines;
-//    std::vector<std::string> oldLines;
-//
-//    newLines.reserve(400000);
-//    oldLines.reserve(400000);
-//
-//    std::string line;
-//
-//    while (std::getline(newV, line))
-//    {
-//        newLines.push_back(line);
-//    }
-//
-//    while (std::getline(oldV, line))
-//    {
-//        oldLines.push_back(line);
-//    }
-//
-//    for (int i = 0; i < 400000; i++)
-//    {
-//        if (newLines[i] != oldLines[i])
-//        {
-//            std::cout << "Difference at line " << i + 1 << "\n";
-//            std::cout << newLines[i] << "\n";
-//            return;
-//        }
-//    }
-//
-//    std::cout << "No differences! \n";
-//}
+// todo: fix vsync cpu cycles handling
 
 int main(int argc, char* argv[])
 {
@@ -698,6 +671,7 @@ int main(int argc, char* argv[])
 
     if (!setGLFW()) return -1;
     setImGUI();
+    NFD_Init();
     setWindowSize();
     setBuffers();
 
@@ -773,5 +747,11 @@ int main(int argc, char* argv[])
 
     gbCore.saveCurrentROM();
     appConfig::updateConfigFile();
-    return 1;
+
+    NFD_Quit();
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    glfwTerminate();
+
+    return 0;
 }

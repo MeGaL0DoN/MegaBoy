@@ -187,7 +187,11 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 		case 0xFF14: 
 			gbCore.apu.channel1.regs.NRx4 = val; 
-			if (getBit(val, 7)) gbCore.apu.channel1.trigger();
+			if (getBit(val, 7))
+			{
+				gbCore.apu.channel1.trigger();
+				gbCore.apu.triggerSweep();
+			}
 			break;
 		case 0xFF16: 
 			gbCore.apu.channel2.regs.NRx1 = val; 
@@ -197,7 +201,8 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			gbCore.apu.channel2.regs.NRx2 = val; 
 			break;
 		case 0xFF18: 
-			gbCore.apu.channel2.regs.NRx3 = val; break;
+			gbCore.apu.channel2.regs.NRx3 = val;
+			break;
 		case 0xFF19: 
 			gbCore.apu.channel2.regs.NRx4 = val; 
 			if (getBit(val, 7)) gbCore.apu.channel2.trigger();
@@ -245,6 +250,9 @@ template uint8_t MMU::read8<false>(uint16_t) const;
 template <bool dmaBlocking>
 uint8_t MMU::read8(uint16_t addr) const
 {
+	if (addr == 0xFF46)
+		return s.dma.reg;
+
 	if constexpr (dmaBlocking)
 	{
 		if (dmaInProgress() && (addr < 0xFF80 || addr > 0xFFFE)) // during DMA only HRAM can be accessed. // TODO: DISABLE ON GBC!
@@ -316,8 +324,6 @@ uint8_t MMU::read8(uint16_t addr) const
 			return gbCore.ppu.s.LY;
 		case 0xFF45:
 			return gbCore.ppu.regs.LYC;
-		case 0xFF46:
-			return s.dma.reg;
 		case 0xFF47:
 			return gbCore.ppu.regs.BGP;
 		case 0xFF48:

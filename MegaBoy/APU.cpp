@@ -273,21 +273,24 @@ void APU::execute()
 
 	if (++sampleCycles >= CYCLES_PER_SAMPLE)
 	{
-		uint8_t enabledChannels { 0 };
+		//uint8_t enabledChannels { 0 };
 		float newSample { 0 };
 
-		if (enableChannel1 && channel1.s.triggered)
-		{
-			enabledChannels++;
-			newSample += channel1.getSample();
-		}
-		if (enableChannel2 && channel2.s.triggered)
-		{
-			enabledChannels++;
-			newSample += channel2.getSample();
-		}
+		//if (enableChannel1 && channel1.s.triggered)
+		//{
+		//	enabledChannels++;
+		//	newSample += channel1.getSample();
+		//}
+		//if (enableChannel2 && channel2.s.triggered)
+		//{
+		//	enabledChannels++;
+		//	newSample += channel2.getSample();
+		//}
 
-		sample = (newSample / enabledChannels) * 32767;
+		newSample += channel1.getSample() * enableChannel1;
+		newSample += channel2.getSample() * enableChannel2;
+
+		sample = (newSample / 4) * 32767;
 		sampleCycles = 0;
 
 		//sampleBuffer[writeIndex] = sample;
@@ -297,12 +300,9 @@ void APU::execute()
 
 void APU::executeFrameSequencer()
 {
-	frameSequencerCycles++;
-
-	if (frameSequencerCycles >= 2048)
+	if (++frameSequencerCycles >= 2048)
 	{
 		frameSequencerCycles = 0;
-		frameSequencerStep = (frameSequencerStep + 1) % 8;
 
 		if (frameSequencerStep % 2 == 0)
 		{
@@ -313,6 +313,7 @@ void APU::executeFrameSequencer()
 			if (frameSequencerStep == 2 || frameSequencerStep == 6)
 			{
 				// run sweep
+				executeSweep();
 			}
 		}
 		else if (frameSequencerStep == 7)
@@ -320,6 +321,54 @@ void APU::executeFrameSequencer()
 			// run envelope
 			channel1.executeEnvelope();
 			channel2.executeEnvelope();
+		}
+
+		frameSequencerStep = (frameSequencerStep + 1) % 8;
+	}
+}
+
+uint16_t APU::calculateSweepPeriod()
+{
+	uint8_t sweepStep = regs.NR10 & 0x7;
+	uint16_t newFreq = shadowSweepPeriod >> sweepStep;
+
+	if (getBit(regs.NR10, 3))
+		newFreq = shadowSweepPeriod - newFreq;
+	else
+		newFreq = shadowSweepPeriod + newFreq;
+
+	if (newFreq > 2047)
+		channel1.s.triggered = false;
+
+	return newFreq;
+}
+
+void APU::executeSweep()
+{
+	if (sweepTimer > 0)
+		sweepTimer--;
+
+	if (sweepTimer == 0)
+	{
+		if (sweepPace == 0) sweepTimer = 8;
+		else sweepTimer = sweepPace;
+
+		if (sweepEnabled && sweepPace > 0)
+		{
+			const uint16_t newPeriod = calculateSweepPeriod();
+			const uint8_t sweepStep = regs.NR10 & 0x7;
+
+			if (newPeriod < 2048 && sweepStep > 0)
+			{
+				//channel1.s.period = newPeriod;
+				channel1.regs.NRx3 = newPeriod & 0xFF;
+				channel1.regs.NRx4 |= ((newPeriod & 0x700) >> 8);
+
+				shadowSweepPeriod = newPeriod;
+				sweepPace = (regs.NR10 >> 4) & 0x7;
+
+				calculateSweepPeriod();
+			}
 		}
 	}
 }

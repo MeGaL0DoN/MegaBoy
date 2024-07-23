@@ -138,6 +138,12 @@
     <ClCompile Include="squareWave.cpp">
       <Filter>Source Files\APU</Filter>
     </ClCompile>
+    <ClCompile Include="gbSystem.h">
+      <Filter>Header Files</Filter>
+    </ClCompile>
+    <ClCompile Include="gbSystem.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Libs\ImGUI\imconfig.h">

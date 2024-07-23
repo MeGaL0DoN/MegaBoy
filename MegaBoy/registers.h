@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include "bitOps.h"
+#include "gbSystem.h"
 
 struct Register8
 {
@@ -67,14 +68,33 @@ struct registerCollection
 
 	void reset()
 	{
-		A = 0x01;
-		B = 0x00;
-		C = 0x13;
-		D = 0x00;
-		E = 0xD8;
-		F = 0xB0;
-		H = 0x01;
-		L = 0x4D;
+		switch (System::Current())
+		{
+		case GBSystem::DMG:
+			{
+				A = 0x01;
+				B = 0x00;
+				C = 0x13;
+				D = 0x00;
+				E = 0xD8;
+				F = 0xB0;
+				H = 0x01;
+				L = 0x4D;
+				break;
+			}
+		case GBSystem::GBC:
+			{
+				A = 0x11;
+				B = 0x00;
+				C = 0x00;
+				D = 0xFF;
+				E = 0x56;
+				F = 0x00;
+				H = 0x00;
+				L = 0x0D;
+				break;
+			}
+		}
 	}
 
 	inline bool getFlag(FlagType flag)

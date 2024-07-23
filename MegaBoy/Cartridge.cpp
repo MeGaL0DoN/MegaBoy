@@ -3,6 +3,7 @@
 
 #include "Cartridge.h"
 #include "GBCore.h"
+#include "gbSystem.h"
 #include "RomOnlyMBC.h"
 #include "EmptyMBC.h"
 #include "MBC1.h"
@@ -161,7 +162,18 @@ bool Cartridge::proccessCartridgeHeader(const std::vector<uint8_t>& buffer)
 
 	gbCore.gameTitle = "";
 
-	for (int i = 0x134; i <= 0x143; i++)
+	uint16_t titleEnd = 0x143;
+
+	if (buffer[titleEnd] == 0x80 || buffer[titleEnd] == 0xC0) // GBC flag (0x80 is also backwards compatible with DMG) // TODO: add force DMG mode setting
+	{
+		std::cout << "GBC ROM detected! \n"; // to remove
+		System::Set(GBSystem::GBC);
+		titleEnd--;
+	}
+	else
+		System::Set(GBSystem::DMG);
+
+	for (int i = 0x134; i <= titleEnd; i++)
 	{
 		if (buffer[i] == 0x00 || buffer[i] > 127) break; // If reached the end, or found illegal character
 		gbCore.gameTitle += buffer[i];

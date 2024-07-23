@@ -116,6 +116,31 @@ private:
 	uint8_t frameSequencerStep{ 0 };
 	void executeFrameSequencer();
 
+	uint16_t shadowSweepPeriod{ 0 };
+	bool sweepEnabled{ false };
+
+	uint8_t sweepTimer{ 0 };
+	uint8_t sweepPace { 0 };
+
+	inline void triggerSweep()
+	{
+		shadowSweepPeriod = channel1.getPeriod();
+		sweepPace = (regs.NR10 >> 4) & 0x7;
+
+		if (sweepPace == 0) sweepTimer = 8;
+		else sweepTimer = sweepPace;
+
+		uint8_t sweepStep = regs.NR10 & 0x7;
+		sweepEnabled = sweepPace > 0 || sweepStep > 0;
+
+		if (sweepStep > 0) calculateSweepPeriod();
+	}
+
+	void executeSweep();
+	uint16_t calculateSweepPeriod();
+
+
+
 	//bool channel2Triggered { false };
 	//uint8_t channel2LengthTimer;
 	//void executeChannel2Length();

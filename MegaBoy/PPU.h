@@ -121,6 +121,10 @@ private:
 	CPU& cpu;
 
 	std::array<uint8_t, 8192> VRAM{};
+
+
+	std::array<uint8_t, 8192> VRAM_BANK1{};
+
 	std::array<uint8_t, 160> OAM{};
 
 	bool canAccessOAM;
@@ -153,6 +157,11 @@ private:
 
 	constexpr void setPixel(uint8_t x, uint8_t y, color c) { PixelOps::setPixel(framebuffer.data(), SCR_WIDTH, x, y, c); }
 	constexpr color getPixel(uint8_t x, uint8_t y) { return PixelOps::getPixel(framebuffer.data(), SCR_WIDTH, x, y); }
+
+	inline void setVRAMBank(uint8_t val)
+	{
+
+	}
 
 	std::array<uint8_t, 4> BGpalette;
 	std::array<uint8_t, 4> OBP0palette;

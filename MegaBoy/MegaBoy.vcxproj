@@ -110,7 +110,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\sidor\source\repos\MegaBoy\MegaBoy\Libs;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)\Libs;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <TreatWarningAsError>false</TreatWarningAsError>
       <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
@@ -130,7 +130,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\sidor\source\repos\MegaBoy\MegaBoy\Libs;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)\Libs;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
@@ -151,6 +151,7 @@
     <ClCompile Include="debugUI.cpp" />
     <ClCompile Include="GBCore.cpp" />
     <ClCompile Include="GBMultiplayer.cpp" />
+    <ClCompile Include="gbSystem.cpp" />
     <ClCompile Include="glFunctions.cpp" />
     <ClCompile Include="HuC1.cpp" />
     <ClCompile Include="inputManager.cpp" />
@@ -173,6 +174,7 @@
     <ClCompile Include="serialPort.cpp" />
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="squareWave.cpp" />
+    <ClCompile Include="gbSystem.h" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="appConfig.h" />

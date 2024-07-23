@@ -1,29 +1,32 @@
 #include "inputManager.h"
 #include "bitOps.h"
+
 #include <map>
 
 #define INT8(val) static_cast<uint8_t>(val)
 
+// GLFW to gameboy key mappings
+
 const std::map<int, uint8_t> buttonKeyConfig 
 {
-	{57, INT8(3)}, // Space (Start)
-	{28, INT8(2)}, // Enter (Select)
-	{44, INT8(1)}, // Z (B)
-	{45, INT8(0)}  // X (A)
+	{32, INT8(3)}, // Space (Start)
+	{257,INT8(2)}, // Enter (Select)
+	{90, INT8(1)}, // Z (B)
+	{88, INT8(0)}  // X (A)
 };
 const std::map<int, uint8_t> dpadKeyConfig 
 {
 	// WASD
-	{31, INT8(3)},
-	{17, INT8(2)},
-	{30, INT8(1)},
-	{32, INT8(0)},
+	{87, INT8(2)},
+	{65, INT8(1)},
+	{83, INT8(3)},
+	{68, INT8(0)},
 
 	// Arrows
-	{336, INT8(3)},
-	{328, INT8(2)},
-	{331, INT8(1)},
-	{333, INT8(0)},
+	{265, INT8(2)},
+	{263, INT8(1)},
+	{264, INT8(3)},
+	{262, INT8(0)},
 };
 
 #undef INT8
@@ -44,9 +47,9 @@ void inputManager::modeChanged()
 	if (readDpad) joypadReg = (joypadReg & 0xF0) | dpadState;
 }
 
-void inputManager::updateKeyGroup(int scancode, int action, uint8_t& keyState, const std::map<int, uint8_t>& keyConfig, bool setReg)
+void inputManager::updateKeyGroup(int keyCode, int action, uint8_t& keyState, const std::map<int, uint8_t>& keyConfig, bool setReg)
 {
-	auto key = keyConfig.find(scancode);
+	auto key = keyConfig.find(keyCode);
 	if (key != keyConfig.end())
 	{
 		keyState = setBit(keyState, key->second, !action);
@@ -58,8 +61,8 @@ void inputManager::updateKeyGroup(int scancode, int action, uint8_t& keyState, c
 	}
 }
 
-void inputManager::update(int scancode, int action)
+void inputManager::update(int key, int action)
 {
-	updateKeyGroup(scancode, action, dpadState, dpadKeyConfig, !getBit(joypadReg, 4));
-	updateKeyGroup(scancode, action, buttonState, buttonKeyConfig, !getBit(joypadReg, 5));
+	updateKeyGroup(key, action, dpadState, dpadKeyConfig, !getBit(joypadReg, 4));
+	updateKeyGroup(key, action, buttonState, buttonKeyConfig, !getBit(joypadReg, 5));
 }

@@ -139,7 +139,7 @@ FileLoadResult GBCore::loadFile(std::ifstream& st)
 			if (loadRomAndBattery(gbRomPath)) ;
 			else if (loadRomAndBattery(gbcRomPath)) ;
 
-			else if (cartridge.ROMLoaded && cartridge.hasBattery)
+			else if (cartridge.ROMLoaded && cartridge.hasBattery) // TODO: somehow check if the save file is valid for the current ROM
 			{
 				currentSave = 0;
 				restartROM();
@@ -176,6 +176,7 @@ FileLoadResult GBCore::loadFile(std::ifstream& st)
 	if (success)
 	{
 		saveFolderPath = StringUtils::executableFolderPath / "saves" / (gbCore.gameTitle + " (" + std::to_string(cartridge.checksum) + ")");
+		emulationPaused = false;
 		appConfig::updateConfigFile();
 		return FileLoadResult::Success;
 	}

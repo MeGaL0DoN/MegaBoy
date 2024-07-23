@@ -19,13 +19,15 @@ public:
 
 	struct state
 	{
-		uint8_t amplitude{ 0 };
-		uint16_t dutyCycles{ 0 };
-		uint8_t dutyStep{ 0 };
+		uint8_t amplitude { };
+
+		uint16_t frequencyTimer { };
+		//uint16_t dutyCycles { };
+		uint8_t dutyStep { };
 
 		bool triggered{ false };
-		uint8_t periodTimer{ 0 };
-		uint8_t lengthTimer{ 0 };
+		uint8_t periodTimer { };
+		uint8_t lengthTimer { };
 	};
 
 	state s{};
@@ -38,12 +40,16 @@ public:
 	void executeEnvelope();
 
 	inline void updateLengthTimer() { s.lengthTimer = 64 - (regs.NRx1 & 0x3F); }
+//	inline void updatePeriod() { s.period = regs.NRx3 | ((regs.NRx4 & 0x07) << 8); }
 
 	inline float getSample()
 	{
 		uint8_t dutyType = regs.NRx1 >> 6;
-		return (dutyCycles[dutyType][s.dutyStep] * (s.amplitude / 15.0f));
+		return dutyCycles[dutyType][s.dutyStep] * (s.amplitude / 15.0) * s.triggered;
 	}
+
+	inline uint16_t getPeriod() { return regs.NRx3 | ((regs.NRx4 & 0x07) << 8); }
+
 private:
 	static constexpr uint8_t dutyCycles[4][8]
 	{
