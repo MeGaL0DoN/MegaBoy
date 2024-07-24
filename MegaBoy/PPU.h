@@ -82,13 +82,13 @@ public:
 
 	void updateScreenColors(const std::array<color, 4>& newColors);
 
-	constexpr const std::array<uint8_t, 8192>& getVRAM() { return VRAM; }
+	//constexpr const uint8_t* getVRAM() { return VRAM; }
 	constexpr const std::array<uint8_t, 160>& getOAM() { return OAM; }
 
 	void saveState(std::ofstream& st);
 	void loadState(std::ifstream& st);
 
-	struct ppuRegs
+	struct dmgRegs
 	{
 		uint8_t LCDC{ 0x91 };
 		uint8_t STAT{ 0x85 };
@@ -100,6 +100,30 @@ public:
 		uint8_t OBP1{ 0x00 };
 		uint8_t WY{ 0x00 };
 		uint8_t WX{ 0x00 };
+	};
+
+	struct addrPaletteReg
+	{
+		uint8_t value : 6 { 0x00 };
+		bool autoIncrement { false };
+
+		uint8_t read()
+		{
+			return (static_cast<uint8_t>(autoIncrement) << 7 | value) | 0x40;
+		}
+
+		void write(uint8_t val)
+		{
+			autoIncrement = getBit(val, 7);
+			value = val & 0x3F;
+		}
+	};
+
+	struct gbcRegs
+	{
+		uint8_t VBK{ 0xFE };
+		addrPaletteReg BCPS{};
+		addrPaletteReg OCPS{};
 	};
 
 	struct ppuState
@@ -115,23 +139,28 @@ public:
 	};
 
 	ppuState s;
-	ppuRegs regs;
+	dmgRegs regs;
+	gbcRegs gbcRegs;
 private:
 	MMU& mmu;
 	CPU& cpu;
 
-	std::array<uint8_t, 8192> VRAM{};
-
-
+	uint8_t* VRAM { VRAM_BANK0.data() };
+	std::array<uint8_t, 8192> VRAM_BANK0{};
 	std::array<uint8_t, 8192> VRAM_BANK1{};
 
 	std::array<uint8_t, 160> OAM{};
+
+	std::array<uint8_t, 64> BGpaletteRAM{};
+	std::array<uint8_t, 64> OBPpaletteRAM{};
 
 	bool canAccessOAM;
 	bool canAccessVRAM;
 
 	std::array<uint8_t, FRAMEBUFFER_SIZE> framebuffer;
+
 	std::array<bool, SCR_WIDTH> opaqueBackgroundPixels;
+	std::array<bool, SCR_WIDTH> priorityBackgroundPixels;
 
 	std::vector<uint8_t> updatedWindowPixels;
 	std::vector<uint8_t> updatedOAMPixels;
@@ -158,11 +187,6 @@ private:
 	constexpr void setPixel(uint8_t x, uint8_t y, color c) { PixelOps::setPixel(framebuffer.data(), SCR_WIDTH, x, y, c); }
 	constexpr color getPixel(uint8_t x, uint8_t y) { return PixelOps::getPixel(framebuffer.data(), SCR_WIDTH, x, y); }
 
-	inline void setVRAMBank(uint8_t val)
-	{
-
-	}
-
 	std::array<uint8_t, 4> BGpalette;
 	std::array<uint8_t, 4> OBP0palette;
 	std::array<uint8_t, 4> OBP1palette;
@@ -187,13 +211,36 @@ private:
 	void renderOAM();
 	void renderBlank();
 
-	inline uint16_t getBGTileAddr(uint8_t tileInd) { return BGUnsignedAddressing() ? tileInd * 16 : 0x1000 + static_cast<int8_t>(tileInd) * 16; }
+	inline void setVRAMBank(uint8_t val)
+	{
+		VRAM = val & 0x1 ? VRAM_BANK1.data() : VRAM_BANK0.data();
+		gbcRegs.VBK = 0xFE | val;
+	}
+	inline void writePaletteRAM(std::array<uint8_t, 64>& ram, addrPaletteReg& addr, uint8_t val)
+	{
+		ram[addr.value] = val;
+		if (addr.autoIncrement) addr.value++;
+	}
 
 	template <bool updateWindowChangesBuffer>
-	void renderBGTile(uint16_t addr, int16_t screenX, uint8_t scrollY);
-	void renderObjTile(uint16_t tileAddr, uint8_t attributes, int16_t objX, int16_t objY);
+	void DMG_renderBGTile(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
+	void DMG_renderObjTile(const object& obj);
 
-	inline bool TileMapsEnable() { return getBit(regs.LCDC, 0); }
+	template <bool updateWindowChangesBuffer>
+	void GBC_renderBGTile(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
+	void GBC_renderObjTile(const object& obj);
+
+	void(PPU::*renderWinTileFunc)(uint16_t, int16_t, uint8_t);
+	void(PPU::*renderBGTileFunc)(uint16_t, int16_t, uint8_t);
+	void(PPU::*renderObjTileFunc)(const object&);
+
+	void updateFunctionPointers();
+
+	inline uint16_t getBGTileAddr(uint8_t tileInd) { return BGUnsignedAddressing() ? tileInd * 16 : 0x1000 + static_cast<int8_t>(tileInd) * 16; }
+
+	inline bool GBCMasterPriority() { return getBit(regs.LCDC, 0); }
+	inline bool TileMapsEnable() { return System::Current() == GBSystem::GBC || getBit(regs.LCDC, 0); }
+
 	inline bool OBJEnable() { return getBit(regs.LCDC, 1); }
 	inline bool DoubleOBJSize() { return getBit(regs.LCDC, 2); }
 	inline uint16_t BGTileAddr() { return getBit(regs.LCDC, 3) ? 0x1C00 : 0x1800; }
