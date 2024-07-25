@@ -272,6 +272,9 @@ void GBCore::saveState(std::ofstream& st)
 
 	st.write(reinterpret_cast<char*>(&cartridge.checksum), sizeof(cartridge.checksum));
 
+	auto system = System::Current();
+	st.write(reinterpret_cast<char*>(&system), sizeof(system));
+
 	mmu.saveState(st);
 	cpu.saveState(st);
 	ppu.saveState(st);
@@ -290,6 +293,9 @@ bool GBCore::loadState(std::ifstream& st)
 
 	uint32_t checkSum;
 	st.read(reinterpret_cast<char*>(&checkSum), sizeof(checkSum));
+
+	GBSystem system;
+	st.read(reinterpret_cast<char*>(&system), sizeof(system));
 
 	if (!gbCore.cartridge.ROMLoaded || gbCore.cartridge.checksum != checkSum)
 	{
@@ -320,6 +326,9 @@ bool GBCore::loadState(std::ifstream& st)
 		else
 			return false;
 	}
+
+	System::Set(system);
+	gbCore.reset();
 
 	cpu.disableBootROM();
 

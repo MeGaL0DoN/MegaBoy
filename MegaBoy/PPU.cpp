@@ -5,6 +5,7 @@
 
 void PPU::reset()
 {
+	std::memset(OAM.data(), 0, sizeof(OAM));
 	std::memset(VRAM_BANK0.data(), 0, sizeof(VRAM_BANK0));
 	VRAM = VRAM_BANK0.data();
 	
@@ -472,7 +473,7 @@ void PPU::GBC_renderObjTile(const object& obj)
 			{
 				uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
 
-				if (colorId != 0 && (bgPixelFlags[xPos].opaque || !GBCMasterPriority() || (!priority && !bgPixelFlags[xPos].gbcPriority))) // HOW THIS WORKS? TODO: STUDY
+				if (colorId != 0 && (bgPixelFlags[xPos].opaque || GBCMasterPriority() || (!priority && !bgPixelFlags[xPos].gbcPriority)))
 				{
 					uint8_t paletteRAMInd = cgbPalette * 8 + colorId * 2;
 					uint16_t rgb5 = OBPpaletteRAM[paletteRAMInd + 1] << 8 | OBPpaletteRAM[paletteRAMInd];

@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 
 enum GBSystemPreference
 {
@@ -7,7 +8,7 @@ enum GBSystemPreference
     ForceDMG,
 };
 
-enum class GBSystem
+enum class GBSystem : uint8_t
 {
     DMG,
     GBC

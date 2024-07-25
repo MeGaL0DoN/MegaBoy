@@ -242,7 +242,7 @@ private:
 
 	inline uint16_t getBGTileAddr(uint8_t tileInd) { return BGUnsignedAddressing() ? tileInd * 16 : 0x1000 + static_cast<int8_t>(tileInd) * 16; }
 
-	inline bool GBCMasterPriority() { return getBit(regs.LCDC, 0); }
+	inline bool GBCMasterPriority() { return !getBit(regs.LCDC, 0); }
 	inline bool TileMapsEnable() { return System::Current() == GBSystem::GBC || getBit(regs.LCDC, 0); }
 
 	inline bool OBJEnable() { return getBit(regs.LCDC, 1); }

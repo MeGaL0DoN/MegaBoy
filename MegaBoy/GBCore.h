@@ -112,6 +112,7 @@ private:
 	{
 		if (cartridge.loadROM(st))
 		{
+			reset();
 			romFilePath = filePath;
 			currentSave = 0;
 			return true;

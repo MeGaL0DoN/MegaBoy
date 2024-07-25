@@ -32,8 +32,6 @@ bool Cartridge::loadROM(std::ifstream& ifs)
 		return false;
 
 	ROMLoaded = true;
-	gbCore.reset();
-
 	rom = std::move(fileBuffer);
 	calculateChecksum();
 
