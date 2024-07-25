@@ -72,6 +72,7 @@ inline void setEmulationPaused(bool val)
     updateWindowTitle();
 }
 
+std::filesystem::path currentROMPath{};
 inline bool loadFile(const std::filesystem::path& path)
 {
     if (std::filesystem::exists(path))
@@ -92,6 +93,7 @@ inline bool loadFile(const std::filesystem::path& path)
         {
             updateWindowTitle();
             debugUI::clearBuffers();
+            currentROMPath = path;
             return true;
         }
         }
@@ -156,7 +158,7 @@ void updateSelectedBlending()
 void updateSelectedPalette()
 {
     auto colors = appConfig::palette == 0 ? PPU::BGB_GREEN_PALETTE : appConfig::palette == 1 ? PPU::GRAY_PALETTE : PPU::CLASSIC_PALETTE;
-    if (gbCore.emulationPaused || !gbCore.cartridge.ROMLoaded) gbCore.ppu.updateScreenColors(colors);
+    if (gbCore.emulationPaused || !gbCore.cartridge.ROMLoaded) gbCore.ppu.updateDMG_ScreenColors(colors);
 
     gbCore.ppu.setColorsPalette(colors);
     refreshGBTextures();
@@ -282,7 +284,7 @@ void renderImGUI()
         }
         if (ImGui::BeginMenu("Settings", "Ctrl+Q"))
         {
-            if (ImGui::Checkbox("Load ROM on Startup", &appConfig::loadLastROM))
+            if (ImGui::Checkbox("Load last ROM on Startup", &appConfig::loadLastROM))
                 appConfig::updateConfigFile();
 
             if (ImGui::Checkbox("Run Boot ROM", &appConfig::runBootROM))
@@ -297,6 +299,13 @@ void renderImGUI()
                 appConfig::updateConfigFile();
 
             if (ImGui::Checkbox("Autosave State", &appConfig::autosaveState))
+                appConfig::updateConfigFile();
+
+            ImGui::SeparatorText("Emulated System");
+
+            constexpr const char* preferences[] = { "Prefer GB Color", "Prefer DMG", "Force DMG" };
+
+            if (ImGui::ListBox("##1", &appConfig::systemPreference, preferences, 3))
                 appConfig::updateConfigFile();
 
             ImGui::EndMenu();
@@ -327,25 +336,19 @@ void renderImGUI()
                 appConfig::updateConfigFile();
             }
 
-            ImGui::Spacing();
-            ImGui::Separator();
-            ImGui::Spacing();
-
+            ImGui::SeparatorText("Filter");
             constexpr const char* filters[] = { "None", "LCD", "Upscaling" };
 
-            if (ImGui::ListBox("Filter", &appConfig::filter, filters, 3))
+            if (ImGui::ListBox("##2", &appConfig::filter, filters, 3))
             {
                 updateSelectedFilter();
                 appConfig::updateConfigFile();
             }
 
-            ImGui::Spacing();
-            ImGui::Separator();
-            ImGui::Spacing();
-
+            ImGui::SeparatorText("DMG Palette");
             constexpr const char* palettes[] = { "BGB Green", "Grayscale", "Classic" };
 
-            if (ImGui::ListBox("Palette", &appConfig::palette, palettes, 3))
+            if (ImGui::ListBox("##3", &appConfig::palette, palettes, 3))
             {
                 updateSelectedPalette();
                 appConfig::updateConfigFile();
@@ -389,15 +392,17 @@ void renderImGUI()
             {
                 if (gbCore.cartridge.hasBattery)
                 {
-                    if (ImGui::MenuItem("Load Battery"))
+                    if (ImGui::MenuItem("Load Battery State"))
                         gbCore.loadBattery();
                 }
 
-                if (ImGui::MenuItem("Reset State"))
+                if (ImGui::MenuItem("Reset State", "Warning!"))
                 {
                     gbCore.saveCurrentROM();
                     gbCore.restartROM();
                 }
+                if (ImGui::MenuItem("Reload ROM"))
+                    loadFile(currentROMPath);
             }
 
             ImGui::EndMenu();
@@ -443,7 +448,7 @@ void renderImGUI()
         ImVec2 windowPos = ImVec2(viewportCenter.x - windowSize.x * 0.5f, viewportCenter.y - windowSize.y * 0.5f);
         ImGui::SetWindowPos(windowPos);
 
-        const float buttonWidth = ImGui::GetContentRegionAvail().x * 0.5f;
+        const float buttonWidth = ImGui::GetContentRegionAvail().x * 0.4f;
         const float windowWidth = ImGui::GetWindowSize().x;
         ImGui::SetCursorPosX((windowWidth - buttonWidth) * 0.5f);
 

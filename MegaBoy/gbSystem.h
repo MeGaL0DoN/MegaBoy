@@ -1,5 +1,12 @@
 #pragma once
 
+enum GBSystemPreference
+{
+    PreferGBC,
+    PreferDMG,
+    ForceDMG,
+};
+
 enum class GBSystem
 {
     DMG,

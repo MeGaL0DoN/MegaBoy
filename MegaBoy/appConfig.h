@@ -8,6 +8,7 @@ namespace appConfig
 	inline bool pauseOnFocus { false };
 	inline bool autosaveState { true };
 	inline bool loadLastROM { true };
+	inline int systemPreference { 0 };
 
 	inline bool blending { false };
 	inline bool fpsLock { true };

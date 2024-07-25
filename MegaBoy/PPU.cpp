@@ -6,12 +6,11 @@
 void PPU::reset()
 {
 	std::memset(VRAM_BANK0.data(), 0, sizeof(VRAM_BANK0));
-	std::memset(VRAM_BANK1.data(), 0, sizeof(VRAM_BANK1));
-
 	VRAM = VRAM_BANK0.data();
 	
 	if (System::Current() == GBSystem::GBC)
 	{
+		std::memset(VRAM_BANK1.data(), 0, sizeof(VRAM_BANK1));
 		std::memset(OBPpaletteRAM.data(), 255, sizeof(OBPpaletteRAM));
 		std::memset(BGpaletteRAM.data(), 255, sizeof(BGpaletteRAM));
 	}
@@ -76,10 +75,7 @@ void PPU::saveState(std::ofstream& st)
 	{
 		WRITE(objCount);
 		WRITE_ARR(selectedObjects);
-		WRITE_ARR(opaqueBackgroundPixels);
-
-		if (System::Current() == GBSystem::GBC)
-			WRITE_ARR(priorityBackgroundPixels);
+		WRITE_ARR(bgPixelFlags);
 	}
 }
 
@@ -101,13 +97,15 @@ void PPU::loadState(std::ifstream& st)
 		READ_ARR(BGpaletteRAM);
 		READ_ARR(OBPpaletteRAM);
 	}
+	else if (System::Current() == GBSystem::DMG)
+	{
+		updatePalette(regs.BGP, BGpalette);
+		updatePalette(regs.OBP0, OBP0palette);
+		updatePalette(regs.OBP1, OBP1palette);
+	}
 
 	READ_ARR(VRAM_BANK0);
 	READ_ARR(OAM);
-
-	updatePalette(regs.BGP, BGpalette);
-	updatePalette(regs.OBP0, OBP0palette);
-	updatePalette(regs.OBP1, OBP1palette);
 
 	SetPPUMode(s.state);
 
@@ -115,10 +113,7 @@ void PPU::loadState(std::ifstream& st)
 	{
 		READ(objCount);
 		READ_ARR(selectedObjects);
-		READ_ARR(opaqueBackgroundPixels);
-
-		if (System::Current() == GBSystem::GBC)
-			READ_ARR(priorityBackgroundPixels);
+		READ_ARR(bgPixelFlags);
 	}
 
 	if (!LCDEnabled())
@@ -134,8 +129,11 @@ void PPU::updatePalette(uint8_t val, std::array<uint8_t, 4>& palette)
 		palette[i] = (getBit(val, i * 2 + 1) << 1) | getBit(val, i * 2);
 }
 
-void PPU::updateScreenColors(const std::array<color, 4>& newColors)
+void PPU::updateDMG_ScreenColors(const std::array<color, 4>& newColors)
 {
+	if (System::Current() != GBSystem::DMG) 
+		return;
+
 	for (uint8_t x = 0; x < SCR_WIDTH; x++)
 	{
 		for (uint8_t y = 0; y < SCR_HEIGHT; y++)
@@ -355,17 +353,17 @@ void PPU::renderScanLine()
 		if (WindowEnable()) renderWindow();
 	}
 	else
-		renderBlank();
+		DMG_renderBlank();
 
 	if (OBJEnable()) renderOAM();
 }
 
-void PPU::renderBlank()
+void PPU::DMG_renderBlank()
 {
 	for (uint8_t x = 0; x < SCR_WIDTH; x++)
 	{
 		setPixel(x, s.LY, getColor(BGpalette[0]));
-		opaqueBackgroundPixels[x] = true;
+		bgPixelFlags[x].opaque = true;
 	}
 
 	if (onBackgroundRender != nullptr)
@@ -444,8 +442,8 @@ void PPU::GBC_renderBGTile(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY
 			const uint16_t rgb5 = BGpaletteRAM[paletteRAMInd + 1] << 8 | BGpaletteRAM[paletteRAMInd];
 
 			setPixel(static_cast<uint8_t>(xPos), s.LY, color::fromRGB5(rgb5));
-			opaqueBackgroundPixels[xPos] = (colorId == 0);
-			priorityBackgroundPixels[xPos] = BGpriority;
+			bgPixelFlags[xPos].opaque = (colorId == 0);
+			bgPixelFlags[xPos].gbcPriority = BGpriority;
 			if constexpr (updateWindowChangesBuffer) updatedWindowPixels.push_back(static_cast<uint8_t>(xPos));
 		}
 	}
@@ -474,7 +472,7 @@ void PPU::GBC_renderObjTile(const object& obj)
 			{
 				uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
 
-				if (colorId != 0 && (opaqueBackgroundPixels[xPos] || !GBCMasterPriority() || (!priority && !priorityBackgroundPixels[xPos]))) // HOW THIS WORKS? TODO: STUDY
+				if (colorId != 0 && (bgPixelFlags[xPos].opaque || !GBCMasterPriority() || (!priority && !bgPixelFlags[xPos].gbcPriority))) // HOW THIS WORKS? TODO: STUDY
 				{
 					uint8_t paletteRAMInd = cgbPalette * 8 + colorId * 2;
 					uint16_t rgb5 = OBPpaletteRAM[paletteRAMInd + 1] << 8 | OBPpaletteRAM[paletteRAMInd];
@@ -496,8 +494,8 @@ void PPU::DMG_renderBGTile(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY
 	const uint8_t lineOffset = 2 * ((s.LY + scrollY) % 8);
 	const uint16_t tileAddr = getBGTileAddr(VRAM_BANK0[tileMapInd]);
 
-	const uint8_t lsbLineByte = VRAM[tileAddr + lineOffset];
-	const uint8_t msbLineByte = VRAM[tileAddr + lineOffset + 1];
+	const uint8_t lsbLineByte = VRAM_BANK0[tileAddr + lineOffset];
+	const uint8_t msbLineByte = VRAM_BANK0[tileAddr + lineOffset + 1];
 
 	for (int8_t x = 7; x >= 0; x--)
 	{
@@ -508,7 +506,7 @@ void PPU::DMG_renderBGTile(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY
 			uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
 			setPixel(static_cast<uint8_t>(xPos), s.LY, getColor(BGpalette[colorId]));
 
-			opaqueBackgroundPixels[xPos] = (colorId == 0);
+			bgPixelFlags[xPos].opaque = (colorId == 0);
 			if constexpr (updateWindowChangesBuffer) updatedWindowPixels.push_back(static_cast<uint8_t>(xPos));
 		}
 	}
@@ -524,8 +522,8 @@ void PPU::DMG_renderObjTile(const object& obj)
 	if (obj.X < SCR_WIDTH && obj.X > -8)
 	{
 		const uint8_t lineOffset{ static_cast<uint8_t>(2 * (yFlip ? (obj.Y - s.LY + 7) : (8 - (obj.Y - s.LY + 8)))) };
-		const uint8_t lsbLineByte{ VRAM[obj.tileAddr + lineOffset] };
-		const uint8_t msbLineByte{ VRAM[obj.tileAddr + lineOffset + 1] };
+		const uint8_t lsbLineByte{ VRAM_BANK0[obj.tileAddr + lineOffset] };
+		const uint8_t msbLineByte{ VRAM_BANK0[obj.tileAddr + lineOffset + 1] };
 
 		for (int8_t x = 7; x >= 0; x--)
 		{
@@ -535,7 +533,7 @@ void PPU::DMG_renderObjTile(const object& obj)
 			{
 				uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
 
-				if (colorId != 0 && (priority == 0 || opaqueBackgroundPixels[xPos]))
+				if (colorId != 0 && (priority == 0 || bgPixelFlags[xPos].opaque))
 				{
 					auto color = getColor(palette[colorId]);
 					setPixel(static_cast<uint8_t>(xPos), s.LY, color);

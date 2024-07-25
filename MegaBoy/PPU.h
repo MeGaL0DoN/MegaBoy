@@ -80,9 +80,8 @@ public:
 	constexpr void setColorsPalette(const std::array<color, 4>& newColors) { colors = newColors; }
 	constexpr const std::array<color, 4>& getCurrentPalette() { return colors; }
 
-	void updateScreenColors(const std::array<color, 4>& newColors);
+	void updateDMG_ScreenColors(const std::array<color, 4>& newColors);
 
-	//constexpr const uint8_t* getVRAM() { return VRAM; }
 	constexpr const std::array<uint8_t, 160>& getOAM() { return OAM; }
 
 	void saveState(std::ofstream& st);
@@ -138,6 +137,12 @@ public:
 		uint16_t videoCycles { 0 };
 	};
 
+	struct BGPixelFlag
+	{
+		bool opaque : 1 { false };
+		bool gbcPriority : 1{ false };
+	};
+
 	ppuState s;
 	dmgRegs regs;
 	gbcRegs gbcRegs;
@@ -159,8 +164,7 @@ private:
 
 	std::array<uint8_t, FRAMEBUFFER_SIZE> framebuffer;
 
-	std::array<bool, SCR_WIDTH> opaqueBackgroundPixels;
-	std::array<bool, SCR_WIDTH> priorityBackgroundPixels;
+	std::array<BGPixelFlag, SCR_WIDTH> bgPixelFlags;
 
 	std::vector<uint8_t> updatedWindowPixels;
 	std::vector<uint8_t> updatedOAMPixels;
@@ -209,7 +213,7 @@ private:
 	void renderBackground();
 	void renderWindow();
 	void renderOAM();
-	void renderBlank();
+	void DMG_renderBlank();
 
 	inline void setVRAMBank(uint8_t val)
 	{

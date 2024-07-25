@@ -15,13 +15,12 @@ namespace PixelOps
 
 		constexpr static color fromRGB5(uint16_t rgb5)
 		{
-			color c;
-
-			c.R = componentFromRGB5(rgb5 & 0x1F);
-			c.G = componentFromRGB5((rgb5 >> 5) & 0x1F);
-			c.B = componentFromRGB5((rgb5 >> 10) & 0x1F);
-
-			return c;
+			return color
+			{
+				componentFromRGB5(rgb5 & 0x1F),
+				componentFromRGB5((rgb5 >> 5) & 0x1F),
+				componentFromRGB5((rgb5 >> 10) & 0x1F)
+			};
 		}
 	private:
 		constexpr static uint8_t componentFromRGB5(uint8_t rgb5)

@@ -53,6 +53,7 @@ void appConfig::loadConfigFile()
 
 	to_int(palette, "graphics", "palette");
 	to_int(filter, "graphics", "filter");
+	to_int(systemPreference, "system", "preferredSystem");
 
 	romPath = config["gameState"]["romPath"];
 	to_int(saveStateNum, "gameState", "saveStateNum");
@@ -72,6 +73,7 @@ void appConfig::updateConfigFile()
 
 	config["graphics"]["palette"] = std::to_string(palette);
 	config["graphics"]["filter"] = std::to_string(filter);
+	config["system"]["preferredSystem"] = std::to_string(systemPreference);
 
 	if (gbCore.cartridge.ROMLoaded)
 	{

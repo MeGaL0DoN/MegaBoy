@@ -1,9 +1,11 @@
 #include <iostream>
 #include <algorithm>
 
-#include "Cartridge.h"
 #include "GBCore.h"
 #include "gbSystem.h"
+#include "appConfig.h"
+
+#include "Cartridge.h"
 #include "RomOnlyMBC.h"
 #include "EmptyMBC.h"
 #include "MBC1.h"
@@ -164,9 +166,21 @@ bool Cartridge::proccessCartridgeHeader(const std::vector<uint8_t>& buffer)
 
 	uint16_t titleEnd = 0x143;
 
-	if (buffer[titleEnd] == 0x80 || buffer[titleEnd] == 0xC0) // GBC flag (0x80 is also backwards compatible with DMG) // TODO: add force DMG mode setting
+	bool cbgMode { false };
+
+	if (appConfig::systemPreference != GBSystemPreference::ForceDMG)
 	{
-		std::cout << "GBC ROM detected! \n"; // to remove
+		if (buffer[titleEnd] == 0xC0)
+			cbgMode = true;
+		else if (buffer[titleEnd] == 0x80)
+		{
+			if (appConfig::systemPreference == GBSystemPreference::PreferGBC)
+				cbgMode = true;
+		}
+	}
+
+	if (cbgMode)
+	{
 		System::Set(GBSystem::GBC);
 		titleEnd--;
 	}
