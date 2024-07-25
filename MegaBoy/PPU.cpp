@@ -214,7 +214,7 @@ void PPU::SetPPUMode(PPUMode ppuState)
 void PPU::execute()
 {
 	if (!LCDEnabled()) return;
-	s.videoCycles++;
+	s.videoCycles += (cpu.doubleSpeed() ? 2 : 4);
 
 	switch (s.state)
 	{

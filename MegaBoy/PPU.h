@@ -172,10 +172,10 @@ private:
 	uint8_t objCount { 0 };
 	std::array<object, 10> selectedObjects;
 
-	static constexpr uint8_t OAM_SCAN_CYCLES = 20;
-	static constexpr uint8_t PIXEL_TRANSFER_CYCLES = 43;
-	static constexpr uint8_t HBLANK_CYCLES = 51;
-	static constexpr uint8_t VBLANK_CYCLES = 114;
+	static constexpr uint16_t OAM_SCAN_CYCLES = 20 * 4;
+	static constexpr uint16_t PIXEL_TRANSFER_CYCLES = 43 * 4;
+	static constexpr uint16_t HBLANK_CYCLES = 51 * 4;
+	static constexpr uint16_t VBLANK_CYCLES = 114 * 4;
 
 	constexpr void invokeDrawCallback() { if (drawCallback != nullptr) drawCallback(framebuffer.data()); }
 

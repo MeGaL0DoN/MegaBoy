@@ -51,8 +51,8 @@ void GBCore::update(int32_t cyclesToExecute)
 	{
 		int32_t prevCycles = currentCycles;
 
-		currentCycles += cpu.execute();
-		currentCycles += cpu.handleInterrupts();
+		currentCycles += cpu.execute() * (cpu.doubleSpeed() ? 2 : 4);
+		currentCycles += cpu.handleInterrupts() * (cpu.doubleSpeed() ? 2 : 4);
 
 		if (cartridge.hasTimer)
 			cartridge.timer.addRTCcycles(currentCycles - prevCycles);

@@ -7,14 +7,20 @@ MMU::MMU(GBCore& gbCore) : gbCore(gbCore) {}
 void MMU::saveState(std::ofstream& st)
 {
 	st.write(reinterpret_cast<char*>(&s), sizeof(s));
-	st.write(reinterpret_cast<char*>(WRAM.data()), sizeof(WRAM));
+
+	uint16_t WRAMSize = System::Current() == GBSystem::GBC ? 0x8000 : 0x2000;
+	st.write(reinterpret_cast<char*>(WRAM_BANKS.data()), WRAMSize);
+
 	st.write(reinterpret_cast<char*>(HRAM.data()), sizeof(HRAM));
 }
 
 void MMU::loadState(std::ifstream& st)
 {
 	st.read(reinterpret_cast<char*>(&s), sizeof(s));
-	st.read(reinterpret_cast<char*>(WRAM.data()), sizeof(WRAM));
+
+	uint16_t WRAMSize = System::Current() == GBSystem::GBC ? 0x8000 : 0x2000;
+	st.read(reinterpret_cast<char*>(WRAM_BANKS.data()), WRAMSize);
+
 	st.read(reinterpret_cast<char*>(HRAM.data()), sizeof(HRAM));
 }
 
@@ -83,13 +89,17 @@ void MMU::write8(uint16_t addr, uint8_t val)
 	{
 		gbCore.cartridge.getMapper()->write(addr, val);
 	}
+	else if (addr <= 0xCFFF)
+	{
+		WRAM_BANKS[addr - 0xC000] = val;
+	}
 	else if (addr <= 0xDFFF)
 	{
-		WRAM[addr - 0xC000] = val;
+		WRAM_BANKS[0x1000 * s.wramBank + addr - 0xD000] = val;
 	}
 	else if (addr <= 0xFDFF)
 	{
-		WRAM[addr - 0xE000] = val;
+		WRAM_BANKS[addr - 0xE000] = val;
 	}
 	else if (addr <= 0xFE9F)
 	{
@@ -189,6 +199,25 @@ void MMU::write8(uint16_t addr, uint8_t val)
 		case 0xFF6B:
 			gbCore.ppu.writePaletteRAM(gbCore.ppu.OBPpaletteRAM, gbCore.ppu.gbcRegs.OCPS, val);
 			break;
+		case 0xFF70:
+			if (System::Current() == GBSystem::GBC)
+			{
+				s.wramBank = val & 0x7;
+				if (s.wramBank == 0) s.wramBank = 1;
+			}
+			break;
+
+		case 0xFF4D:
+			std::cout << "DOUBLE SPEED WRITE! \n";
+			break;
+
+		case 0xFF51:
+		case 0xFF52:
+		case 0xFF53:
+		case 0xFF54:
+		case 0xFF55:
+			std::cout << "HDMA WRITE! \n";
+			break;
 
 		case 0xFF10: 
 			gbCore.apu.regs.NR10 = val; break;
@@ -286,19 +315,23 @@ uint8_t MMU::read8(uint16_t addr) const
 	}
 	if (addr <= 0x9FFF)
 	{
-		return gbCore.ppu.canAccessVRAM ? gbCore.ppu.VRAM[addr - 0x8000] : 0xFF;  
+		return gbCore.ppu.canAccessVRAM ? gbCore.ppu.VRAM[addr - 0x8000] : 0xFF;
 	}
 	if (addr <= 0xBFFF)
 	{
 		return gbCore.cartridge.getMapper()->read(addr);
 	}
+	if (addr <= 0xCFFF)
+	{
+		return WRAM_BANKS[addr - 0xC000];
+	}
 	if (addr <= 0xDFFF)
 	{
-		return WRAM[addr - 0xC000];
+		return WRAM_BANKS[s.wramBank * 0x1000 + addr - 0xD000];
 	}
 	if (addr <= 0xFDFF)
 	{
-		return WRAM[addr - 0xE000];
+		return WRAM_BANKS[addr - 0xE000];
 	}
 	if (addr <= 0xFE9F)
 	{
@@ -363,6 +396,12 @@ uint8_t MMU::read8(uint16_t addr) const
 			return System::Current() == GBSystem::GBC ? gbCore.ppu.gbcRegs.OCPS.read() : 0xFF;
 		case 0xFF6B:
 			return System::Current() == GBSystem::GBC ? gbCore.ppu.OBPpaletteRAM[gbCore.ppu.gbcRegs.OCPS.value] : 0xFF;
+		case 0xFF70:
+			return System::Current() == GBSystem::GBC ? s.wramBank : 0xFF;
+
+		case 0xFF4D:
+			std::cout << "double speed read!\n";
+			return 0x00;
 
 		case 0xFF10: 
 			return gbCore.apu.regs.NR10;

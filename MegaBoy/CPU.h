@@ -56,6 +56,7 @@ public:
 	void saveState(std::ofstream& st);
 	void loadState(std::ifstream& st);
 
+	constexpr bool doubleSpeed() { return s.GBCdoubleSpeed; }
 private:
 	GBCore& gbCore;
 
@@ -110,6 +111,8 @@ private:
 		bool shouldSetIME;
 		bool interruptLatch;
 
+		bool GBCdoubleSpeed;
+
 		cpuState()
 		{
 			reset();
@@ -133,6 +136,8 @@ private:
 			halt_bug = false;
 			IME = false;
 			shouldSetIME = false;
+
+			GBCdoubleSpeed = false;
 		}
 	};
 
