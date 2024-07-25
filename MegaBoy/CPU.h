@@ -112,6 +112,7 @@ private:
 		bool interruptLatch;
 
 		bool GBCdoubleSpeed;
+		bool prepareSpeedSwitch;
 
 		cpuState()
 		{
@@ -138,6 +139,7 @@ private:
 			shouldSetIME = false;
 
 			GBCdoubleSpeed = false;
+			prepareSpeedSwitch = false;
 		}
 	};
 

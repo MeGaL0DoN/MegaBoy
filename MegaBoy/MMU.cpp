@@ -208,7 +208,11 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 
 		case 0xFF4D:
-			std::cout << "DOUBLE SPEED WRITE! \n";
+			if (System::Current() == GBSystem::GBC)
+			{
+				if (gbCore.cpu.s.GBCdoubleSpeed != (val & 1))
+					gbCore.cpu.s.prepareSpeedSwitch = true;
+			}
 			break;
 
 		case 0xFF51:
@@ -400,8 +404,7 @@ uint8_t MMU::read8(uint16_t addr) const
 			return System::Current() == GBSystem::GBC ? s.wramBank : 0xFF;
 
 		case 0xFF4D:
-			std::cout << "double speed read!\n";
-			return 0x00;
+			return System::Current() == GBSystem::GBC ? (0x7E | (gbCore.cpu.s.GBCdoubleSpeed << 7) | gbCore.cpu.s.prepareSpeedSwitch) : 0xFF;
 
 		case 0xFF10: 
 			return gbCore.apu.regs.NR10;

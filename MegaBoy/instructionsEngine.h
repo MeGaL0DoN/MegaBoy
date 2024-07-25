@@ -677,6 +677,12 @@ public:
 
 	void STOP() 
 	{
+		if (System::Current() == GBSystem::GBC && cpu->s.prepareSpeedSwitch)
+		{
+			cpu->s.GBCdoubleSpeed = !cpu->s.GBCdoubleSpeed;
+			cpu->s.prepareSpeedSwitch = false;
+		}
+
 		cpu->s.stopped = true;
 		cpu->s.PC++;
 	}
