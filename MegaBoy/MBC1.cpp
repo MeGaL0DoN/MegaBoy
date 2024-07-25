@@ -13,9 +13,7 @@ uint8_t MBC1::read(uint16_t addr) const
 	}
 	if (addr <= 0xBFFF)
 	{
-		if (!cartridge.hasRAM || !s.ramEnable)
-			return 0xFF;
-
+		if (!cartridge.hasRAM || !s.ramEnable) return 0xFF;
 		return ram[(s.RAMOffset + (addr - 0xA000)) % ram.size()];
 	}
 

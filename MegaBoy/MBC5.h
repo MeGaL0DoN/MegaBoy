@@ -1,9 +1,11 @@
 #pragma once
 #include "MBC.h"
 
-struct MBC5State : MBCstate
+struct MBC5State
 {
-	uint8_t ramBank{ 0 };
+	uint16_t romBank : 9 { 1 };
+	uint8_t ramBank : 4 { 0 };
+	bool ramEnable : 1 { false };
 };
 
 class MBC5 : public MBC<MBC5State>
