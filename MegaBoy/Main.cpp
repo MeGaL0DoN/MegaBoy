@@ -22,7 +22,7 @@
 
 GLFWwindow* window;
 
-int vsyncCPUCycles;
+uint32_t vsyncCPUCycles;
 
 int menuBarHeight;
 int viewport_width, viewport_height;
@@ -298,7 +298,10 @@ void renderImGUI()
             if (ImGui::Checkbox("Battery Saves", &appConfig::batterySaves))
                 appConfig::updateConfigFile();
 
-            if (ImGui::Checkbox("Autosave State", &appConfig::autosaveState))
+            if (ImGui::Checkbox("Autosave Save State", &appConfig::autosaveState))
+                appConfig::updateConfigFile();
+
+            if (ImGui::Checkbox("Create Backups", &appConfig::backupSaves))
                 appConfig::updateConfigFile();
 
             ImGui::SeparatorText("Emulated System");

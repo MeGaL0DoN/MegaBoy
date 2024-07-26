@@ -29,7 +29,6 @@ class CPU
 {
 public:
 	uint8_t execute();
-	uint8_t handleInterrupts();
 	void requestInterrupt(Interrupt interrupt);
 	void updateTimer();
 
@@ -60,6 +59,7 @@ public:
 private:
 	GBCore& gbCore;
 
+	uint8_t handleInterrupts();
 	void executeMain();
 	void executePrefixed();
 	bool interruptsPending();

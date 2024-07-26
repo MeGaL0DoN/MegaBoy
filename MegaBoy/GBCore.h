@@ -25,9 +25,9 @@ public:
 	static constexpr uint32_t CYCLES_PER_FRAME = 17556 * 4;
 	static constexpr double FRAME_RATE = 1.0 / 59.7;
 
-	static constexpr int32_t calculateCycles(double deltaTime) { return static_cast<int>((CYCLES_PER_FRAME * (deltaTime / FRAME_RATE))); }
+	static constexpr uint32_t calculateCycles(double deltaTime) { return static_cast<uint32_t>((CYCLES_PER_FRAME * (deltaTime / FRAME_RATE))); }
 
-	void update(int32_t cyclesToExecute = CYCLES_PER_FRAME);
+	void update(uint32_t cyclesToExecute = CYCLES_PER_FRAME);
 	void stepComponents();
 
 	inline FileLoadResult loadFile(const std::filesystem::path& _filePath)

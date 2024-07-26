@@ -41,21 +41,19 @@ void GBCore::loadBootROM()
 	}
 }
 
-void GBCore::update(int32_t cyclesToExecute)
+void GBCore::update(uint32_t cyclesToExecute)
 {
 	if (!cartridge.ROMLoaded || emulationPaused) return;
 
-	int32_t currentCycles { 0 };
+	uint32_t currentCycles { 0 };
 
 	while (currentCycles < cyclesToExecute)
 	{
-		int32_t prevCycles = currentCycles;
-
-		currentCycles += cpu.execute() * (cpu.doubleSpeed() ? 2 : 4);
-		currentCycles += cpu.handleInterrupts() * (cpu.doubleSpeed() ? 2 : 4);
+		uint8_t baseMCycles = cpu.execute();
+		currentCycles += baseMCycles * (cpu.doubleSpeed() ? 2 : 4);
 
 		if (cartridge.hasTimer)
-			cartridge.timer.addRTCcycles(currentCycles - prevCycles);
+			cartridge.timer.addRTCcycles(baseMCycles);
 	}
 }
 
@@ -196,7 +194,7 @@ void GBCore::batteryAutoSave()
 	{
 		auto batterySavePath = replaceExtension(romFilePath, ".sav");
 
-		if (std::filesystem::exists(batterySavePath))
+		if (appConfig::backupSaves && std::filesystem::exists(batterySavePath))
 		{
 			auto batteryBackupPath { batterySavePath };
 			batteryBackupPath.replace_filename(StringUtils::pathToUTF8(batterySavePath.stem()) + " - BACKUP.sav");
@@ -209,6 +207,9 @@ void GBCore::batteryAutoSave()
 
 void GBCore::backupSave(int num)
 {
+	if (!appConfig::backupSaves)
+		return;
+
 	const auto saveFilePath = getSaveFilePath(num);
 
 	if (!cartridge.ROMLoaded || !std::filesystem::exists(saveFilePath))

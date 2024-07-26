@@ -100,7 +100,8 @@ uint8_t CPU::execute()
 	if (s.halted)
 	{
 		addCycle();
-		return 1;
+		cycles += handleInterrupts();
+		return cycles;
 	}
 
 	opcode = read8(s.PC);
@@ -116,6 +117,7 @@ uint8_t CPU::execute()
 	if (s.PC > 0xFF)
 		executingBootROM = false; 
 
+	cycles += handleInterrupts();
 	return cycles;
 }
 

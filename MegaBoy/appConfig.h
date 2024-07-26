@@ -4,11 +4,13 @@
 namespace appConfig
 {
 	inline bool runBootROM { false };
-	inline bool batterySaves { true };;
 	inline bool pauseOnFocus { false };
-	inline bool autosaveState { true };
 	inline bool loadLastROM { true };
 	inline int systemPreference { 0 };
+
+	inline bool autosaveState{ true };
+	inline bool batterySaves{ true };
+	inline bool backupSaves{ true };
 
 	inline bool blending { false };
 	inline bool fpsLock { true };

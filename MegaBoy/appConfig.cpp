@@ -45,6 +45,7 @@ void appConfig::loadConfigFile()
 	to_bool(batterySaves, "options", "batterySaves");
 	to_bool(pauseOnFocus, "options", "pauseOnFocus");
 	to_bool(autosaveState, "options", "autosaveState");
+	to_bool(backupSaves, "options", "backupSaves");
 	to_bool(loadLastROM, "options", "loadLastROM");
 
 	to_bool(blending, "graphics", "blending");
@@ -65,6 +66,7 @@ void appConfig::updateConfigFile()
 	config["options"]["batterySaves"] = to_string(batterySaves);
 	config["options"]["pauseOnFocus"] = to_string(pauseOnFocus);
 	config["options"]["autosaveState"] = to_string(autosaveState);
+	config["options"]["backupSaves"] = to_string(backupSaves);
 	config["options"]["loadLastROM"] = to_string(loadLastROM);
 
 	config["graphics"]["blending"] = to_string(blending);
