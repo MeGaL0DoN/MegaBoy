@@ -87,6 +87,27 @@ uint8_t& CPU::getRegister(uint8_t ind)
 	return (uint8_t&)s;
 }
 
+constexpr uint16_t STOP_PERIOD_CYCLES = 2050;
+
+uint8_t CPU::handleHaltedState()
+{
+	addCycle();
+	cycles += handleInterrupts();
+
+	if (s.stopState)
+	{
+		s.stopCycleCounter += cycles;
+		if (s.stopCycleCounter >= STOP_PERIOD_CYCLES)
+		{
+			s.halted = false;
+			s.stopState = false;
+			s.stopCycleCounter = 0;
+		}
+	}
+
+	return cycles;
+}
+
 uint8_t CPU::execute()
 {
 	cycles = 0;
@@ -98,11 +119,7 @@ uint8_t CPU::execute()
 	}
 
 	if (s.halted)
-	{
-		addCycle();
-		cycles += handleInterrupts();
-		return cycles;
-	}
+		return handleHaltedState();
 
 	opcode = read8(s.PC);
 

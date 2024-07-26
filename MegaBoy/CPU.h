@@ -60,6 +60,8 @@ private:
 	GBCore& gbCore;
 
 	uint8_t handleInterrupts();
+	uint8_t handleHaltedState();
+
 	void executeMain();
 	void executePrefixed();
 	bool interruptsPending();
@@ -102,10 +104,12 @@ private:
 
 		uint8_t IE;
 		uint8_t IF;
-
-		bool stopped;
+		
 		bool halted;
 		bool halt_bug;
+
+		bool stopState;
+		uint16_t stopCycleCounter;
 
 		bool IME;
 		bool shouldSetIME;
@@ -132,7 +136,8 @@ private:
 			IE = 0x00;
 			IF = 0xE1;
 			
-			stopped = false;
+			stopState = false;
+			stopCycleCounter = 0;
 			halted = false;
 			halt_bug = false;
 			IME = false;

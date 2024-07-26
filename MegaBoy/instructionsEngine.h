@@ -681,9 +681,17 @@ public:
 		{
 			cpu->s.GBCdoubleSpeed = !cpu->s.GBCdoubleSpeed;
 			cpu->s.prepareSpeedSwitch = false;
+
+			cpu->s.DIV_COUNTER = 0;
+			cpu->s.DIV_reg = 0;
+
+			if (cpu->interruptsPending() && cpu->s.IME)
+				return; // if interrupts and IME, then stop is 1 byte opcode
+
+			cpu->s.halted = true;
+			cpu->s.stopState = true;
 		}
 
-		cpu->s.stopped = true;
 		cpu->s.PC++;
 	}
 	void HALT() 
