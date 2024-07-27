@@ -130,10 +130,6 @@ uint8_t CPU::execute()
 	}
 
 	executeMain();
-
-	if (s.PC > 0xFF)
-		executingBootROM = false; 
-
 	cycles += handleInterrupts();
 	return cycles;
 }

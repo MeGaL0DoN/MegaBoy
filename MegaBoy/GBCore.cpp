@@ -24,15 +24,39 @@ void GBCore::loadBootROM()
 
 	if (appConfig::runBootROM)
 	{
-		std::ifstream ifs(StringUtils::executableFolderPath / "data" / "boot_rom.bin", std::ios::binary | std::ios::ate);
+		const auto romPath = StringUtils::executableFolderPath / "data" / (System::Current() == GBSystem::DMG ? "dmg_boot.bin" : "cgb_boot.bin");
+		std::ifstream ifs(romPath, std::ios::binary | std::ios::ate);
 
 		if (ifs)
 		{
 			std::ifstream::pos_type pos = ifs.tellg();
-			if (pos != sizeof(mmu.bootROM)) return;
 
-			ifs.seekg(0, std::ios::beg);
-			ifs.read(reinterpret_cast<char*>(&mmu.bootROM[0]), pos);
+			if (System::Current() == GBSystem::DMG)
+			{
+				if (pos == sizeof(mmu.base_bootROM))
+				{
+					ifs.seekg(0, std::ios::beg);
+					ifs.read(reinterpret_cast<char*>(&mmu.base_bootROM[0]), pos);
+				}
+				else
+					return;
+			}
+			else if (System::Current() == GBSystem::GBC)
+			{
+				uint16_t size = pos;
+
+				ifs.seekg(0, std::ios::beg);
+				ifs.read(reinterpret_cast<char*>(&mmu.base_bootROM[0]), sizeof(mmu.base_bootROM));
+
+				if (size == 2048)
+					ifs.seekg(sizeof(mmu.base_bootROM), std::ios::beg);
+				else if (size == 2304)
+					ifs.seekg(0x200, std::ios::beg);
+				else
+					return;
+
+				ifs.read(reinterpret_cast<char*>(&mmu.GBCbootROM[0]), sizeof(mmu.GBCbootROM));
+			}
 
 			// LCD disabled on boot ROM start
 			ppu.regs.LCDC = resetBit(ppu.regs.LCDC, 7);

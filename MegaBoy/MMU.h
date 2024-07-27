@@ -28,12 +28,18 @@ public:
 
 	struct DMAstate
 	{
-		uint8_t reg { 0xFF };
-		bool transfer { false };
+		uint8_t reg{ 0xFF };
+		bool transfer{ false };
 		bool restartRequest{ false };
-		uint8_t cycles { 0x00 };
-		uint16_t sourceAddr { 0x00 };
-		uint8_t delayCycles { 0x00 };
+		uint8_t cycles{ 0x00 };
+		uint16_t sourceAddr{ 0x00 };
+		uint8_t delayCycles{ 0x00 };
+	};
+
+	struct HDMAstate
+	{
+		uint16_t sourceAddr{ 0x00 };
+		uint16_t destAddr{ 0x00 };
 	};
 
 	struct MMUstate
@@ -46,8 +52,8 @@ public:
 
 	MMUstate s{};
 
-	std::array<uint8_t, 256> bootROM{};
-
+	std::array<uint8_t, 256> base_bootROM{};
+	std::array<uint8_t, 0x700> GBCbootROM{};
 private:
 	GBCore& gbCore;
 	static constexpr uint8_t DMA_CYCLES = 160;

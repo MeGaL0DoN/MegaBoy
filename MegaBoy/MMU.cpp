@@ -183,6 +183,10 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			gbCore.ppu.regs.WX = val;
 			break;
 
+		case 0xFF50: // BANK register used by boot ROMs
+			gbCore.cpu.executingBootROM = false;
+			break;
+
 		case 0xFF4F:
 			if (System::Current() == GBSystem::GBC)
 				gbCore.ppu.setVRAMBank(val);
@@ -309,10 +313,14 @@ uint8_t MMU::read8(uint16_t addr) const
 			return 0xFF;
 	}
 
-	if (addr <= 0xFF && gbCore.cpu.executingBootROM)
+	if (gbCore.cpu.executingBootROM)
 	{
-		return bootROM[addr];
+		if (addr < 0x100)
+			return base_bootROM[addr];
+		else if (System::Current() == GBSystem::GBC && (addr >= 0x200 && addr <= 0x8FF))
+			return GBCbootROM[addr - 0x200];
 	}
+
 	if (addr <= 0x7FFF)
 	{
 		return gbCore.cartridge.getMapper()->read(addr);
