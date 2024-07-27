@@ -133,6 +133,7 @@ public:
 		uint8_t LY { 0 };
 		uint8_t WLY { 0 };
 
+		uint16_t VBLANK_CYCLES;
 		PPUMode state { PPUMode::OAMSearch };
 		uint16_t videoCycles { 0 };
 	};
@@ -175,7 +176,7 @@ private:
 	static constexpr uint16_t OAM_SCAN_CYCLES = 20 * 4;
 	static constexpr uint16_t PIXEL_TRANSFER_CYCLES = 43 * 4;
 	static constexpr uint16_t HBLANK_CYCLES = 51 * 4;
-	static constexpr uint16_t VBLANK_CYCLES = 114 * 4;
+	static constexpr uint16_t DEFAULT_VBLANK_CYCLES = 114 * 4;
 
 	constexpr void invokeDrawCallback() { if (drawCallback != nullptr) drawCallback(framebuffer.data()); }
 

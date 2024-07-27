@@ -248,6 +248,7 @@ void PPU::handleHBlank()
 
 		if (s.LY == 144)
 		{
+			s.VBLANK_CYCLES = DEFAULT_VBLANK_CYCLES;
 			SetPPUMode(PPUMode::VBlank);
 			cpu.requestInterrupt(Interrupt::VBlank);
 			invokeDrawCallback();
@@ -258,18 +259,29 @@ void PPU::handleHBlank()
 }
 void PPU::handleVBlank()
 {
-	if (s.videoCycles >= VBLANK_CYCLES)
+	if (s.videoCycles >= s.VBLANK_CYCLES)
 	{
-		s.videoCycles -= VBLANK_CYCLES;
+		s.LY++;
+		s.videoCycles -= s.VBLANK_CYCLES;
 
-		if (s.LY == 153)
+		switch (s.LY)
 		{
+		case 153:
+			s.VBLANK_CYCLES	= 4;
+			break;
+		case 154:
+			s.VBLANK_CYCLES = 452;
 			s.LY = 0;
 			s.WLY = 0;
+			break;
+		case 1:
+			s.LY = 0;
 			SetPPUMode(PPUMode::OAMSearch);
+			break;
+		default:
+			s.VBLANK_CYCLES = DEFAULT_VBLANK_CYCLES;
+			break;
 		}
-		else
-			s.LY++;
 	}
 }
 

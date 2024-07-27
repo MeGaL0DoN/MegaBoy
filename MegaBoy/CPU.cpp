@@ -87,7 +87,7 @@ uint8_t& CPU::getRegister(uint8_t ind)
 	return (uint8_t&)s;
 }
 
-constexpr uint16_t STOP_PERIOD_CYCLES = 2050;
+constexpr uint16_t STOP_PERIOD_CYCLES = 32768;
 
 uint8_t CPU::handleHaltedState()
 {
