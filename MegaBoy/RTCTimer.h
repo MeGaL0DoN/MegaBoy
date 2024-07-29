@@ -43,8 +43,8 @@ class RTCTimer
 public:
 	RTCState s{};
 
-	static constexpr int32_t CYCLES_PER_SECOND = 1048576;
-	void addRTCcycles(int32_t cycles);
+	static constexpr uint32_t CYCLES_PER_SECOND = 1048576 * 4;
+	void addRTCcycles(uint32_t cycles);
 	void adjustRTC();
 
 	constexpr void setReg(uint8_t reg) { s.reg = reg; }

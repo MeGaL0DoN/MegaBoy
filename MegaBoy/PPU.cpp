@@ -419,11 +419,6 @@ void PPU::renderWindow()
 		onWindowRender(framebuffer.data(), updatedWindowPixels, s.LY);
 }
 
-inline uint8_t toRGB8(uint8_t rgb5)
-{
-	return (rgb5 << 3) | (rgb5 >> 2);
-}
-
 template void PPU::GBC_renderBGTile<true>(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
 template void PPU::GBC_renderBGTile<false>(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
 

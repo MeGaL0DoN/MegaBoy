@@ -110,9 +110,9 @@ uint8_t CPU::handleHaltedState()
 
 bool CPU::handleGHDMA()
 {
-	if (gbCore.mmu.s.hdma.status != GHDMAStatus::None)
+	if (gbCore.mmu.gbc.hdma.status != GHDMAStatus::None)
 	{
-		if (gbCore.mmu.s.hdma.status == GHDMAStatus::GDMA || (gbCore.ppu.s.state == PPUMode::HBlank && gbCore.ppu.s.videoCycles < MMU::GHDMA_BLOCK_CYCLES))
+		if (gbCore.mmu.gbc.hdma.status == GHDMAStatus::GDMA || (gbCore.ppu.s.state == PPUMode::HBlank && gbCore.ppu.s.videoCycles < MMU::GHDMA_BLOCK_CYCLES))
 		{
 			gbCore.mmu.executeGHDMA();
 			return true;

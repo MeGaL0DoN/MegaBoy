@@ -4,13 +4,32 @@
 
 MMU::MMU(GBCore& gbCore) : gbCore(gbCore) {}
 
+void MMU::updateFunctionPointers()
+{
+	if (System::Current() == GBSystem::DMG)
+	{
+		read_func = &MMU::read8<GBSystem::DMG, true>;
+		write_func = &MMU::write8<GBSystem::DMG>;
+		dma_nonblocking_read = &MMU::read8<GBSystem::DMG, false>;
+	}
+	else if (System::Current() == GBSystem::GBC)
+	{
+		read_func = &MMU::read8<GBSystem::GBC, false>;
+		write_func = &MMU::write8<GBSystem::GBC>;
+		dma_nonblocking_read = read_func;
+	}
+}
+
 void MMU::saveState(std::ofstream& st)
 {
 	st.write(reinterpret_cast<char*>(&s), sizeof(s));
 
-	uint16_t WRAMSize = System::Current() == GBSystem::GBC ? 0x8000 : 0x2000;
-	st.write(reinterpret_cast<char*>(WRAM_BANKS.data()), WRAMSize);
+	if (System::Current() == GBSystem::GBC)
+		st.write(reinterpret_cast<char*>(&gbc), sizeof(gbc));
 
+	uint16_t WRAMSize = System::Current() == GBSystem::GBC ? 0x8000 : 0x2000;
+
+	st.write(reinterpret_cast<char*>(WRAM_BANKS.data()), WRAMSize);
 	st.write(reinterpret_cast<char*>(HRAM.data()), sizeof(HRAM));
 }
 
@@ -18,9 +37,12 @@ void MMU::loadState(std::ifstream& st)
 {
 	st.read(reinterpret_cast<char*>(&s), sizeof(s));
 
-	uint16_t WRAMSize = System::Current() == GBSystem::GBC ? 0x8000 : 0x2000;
-	st.read(reinterpret_cast<char*>(WRAM_BANKS.data()), WRAMSize);
+	if (System::Current() == GBSystem::GBC)
+		st.read(reinterpret_cast<char*>(&gbc), sizeof(gbc));
 
+	uint16_t WRAMSize = System::Current() == GBSystem::GBC ? 0x8000 : 0x2000;
+
+	st.read(reinterpret_cast<char*>(WRAM_BANKS.data()), WRAMSize);
 	st.read(reinterpret_cast<char*>(HRAM.data()), sizeof(HRAM));
 }
 
@@ -52,7 +74,7 @@ void MMU::executeDMA()
 			s.dma.delayCycles--;
 		else
 		{
-			gbCore.ppu.OAM[s.dma.cycles++] = read8<false>(s.dma.sourceAddr++);
+			gbCore.ppu.OAM[s.dma.cycles++] = (this->*dma_nonblocking_read)(s.dma.sourceAddr++);
 
 			if (s.dma.restartRequest)
 			{
@@ -67,34 +89,41 @@ void MMU::executeDMA()
 
 void MMU::executeGHDMA()
 {
-	s.hdma.cycles += (gbCore.cpu.doubleSpeed() ? 2 : 4);
+	gbc.hdma.cycles += (gbCore.cpu.doubleSpeed() ? 2 : 4);
 
-	if (s.hdma.cycles >= GHDMA_BLOCK_CYCLES)
+	if (gbc.hdma.cycles >= GHDMA_BLOCK_CYCLES)
 	{
-		s.hdma.cycles -= GHDMA_BLOCK_CYCLES;
-		s.hdma.transferLength -= 0x10;
+		gbc.hdma.cycles -= GHDMA_BLOCK_CYCLES;
+		gbc.hdma.transferLength -= 0x10;
 
 		for (int i = 0; i < 0x10; i++)
-			gbCore.ppu.VRAM[s.hdma.currentDestAddr++] = read8<false>(s.hdma.currentSourceAddr++);
+			gbCore.ppu.VRAM[gbc.hdma.currentDestAddr++] = (this->*dma_nonblocking_read)(gbc.hdma.currentSourceAddr++);
 
-		if (s.hdma.transferLength == 0)
+		if (gbc.hdma.transferLength == 0)
 		{
-			s.hdma.status = GHDMAStatus::None;
-			s.hdma.transferLength = 0x7F;
+			gbc.hdma.status = GHDMAStatus::None;
+			gbc.hdma.transferLength = 0x7F;
 		}
 	}
 }
 
+template void MMU::write8<GBSystem::DMG>(uint16_t, uint8_t);
+template void MMU::write8<GBSystem::GBC>(uint16_t, uint8_t);
+
+template <GBSystem sys>
 void MMU::write8(uint16_t addr, uint8_t val)
 {
-	if (addr == 0xFF46)
+	if constexpr (sys == GBSystem::DMG)
 	{
-		s.dma.reg = val;
-		startDMATransfer();
-		return;
+		if (addr == 0xFF46)
+		{
+			s.dma.reg = val;
+			startDMATransfer();
+			return;
+		}
+		else if (dmaInProgress() && (addr < 0xFF80 || addr > 0xFFFE)) // during DMA only HRAM can be accessed. (only on DMG)
+			return;
 	}
-	else if (dmaInProgress() && (addr < 0xFF80 || addr > 0xFFFE)) // during DMA only HRAM can be accessed. // TODO: DISABLE ON GBC!
-		return;
 
 	if (addr <= 0x7FFF)
 	{
@@ -115,7 +144,10 @@ void MMU::write8(uint16_t addr, uint8_t val)
 	}
 	else if (addr <= 0xDFFF)
 	{
-		WRAM_BANKS[0x1000 * s.wramBank + addr - 0xD000] = val;
+		if constexpr (sys == GBSystem::GBC)
+			WRAM_BANKS[gbc.wramBank * 0x1000 + addr - 0xD000] = val;
+		else
+			WRAM_BANKS[addr - 0xC000] = val;
 	}
 	else if (addr <= 0xFDFF)
 	{
@@ -128,7 +160,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 	}
 	else if (addr <= 0xFEFF)
 	{
-		// TODO: prohibited area;
+		// prohibited area
 		return;
 	}
 	else if (addr <= 0xFF7F)
@@ -184,6 +216,13 @@ void MMU::write8(uint16_t addr, uint8_t val)
 		case 0xFF45:
 			gbCore.ppu.regs.LYC = val;
 			break;
+		case 0xFF46:
+			if constexpr (sys == GBSystem::GBC)
+			{
+				s.dma.reg = val;
+				startDMATransfer();
+			}
+			break;
 		case 0xFF47:
 			gbCore.ppu.regs.BGP = val;
 			gbCore.ppu.updatePalette(val, gbCore.ppu.BGpalette);
@@ -202,82 +241,95 @@ void MMU::write8(uint16_t addr, uint8_t val)
 		case 0xFF4B:
 			gbCore.ppu.regs.WX = val;
 			break;
-
 		case 0xFF50: // BANK register used by boot ROMs
 			gbCore.cpu.executingBootROM = false;
 			break;
 
-		case 0xFF4F:
-			if (System::Current() == GBSystem::GBC)
-				gbCore.ppu.setVRAMBank(val);
-			break;
-		case 0xFF68:
-			gbCore.ppu.gbcRegs.BCPS.write(val);
-			break;
-		case 0xFF69:
-			gbCore.ppu.writePaletteRAM(gbCore.ppu.BGpaletteRAM, gbCore.ppu.gbcRegs.BCPS, val);
-			break;
-		case 0xFF6A:
-			gbCore.ppu.gbcRegs.OCPS.write(val);
-			break;
-		case 0xFF6B:
-			gbCore.ppu.writePaletteRAM(gbCore.ppu.OBPpaletteRAM, gbCore.ppu.gbcRegs.OCPS, val);
-			break;
-		case 0xFF70:
-			if (System::Current() == GBSystem::GBC)
-			{
-				s.wramBank = val & 0x7;
-				if (s.wramBank == 0) s.wramBank = 1;
-			}
-			break;
-
 		case 0xFF4D:
-			if (System::Current() == GBSystem::GBC)
+			if constexpr (sys == GBSystem::GBC)
 			{
 				if (gbCore.cpu.s.GBCdoubleSpeed != (val & 1))
 					gbCore.cpu.s.prepareSpeedSwitch = true;
 			}
 			break;
-
+		case 0xFF4F:
+			if constexpr (sys == GBSystem::GBC)
+				gbCore.ppu.setVRAMBank(val);
+			break;
+		case 0xFF68:
+			if constexpr (sys == GBSystem::GBC)
+				gbCore.ppu.gbcRegs.BCPS.write(val);
+			break;
+		case 0xFF69:
+			if constexpr (sys == GBSystem::GBC)
+				gbCore.ppu.writePaletteRAM(gbCore.ppu.BGpaletteRAM, gbCore.ppu.gbcRegs.BCPS, val);
+			break;
+		case 0xFF6A:
+			if constexpr (sys == GBSystem::GBC)
+				gbCore.ppu.gbcRegs.OCPS.write(val);
+			break;
+		case 0xFF6B:
+			if constexpr (sys == GBSystem::GBC)
+				gbCore.ppu.writePaletteRAM(gbCore.ppu.OBPpaletteRAM, gbCore.ppu.gbcRegs.OCPS, val);
+			break;
+		case 0xFF70:
+			if constexpr (sys == GBSystem::GBC)
+			{
+				gbc.wramBank = val & 0x7;
+				if (gbc.wramBank == 0) gbc.wramBank = 1;
+			}
+			break;
 		case 0xFF51:
-			s.hdma.sourceAddr = (s.hdma.sourceAddr & 0x00FF) | (val << 8);
+			if constexpr (sys == GBSystem::GBC)
+				gbc.hdma.sourceAddr = (gbc.hdma.sourceAddr & 0x00FF) | (val << 8);
 			break;
 		case 0xFF52:
-			s.hdma.sourceAddr = (s.hdma.sourceAddr & 0xFF00) | val; 
+			if constexpr (sys == GBSystem::GBC)
+				gbc.hdma.sourceAddr = (gbc.hdma.sourceAddr & 0xFF00) | val;
 			break;
 		case 0xFF53:
-			s.hdma.destAddr = (s.hdma.destAddr & 0x00FF) | (val << 8);
+			if constexpr (sys == GBSystem::GBC)
+				gbc.hdma.destAddr = (gbc.hdma.destAddr & 0x00FF) | (val << 8);
 			break;
 		case 0xFF54:
-			s.hdma.destAddr = (s.hdma.destAddr & 0xFF00) | val;
+			if constexpr (sys == GBSystem::GBC)
+				gbc.hdma.destAddr = (gbc.hdma.destAddr & 0xFF00) | val;
 			break;
 		case 0xFF55:
-			if (System::Current() == GBSystem::GBC)
+			if constexpr (sys == GBSystem::GBC)
 			{
-				if (s.hdma.status != GHDMAStatus::None)
+				if (gbc.hdma.status != GHDMAStatus::None)
 				{
 					if (!getBit(val, 7))
-						s.hdma.status = GHDMAStatus::None;
+						gbc.hdma.status = GHDMAStatus::None;
 				}
 				else
 				{
-					s.hdma.currentSourceAddr = s.hdma.sourceAddr & 0xFFF0;
-					s.hdma.currentDestAddr = s.hdma.destAddr & 0x1FF0; // ignore 3 upper bits too, because destination is always in VRAM
+					gbc.hdma.currentSourceAddr = gbc.hdma.sourceAddr & 0xFFF0;
+					gbc.hdma.currentDestAddr = gbc.hdma.destAddr & 0x1FF0; // ignore 3 upper bits too, because destination is always in VRAM
 
-					s.hdma.transferLength = ((val & 0x7F) + 1) * 0x10;
-					s.hdma.status = getBit(val, 7) ? GHDMAStatus::HDMA : GHDMAStatus::GDMA;
-					s.hdma.cycles = 0;
-				}				
+					gbc.hdma.transferLength = ((val & 0x7F) + 1) * 0x10;
+					gbc.hdma.status = getBit(val, 7) ? GHDMAStatus::HDMA : GHDMAStatus::GDMA;
+					gbc.hdma.cycles = 0;
+				}
 			}
 			break;
-
-		//case 0xFF51:
-		//case 0xFF52:
-		//case 0xFF53:
-		//case 0xFF54:
-		//case 0xFF55:
-		//	std::cout << "HDMA WRITE! \n";
-		//	break;
+		case 0xFF72:
+			if constexpr (sys == GBSystem::GBC)
+				gbc.FF72 = val;
+			break;
+		case 0xFF73:
+			if constexpr (sys == GBSystem::GBC)
+				gbc.FF73 = val;
+			break;
+		case 0xFF74:
+			if constexpr (sys == GBSystem::GBC)
+				gbc.FF74 = val;
+			break;
+		case 0xFF75:
+			if constexpr (sys == GBSystem::GBC)
+				gbc.FF75 = val | 0x8F;
+			break;
 
 		case 0xFF10: 
 			gbCore.apu.regs.NR10 = val; break;
@@ -350,18 +402,21 @@ void MMU::write8(uint16_t addr, uint8_t val)
 		gbCore.cpu.s.IE = val;
 }
 
-template uint8_t MMU::read8<true>(uint16_t) const;
-template uint8_t MMU::read8<false>(uint16_t) const;
+template uint8_t MMU::read8<GBSystem::DMG, true>(uint16_t) const;
+template uint8_t MMU::read8<GBSystem::DMG, false>(uint16_t) const;
 
-template <bool dmaBlocking>
+template uint8_t MMU::read8<GBSystem::GBC, true>(uint16_t) const;
+template uint8_t MMU::read8<GBSystem::GBC, false>(uint16_t) const;
+
+template <GBSystem sys, bool dmaBlocking>
 uint8_t MMU::read8(uint16_t addr) const
 {
-	if (addr == 0xFF46)
-		return s.dma.reg;
-
 	if constexpr (dmaBlocking)
 	{
-		if (dmaInProgress() && (addr < 0xFF80 || addr > 0xFFFE)) // during DMA only HRAM can be accessed. // TODO: DISABLE ON GBC!
+		if (addr == 0xFF46)
+			return s.dma.reg;
+
+		if (dmaInProgress() && (addr < 0xFF80 || addr > 0xFFFE))
 			return 0xFF;
 	}
 
@@ -369,8 +424,12 @@ uint8_t MMU::read8(uint16_t addr) const
 	{
 		if (addr < 0x100)
 			return base_bootROM[addr];
-		else if (System::Current() == GBSystem::GBC && (addr >= 0x200 && addr <= 0x8FF))
-			return GBCbootROM[addr - 0x200];
+
+		if constexpr (sys == GBSystem::GBC)
+		{
+			if (addr >= 0x200 && addr <= 0x8FF)
+				return GBCbootROM[addr - 0x200];
+		}
 	}
 
 	if (addr <= 0x7FFF)
@@ -385,13 +444,17 @@ uint8_t MMU::read8(uint16_t addr) const
 	{
 		return gbCore.cartridge.getMapper()->read(addr);
 	}
-	if (addr <= 0xCFFF)
+	if constexpr (sys == GBSystem::DMG)
 	{
-		return WRAM_BANKS[addr - 0xC000];
+		if (addr <= 0xDFFF)
+			return WRAM_BANKS[addr - 0xC000];
 	}
-	if (addr <= 0xDFFF)
+	else
 	{
-		return WRAM_BANKS[s.wramBank * 0x1000 + addr - 0xD000];
+		if (addr <= 0xCFFF)
+			return WRAM_BANKS[addr - 0xC000];
+		if (addr <= 0xDFFF)
+			return WRAM_BANKS[gbc.wramBank * 0x1000 + addr - 0xD000];
 	}
 	if (addr <= 0xFDFF)
 	{
@@ -403,8 +466,12 @@ uint8_t MMU::read8(uint16_t addr) const
 	}
 	if (addr <= 0xFEFF)
 	{
-		// TODO: prohibited area;
-		return 0xFF;
+		// prohibited area
+
+		if constexpr (sys == GBSystem::DMG)
+			return gbCore.ppu.canAccessOAM ? 0x00 : 0xFF;
+		else
+			return 0xFF;
 	}
 	if (addr <= 0xFF7F)
 	{
@@ -438,6 +505,8 @@ uint8_t MMU::read8(uint16_t addr) const
 			return gbCore.ppu.s.LY;
 		case 0xFF45:
 			return gbCore.ppu.regs.LYC;
+		case 0xFF46:
+			return s.dma.reg;
 		case 0xFF47:
 			return gbCore.ppu.regs.BGP;
 		case 0xFF48:
@@ -449,33 +518,91 @@ uint8_t MMU::read8(uint16_t addr) const
 		case 0xFF4B:
 			return gbCore.ppu.regs.WX;
 
-		// TODO : CONSTEXPR GBC MODE
-		case 0xFF4F:
-			return System::Current() == GBSystem::GBC ? gbCore.ppu.gbcRegs.VBK : 0xFF;
-		case 0xFF68:
-			return System::Current() == GBSystem::GBC ? gbCore.ppu.gbcRegs.BCPS.read() : 0xFF;
-		case 0xFF69:
-			return System::Current() == GBSystem::GBC ? gbCore.ppu.BGpaletteRAM[gbCore.ppu.gbcRegs.BCPS.value] : 0xFF;
-		case 0xFF6A:
-			return System::Current() == GBSystem::GBC ? gbCore.ppu.gbcRegs.OCPS.read() : 0xFF;
-		case 0xFF6B:
-			return System::Current() == GBSystem::GBC ? gbCore.ppu.OBPpaletteRAM[gbCore.ppu.gbcRegs.OCPS.value] : 0xFF;
-		case 0xFF70:
-			return System::Current() == GBSystem::GBC ? s.wramBank : 0xFF;
-
 		case 0xFF4D:
-			return System::Current() == GBSystem::GBC ? (0x7E | (gbCore.cpu.s.GBCdoubleSpeed << 7) | gbCore.cpu.s.prepareSpeedSwitch) : 0xFF;
-
+			if constexpr (sys == GBSystem::GBC)
+				return 0x7E | (gbCore.cpu.s.GBCdoubleSpeed << 7) | gbCore.cpu.s.prepareSpeedSwitch;
+			else
+				return 0xFF;
+		case 0xFF4F:
+			if constexpr (sys == GBSystem::GBC)
+				return gbCore.ppu.gbcRegs.VBK;
+			else 
+				return 0xFF;
+		case 0xFF68:
+			if constexpr (sys == GBSystem::GBC)
+				return gbCore.ppu.gbcRegs.BCPS.read();
+			else
+				return 0xFF;
+		case 0xFF69:
+			if constexpr (sys == GBSystem::GBC)
+				return gbCore.ppu.BGpaletteRAM[gbCore.ppu.gbcRegs.BCPS.value];
+			else
+				return 0xFF;
+		case 0xFF6A:
+			if constexpr (sys == GBSystem::GBC)
+				return gbCore.ppu.gbcRegs.OCPS.read();
+			else
+				return 0xFF;
+		case 0xFF6B:
+			if constexpr (sys == GBSystem::GBC)
+				return gbCore.ppu.OBPpaletteRAM[gbCore.ppu.gbcRegs.OCPS.value];
+			else
+				return 0xFF;
+		case 0xFF70:
+			if constexpr (sys == GBSystem::GBC)
+				return gbc.wramBank;
+			else
+				return 0xFF;
 		case 0xFF51:
-			return System::Current() == GBSystem::GBC ? s.hdma.sourceAddr >> 8 : 0xFF;
+			if constexpr (sys == GBSystem::GBC)
+				return gbc.hdma.sourceAddr >> 8;
+			else
+				return 0xFF;
 		case 0xFF52:
-			return System::Current() == GBSystem::GBC ? s.hdma.sourceAddr & 0xFF : 0xFF;
+			if constexpr (sys == GBSystem::GBC)
+				return gbc.hdma.sourceAddr & 0xFF;
+			else
+				return 0xFF;
 		case 0xFF53:
-			return System::Current() == GBSystem::GBC ? s.hdma.destAddr >> 8 : 0xFF;
+			if constexpr (sys == GBSystem::GBC)
+				return gbc.hdma.destAddr >> 8;
+			else
+				return 0xFF;
 		case 0xFF54:
-			return System::Current() == GBSystem::GBC ? s.hdma.destAddr & 0xFF : 0xFF;
+			if constexpr (sys == GBSystem::GBC)
+				return gbc.hdma.destAddr & 0xFF;
+			else
+				return 0xFF;
 		case 0xFF55:
-			return System::Current() == GBSystem::GBC ? (((s.hdma.status == GHDMAStatus::None) << 7) | ((s.hdma.transferLength - 1) / 0x10)) : 0xFF;
+			if constexpr (sys == GBSystem::GBC)
+				return ((gbc.hdma.status == GHDMAStatus::None) << 7) | ((gbc.hdma.transferLength - 1) / 0x10);
+			else
+				return 0xFF;
+		case 0xFF6C: // OPRI, bit 0 is always off in cgb mode?
+			if constexpr (sys == GBSystem::GBC)
+				return 0xFE;
+			else
+				return 0xFF;
+		case 0xFF72:
+			if constexpr (sys == GBSystem::GBC)
+				return gbc.FF72;
+			else
+				return 0xFF;
+		case 0xFF73:
+			if constexpr (sys == GBSystem::GBC)
+				return gbc.FF73;
+			else
+				return 0xFF;
+		case 0xFF74:
+			if constexpr (sys == GBSystem::GBC)
+				return gbc.FF74;
+			else
+				return 0xFF;
+		case 0xFF75:
+			if constexpr (sys == GBSystem::GBC)
+				return gbc.FF75;
+			else
+				return 0xFF;
 
 		case 0xFF10: 
 			return gbCore.apu.regs.NR10;

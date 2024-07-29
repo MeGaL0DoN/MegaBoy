@@ -20,7 +20,7 @@ void RTCTimer::incrementDay()
 	}
 }
 
-void RTCTimer::addRTCcycles(int32_t cycles)
+void RTCTimer::addRTCcycles(uint32_t cycles)
 {
 	if (getBit(s.regs.DH, 6)) // Timer disabled
 	{

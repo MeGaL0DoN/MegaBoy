@@ -2,6 +2,7 @@
 #include <fstream>
 #include <cstdint>
 #include <array>
+#include "gbSystem.h"
 
 class GBCore;
 class Cartridge;
@@ -17,11 +18,10 @@ class MMU
 {
 public:
 	MMU(GBCore& gbCore);
+	void updateFunctionPointers();
 
-	void write8(uint16_t addr, uint8_t val);
-
-	template <bool dmaBlocking = true>
-	uint8_t read8(uint16_t addr) const;
+	inline void write8(uint16_t addr, uint8_t val) { (this->*write_func)(addr, val); }
+	inline uint8_t read8(uint16_t addr) const { return (this->*read_func)(addr); }
 
 	void executeDMA();
 	void executeGHDMA();
@@ -29,6 +29,7 @@ public:
 	inline void reset()
 	{
 		s = {};
+		updateFunctionPointers();
 	}
 
 	void saveState(std::ofstream& st);
@@ -44,6 +45,7 @@ public:
 		uint8_t delayCycles{ 0x00 };
 	};
 
+	static constexpr uint8_t DMA_CYCLES = 160;
 	static constexpr uint8_t GHDMA_BLOCK_CYCLES = 32;
 
 	struct GHDMAstate
@@ -59,26 +61,43 @@ public:
 		GHDMAStatus status { GHDMAStatus::None };
 	};
 
-	struct MMUstate
+	struct DMGstate
 	{
 		bool statRegChanged{ false };
 		uint8_t newStatVal{ 0 };
-		DMAstate dma;
-		GHDMAstate hdma;
-		uint8_t wramBank{ 1 };
+		DMAstate dma{};
 	};
 
-	MMUstate s{};
+	struct GBCState
+	{
+		GHDMAstate hdma{};
+		uint8_t wramBank{ 1 };
+
+		// undocumented CGB registers
+		uint8_t FF72{ 0x00 }, FF73{ 0x00 }, FF74{ 0x00 }, FF75 { 0x8F };
+	};
+
+	DMGstate s{};
+	GBCState gbc{};
 
 	std::array<uint8_t, 256> base_bootROM{};
 	std::array<uint8_t, 0x700> GBCbootROM{};
 private:
 	GBCore& gbCore;
-	static constexpr uint8_t DMA_CYCLES = 160;
 
 	std::array<uint8_t, 0x8000> WRAM_BANKS{};
 	std::array<uint8_t, 127> HRAM{};
 
 	constexpr bool dmaInProgress() const { return s.dma.transfer && s.dma.delayCycles == 0; }
 	void startDMATransfer();
+
+	template <GBSystem sys>
+	void write8(uint16_t addr, uint8_t val);
+
+	template <GBSystem sys, bool dmaBlocking>
+	uint8_t read8(uint16_t addr) const;
+
+	void(MMU::*write_func)(uint16_t, uint8_t) { nullptr };
+	uint8_t(MMU::*read_func)(uint16_t) const { nullptr };
+	uint8_t(MMU::*dma_nonblocking_read)(uint16_t) const { nullptr };
 };

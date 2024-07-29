@@ -73,11 +73,11 @@ void GBCore::update(uint32_t cyclesToExecute)
 
 	while (currentCycles < cyclesToExecute)
 	{
-		uint8_t baseMCycles = cpu.execute();
-		currentCycles += baseMCycles * (cpu.doubleSpeed() ? 2 : 4);
+		uint8_t cycles = cpu.execute() * (cpu.doubleSpeed() ? 2 : 4);
+		currentCycles += cycles;
 
 		if (cartridge.hasTimer)
-			cartridge.timer.addRTCcycles(baseMCycles);
+			cartridge.timer.addRTCcycles(cycles);
 	}
 }
 
