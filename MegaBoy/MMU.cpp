@@ -65,6 +65,26 @@ void MMU::executeDMA()
 	}
 }
 
+void MMU::executeGHDMA()
+{
+	s.hdma.cycles += (gbCore.cpu.doubleSpeed() ? 2 : 4);
+
+	if (s.hdma.cycles >= GHDMA_BLOCK_CYCLES)
+	{
+		s.hdma.cycles -= GHDMA_BLOCK_CYCLES;
+		s.hdma.transferLength -= 0x10;
+
+		for (int i = 0; i < 0x10; i++)
+			gbCore.ppu.VRAM[s.hdma.currentDestAddr++] = read8<false>(s.hdma.currentSourceAddr++);
+
+		if (s.hdma.transferLength == 0)
+		{
+			s.hdma.status = GHDMAStatus::None;
+			s.hdma.transferLength = 0x7F;
+		}
+	}
+}
+
 void MMU::write8(uint16_t addr, uint8_t val)
 {
 	if (addr == 0xFF46)
@@ -220,12 +240,44 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 
 		case 0xFF51:
-		case 0xFF52:
-		case 0xFF53:
-		case 0xFF54:
-		case 0xFF55:
-			std::cout << "HDMA WRITE! \n";
+			s.hdma.sourceAddr = (s.hdma.sourceAddr & 0x00FF) | (val << 8);
 			break;
+		case 0xFF52:
+			s.hdma.sourceAddr = (s.hdma.sourceAddr & 0xFF00) | val; 
+			break;
+		case 0xFF53:
+			s.hdma.destAddr = (s.hdma.destAddr & 0x00FF) | (val << 8);
+			break;
+		case 0xFF54:
+			s.hdma.destAddr = (s.hdma.destAddr & 0xFF00) | val;
+			break;
+		case 0xFF55:
+			if (System::Current() == GBSystem::GBC)
+			{
+				if (s.hdma.status != GHDMAStatus::None)
+				{
+					if (!getBit(val, 7))
+						s.hdma.status = GHDMAStatus::None;
+				}
+				else
+				{
+					s.hdma.currentSourceAddr = s.hdma.sourceAddr & 0xFFF0;
+					s.hdma.currentDestAddr = s.hdma.destAddr & 0x1FF0; // ignore 3 upper bits too, because destination is always in VRAM
+
+					s.hdma.transferLength = ((val & 0x7F) + 1) * 0x10;
+					s.hdma.status = getBit(val, 7) ? GHDMAStatus::HDMA : GHDMAStatus::GDMA;
+					s.hdma.cycles = 0;
+				}				
+			}
+			break;
+
+		//case 0xFF51:
+		//case 0xFF52:
+		//case 0xFF53:
+		//case 0xFF54:
+		//case 0xFF55:
+		//	std::cout << "HDMA WRITE! \n";
+		//	break;
 
 		case 0xFF10: 
 			gbCore.apu.regs.NR10 = val; break;
@@ -413,6 +465,17 @@ uint8_t MMU::read8(uint16_t addr) const
 
 		case 0xFF4D:
 			return System::Current() == GBSystem::GBC ? (0x7E | (gbCore.cpu.s.GBCdoubleSpeed << 7) | gbCore.cpu.s.prepareSpeedSwitch) : 0xFF;
+
+		case 0xFF51:
+			return System::Current() == GBSystem::GBC ? s.hdma.sourceAddr >> 8 : 0xFF;
+		case 0xFF52:
+			return System::Current() == GBSystem::GBC ? s.hdma.sourceAddr & 0xFF : 0xFF;
+		case 0xFF53:
+			return System::Current() == GBSystem::GBC ? s.hdma.destAddr >> 8 : 0xFF;
+		case 0xFF54:
+			return System::Current() == GBSystem::GBC ? s.hdma.destAddr & 0xFF : 0xFF;
+		case 0xFF55:
+			return System::Current() == GBSystem::GBC ? (((s.hdma.status == GHDMAStatus::None) << 7) | ((s.hdma.transferLength - 1) / 0x10)) : 0xFF;
 
 		case 0xFF10: 
 			return gbCore.apu.regs.NR10;

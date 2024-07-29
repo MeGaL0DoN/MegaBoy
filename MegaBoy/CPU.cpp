@@ -108,6 +108,20 @@ uint8_t CPU::handleHaltedState()
 	return cycles;
 }
 
+bool CPU::handleGHDMA()
+{
+	if (gbCore.mmu.s.hdma.status != GHDMAStatus::None)
+	{
+		if (gbCore.mmu.s.hdma.status == GHDMAStatus::GDMA || (gbCore.ppu.s.state == PPUMode::HBlank && gbCore.ppu.s.videoCycles < MMU::GHDMA_BLOCK_CYCLES))
+		{
+			gbCore.mmu.executeGHDMA();
+			return true;
+		}
+	}
+
+	return false;
+}
+
 uint8_t CPU::execute()
 {
 	cycles = 0;
@@ -120,6 +134,9 @@ uint8_t CPU::execute()
 
 	if (s.halted)
 		return handleHaltedState();
+
+	if (handleGHDMA())
+		return 1;
 
 	opcode = read8(s.PC);
 

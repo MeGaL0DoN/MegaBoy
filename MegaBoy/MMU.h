@@ -6,6 +6,13 @@
 class GBCore;
 class Cartridge;
 
+enum class GHDMAStatus
+{
+	None,
+	GDMA,
+	HDMA,
+};
+
 class MMU
 {
 public:
@@ -17,6 +24,7 @@ public:
 	uint8_t read8(uint16_t addr) const;
 
 	void executeDMA();
+	void executeGHDMA();
 
 	inline void reset()
 	{
@@ -36,10 +44,19 @@ public:
 		uint8_t delayCycles{ 0x00 };
 	};
 
-	struct HDMAstate
+	static constexpr uint8_t GHDMA_BLOCK_CYCLES = 32;
+
+	struct GHDMAstate
 	{
-		uint16_t sourceAddr{ 0x00 };
-		uint16_t destAddr{ 0x00 };
+		uint16_t sourceAddr{ 0xFF };
+		uint16_t destAddr{ 0xFF };
+
+		uint16_t currentSourceAddr{ 0x00 };
+		uint16_t currentDestAddr { 0x00 };
+
+		uint16_t transferLength{ 0xFF };
+		uint8_t cycles{ 0x00 };
+		GHDMAStatus status { GHDMAStatus::None };
 	};
 
 	struct MMUstate
@@ -47,6 +64,7 @@ public:
 		bool statRegChanged{ false };
 		uint8_t newStatVal{ 0 };
 		DMAstate dma;
+		GHDMAstate hdma;
 		uint8_t wramBank{ 1 };
 	};
 

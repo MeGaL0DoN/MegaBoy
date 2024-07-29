@@ -685,6 +685,8 @@ public:
 			cpu->s.DIV_COUNTER = 0;
 			cpu->s.DIV_reg = 0;
 
+			cpu->s.PC++;
+
 			if (cpu->interruptsPending() && cpu->s.IME)
 				return; // if interrupts and IME, then stop is 1 byte opcode
 

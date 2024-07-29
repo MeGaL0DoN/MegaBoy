@@ -61,6 +61,7 @@ private:
 
 	uint8_t handleInterrupts();
 	uint8_t handleHaltedState();
+	bool handleGHDMA();
 
 	void executeMain();
 	void executePrefixed();
