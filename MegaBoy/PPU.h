@@ -71,7 +71,7 @@ public:
 	void reset();
 
 	constexpr const uint8_t* getFrameBuffer() { return framebuffer.data(); }
-	void renderTileData(uint8_t* buffer);
+	void renderTileData(uint8_t* buffer, int vramBank);
 
 	static constexpr std::array<color, 4> GRAY_PALETTE = { color {255, 255, 255}, color {169, 169, 169}, color {84, 84, 84}, color {0, 0, 0} };
 	static constexpr std::array<color, 4> CLASSIC_PALETTE = { color {155, 188, 15}, color {139, 172, 15}, color {48, 98, 48}, color {15, 56, 15} };
@@ -182,7 +182,7 @@ private:
 
 	inline void clearBuffer()
 	{
-		PixelOps::clearBuffer(framebuffer.data(), SCR_WIDTH, SCR_HEIGHT, colors[0]);
+		PixelOps::clearBuffer(framebuffer.data(), SCR_WIDTH, SCR_HEIGHT, System::Current() == GBSystem::DMG ? colors[0] : color { 255, 255, 255 });
 		invokeDrawCallback();
 	}
 

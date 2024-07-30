@@ -141,6 +141,7 @@ enum class VRAMTab
 };
 
 VRAMTab currentTab;
+int vramTile_Bank{ 0 };
 
 void debugUI::updateTextures(bool all)
 {
@@ -158,7 +159,7 @@ void debugUI::updateTextures(bool all)
             OpenGL::updateTexture(OAMTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, OAMFrameBuffer.get());
             if (!all) break;
         case VRAMTab::TileData:
-            gbCore.ppu.renderTileData(tileDataFrameBuffer.get());
+            gbCore.ppu.renderTileData(tileDataFrameBuffer.get(), System::Current() == GBSystem::DMG ? 1 : vramTile_Bank);
             OpenGL::updateTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileDataFrameBuffer.get());
             break;
         }
@@ -281,6 +282,13 @@ void debugUI::updateWindows(float scaleFactor)
             }
             if (ImGui::BeginTabItem("Tile Data"))
             {
+                if (System::Current() == GBSystem::GBC)
+                {
+                    ImGui::RadioButton("VRAM Bank 0", &vramTile_Bank, 0);
+                    ImGui::SameLine();
+                    ImGui::RadioButton("VRAM Bank 1", &vramTile_Bank, 1);
+                }
+
                 currentTab = VRAMTab::TileData;
 
                 if (!tileDataTexture)

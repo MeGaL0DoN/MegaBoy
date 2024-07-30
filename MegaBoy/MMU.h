@@ -23,6 +23,8 @@ public:
 	inline void write8(uint16_t addr, uint8_t val) { (this->*write_func)(addr, val); }
 	inline uint8_t read8(uint16_t addr) const { return (this->*read_func)(addr); }
 
+	void execute();
+
 	void executeDMA();
 	void executeGHDMA();
 

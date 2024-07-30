@@ -84,16 +84,10 @@ void GBCore::update(uint32_t cyclesToExecute)
 void GBCore::stepComponents()
 {
 	cpu.updateTimer();
-	mmu.executeDMA();
 	ppu.execute();
+	mmu.execute();
 	//apu.execute();
 	serial.execute();
-
-	if (mmu.s.statRegChanged)
-	{
-		ppu.regs.STAT = mmu.s.newStatVal;
-		mmu.s.statRegChanged = false;
-	}
 }
 
 void GBCore::restartROM(bool resetBattery)

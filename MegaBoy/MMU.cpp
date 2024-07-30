@@ -46,6 +46,18 @@ void MMU::loadState(std::ifstream& st)
 	st.read(reinterpret_cast<char*>(HRAM.data()), sizeof(HRAM));
 }
 
+void MMU::execute()
+{
+	if (s.dma.transfer)
+		executeDMA();
+
+	if (s.statRegChanged)
+	{
+		gbCore.ppu.regs.STAT = s.newStatVal;
+		s.statRegChanged = false;
+	}
+}
+
 void MMU::startDMATransfer()
 {
 	if (s.dma.transfer)
@@ -68,22 +80,19 @@ void MMU::startDMATransfer()
 
 void MMU::executeDMA()
 {
-	if (s.dma.transfer)
+	if (s.dma.delayCycles > 0)
+		s.dma.delayCycles--;
+	else
 	{
-		if (s.dma.delayCycles > 0)
-			s.dma.delayCycles--;
-		else
-		{
-			gbCore.ppu.OAM[s.dma.cycles++] = (this->*dma_nonblocking_read)(s.dma.sourceAddr++);
+		gbCore.ppu.OAM[s.dma.cycles++] = (this->*dma_nonblocking_read)(s.dma.sourceAddr++);
 
-			if (s.dma.restartRequest)
-			{
-				s.dma.transfer = false;
-				startDMATransfer();
-			}
-			else if (s.dma.cycles >= DMA_CYCLES)
-				s.dma.transfer = false;
+		if (s.dma.restartRequest)
+		{
+			s.dma.transfer = false;
+			startDMATransfer();
 		}
+		else if (s.dma.cycles >= DMA_CYCLES)
+			s.dma.transfer = false;
 	}
 }
 
@@ -198,10 +207,16 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 		case 0xFF41:
 		{
-			// Handle spurious STAT interrupts   // TODO: DISABLE ON GBC!
-			s.newStatVal = (gbCore.ppu.regs.STAT & 0x87) | (val & 0xF8);
-			gbCore.ppu.regs.STAT = 0xFF;
-			s.statRegChanged = true;
+			// spurious STAT interrupts (DMG only)
+			if constexpr (sys == GBSystem::DMG)
+			{
+				s.newStatVal = (gbCore.ppu.regs.STAT & 0x87) | (val & 0xF8);
+				gbCore.ppu.regs.STAT = 0xFF;
+				s.statRegChanged = true;
+			}
+			else
+				gbCore.ppu.regs.STAT = val;
+
 			break;
 		}
 		case 0xFF42:

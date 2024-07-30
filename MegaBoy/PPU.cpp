@@ -552,10 +552,12 @@ void PPU::DMG_renderObjTile(const object& obj)
 	}
 }
 
-void PPU::renderTileData(uint8_t* buffer)
+void PPU::renderTileData(uint8_t* buffer, int vramBank)
 {
 	if (!buffer)
 		return;
+
+	const uint8_t* vram = vramBank == 1 ? VRAM_BANK1.data() : VRAM_BANK0.data();
 
 	for (uint16_t addr = 0; addr < 0x17FF; addr += 16)
 	{
@@ -566,8 +568,8 @@ void PPU::renderTileData(uint8_t* buffer)
 		for (uint8_t y = 0; y < 8; y++)
 		{
 			uint8_t yPos { static_cast<uint8_t>(y + screenY) };
-			uint8_t lsbLineByte { VRAM[addr + y * 2] };
-			uint8_t msbLineByte { VRAM[addr + y * 2 + 1] };
+			uint8_t lsbLineByte { vram[addr + y * 2] };
+			uint8_t msbLineByte { vram[addr + y * 2 + 1] };
 
 			for (int8_t x = 7; x >= 0; x--)
 			{
