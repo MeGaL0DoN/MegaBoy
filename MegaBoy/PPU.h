@@ -63,7 +63,7 @@ public:
 
 	PPU(MMU& mmu, CPU& cpu) : mmu(mmu), cpu(cpu)
 	{
-		setColorsPalette(BGB_GREEN_PALETTE);
+		setDMGPalette(BGB_GREEN_PALETTE);
 		reset();
 	}
 
@@ -77,7 +77,7 @@ public:
 	static constexpr std::array<color, 4> CLASSIC_PALETTE = { color {155, 188, 15}, color {139, 172, 15}, color {48, 98, 48}, color {15, 56, 15} };
 	static constexpr std::array<color, 4> BGB_GREEN_PALETTE = { color {224, 248, 208}, color {136, 192, 112 }, color {52, 104, 86}, color{8, 24, 32} };
 
-	constexpr void setColorsPalette(const std::array<color, 4>& newColors) { colors = newColors; }
+	constexpr void setDMGPalette(const std::array<color, 4>& newColors) { colors = newColors; }
 	constexpr const std::array<color, 4>& getCurrentPalette() { return colors; }
 
 	void updateDMG_ScreenColors(const std::array<color, 4>& newColors);

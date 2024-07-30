@@ -160,7 +160,7 @@ void updateSelectedPalette()
     auto colors = appConfig::palette == 0 ? PPU::BGB_GREEN_PALETTE : appConfig::palette == 1 ? PPU::GRAY_PALETTE : PPU::CLASSIC_PALETTE;
     if (gbCore.emulationPaused || !gbCore.cartridge.ROMLoaded) gbCore.ppu.updateDMG_ScreenColors(colors);
 
-    gbCore.ppu.setColorsPalette(colors);
+    gbCore.ppu.setDMGPalette(colors);
     refreshGBTextures();
 }
 

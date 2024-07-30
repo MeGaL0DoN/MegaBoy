@@ -109,10 +109,7 @@ void MMU::executeGHDMA()
 			gbCore.ppu.VRAM[gbc.hdma.currentDestAddr++] = (this->*dma_nonblocking_read)(gbc.hdma.currentSourceAddr++);
 
 		if (gbc.hdma.transferLength == 0)
-		{
 			gbc.hdma.status = GHDMAStatus::None;
-			gbc.hdma.transferLength = 0x7F;
-		}
 	}
 }
 
@@ -590,7 +587,10 @@ uint8_t MMU::read8(uint16_t addr) const
 				return 0xFF;
 		case 0xFF55:
 			if constexpr (sys == GBSystem::GBC)
-				return ((gbc.hdma.status == GHDMAStatus::None) << 7) | ((gbc.hdma.transferLength - 1) / 0x10);
+			{
+				const uint8_t lengthVal = gbc.hdma.transferLength == 0 ? 0x7F : ((gbc.hdma.transferLength - 1) / 0x10);
+				return ((gbc.hdma.status == GHDMAStatus::None) << 7) | lengthVal;
+			}
 			else
 				return 0xFF;
 		case 0xFF6C: // OPRI, bit 0 is always off in cgb mode?
