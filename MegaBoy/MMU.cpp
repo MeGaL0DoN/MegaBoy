@@ -204,16 +204,21 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 		case 0xFF41:
 		{
+			const uint8_t maskedSTAT = (gbCore.ppu.regs.STAT & 0x87) | (val & 0xF8);
+
 			// spurious STAT interrupts (DMG only)
 			if constexpr (sys == GBSystem::DMG)
 			{
-				s.newStatVal = (gbCore.ppu.regs.STAT & 0x87) | (val & 0xF8);
-				gbCore.ppu.regs.STAT = 0xFF;
-				s.statRegChanged = true;
+				if (gbCore.ppu.s.state == PPUMode::VBlank || gbCore.ppu.s.LY == gbCore.ppu.regs.LYC)
+				{
+					s.newStatVal = maskedSTAT;
+					gbCore.ppu.regs.STAT = 0xFF;
+					s.statRegChanged = true;
+					break;
+				}
 			}
-			else
-				gbCore.ppu.regs.STAT = val;
 
+			gbCore.ppu.regs.STAT = maskedSTAT;
 			break;
 		}
 		case 0xFF42:
