@@ -20,12 +20,10 @@ void PPU::reset()
 	regs = {};
 	gbcRegs = {};
 
-	disableLCD(PPUMode::OAMSearch);
+	disableLCD(PPUMode::VBlank);
+	s.LY = 144;
+
 	updatePalette(regs.BGP, BGpalette);
-
-	canAccessOAM = false;
-	canAccessVRAM = true;
-
 	updateFunctionPointers();
 }
 void PPU::disableLCD(PPUMode mode)

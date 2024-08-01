@@ -89,7 +89,7 @@ struct registerCollection
 				C = 0x00;
 				D = 0xFF;
 				E = 0x56;
-				F = 0x00;
+				F = 0x80;
 				H = 0x00;
 				L = 0x0D;
 				break;

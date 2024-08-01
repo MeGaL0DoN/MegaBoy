@@ -187,7 +187,7 @@ private:
 	}
 
 	std::array<color, 4> colors;
-	constexpr color getColor(uint8_t ind) { return colors[ind]; }
+	constexpr color getColor(uint8_t ind) { return colors[ind < colors.size() ? ind : 0]; }
 
 	constexpr void setPixel(uint8_t x, uint8_t y, color c) { PixelOps::setPixel(framebuffer.data(), SCR_WIDTH, x, y, c); }
 	constexpr color getPixel(uint8_t x, uint8_t y) { return PixelOps::getPixel(framebuffer.data(), SCR_WIDTH, x, y); }

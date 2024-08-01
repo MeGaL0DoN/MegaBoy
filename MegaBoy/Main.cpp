@@ -671,8 +671,6 @@ void setImGUI()
     ImGui_ImplOpenGL3_Init("#version 330");
 }
 
-// todo: fix vsync cpu cycles handling
-
 int main(int argc, char* argv[])
 {
     appConfig::loadConfigFile();

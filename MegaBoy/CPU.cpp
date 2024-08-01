@@ -151,28 +151,8 @@ uint8_t CPU::execute()
 	return cycles;
 }
 
-//std::ofstream outs("megaboyLog.txt");
-//bool startLogging{false};
-//int i = 0;
-
 void CPU::executeMain()
 {
-	//if (startLogging)
-	//{
-	//	if (i < 400000)
-	//	{
-	//		outs << "PC: " << s.PC << " A: " << +registers.A.val << " F: " << +registers.F.val << " B: " << +registers.B.val <<
-	//			" C: " << +registers.C.val << " D: " << +registers.D.val << " E: " << +registers.E.val << " H: " << +registers.H.val << " L: " << +registers.L.val << " SP: " << s.SP.val <<
-	//			" LCDC: " << +gbCore.ppu.regs.LCDC << " STAT: " << +gbCore.ppu.regs.STAT << "\n";
-	//	}
-	//	else if (i == 400000)
-	//	{
-	//		outs.close();
-	//	}
-
-	//	i++;
-	//}
-
 	uint8_t outRegInd = opcode & 0x07;
 	uint8_t inRegInd = (opcode >> 3) & 0x07;
 
