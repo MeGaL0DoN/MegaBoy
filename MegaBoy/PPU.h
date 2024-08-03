@@ -48,11 +48,11 @@ public:
 	static constexpr uint32_t FRAMEBUFFER_SIZE = SCR_WIDTH * SCR_HEIGHT * 3;
 	static constexpr uint32_t TILEDATA_FRAMEBUFFER_SIZE = TILES_WIDTH * TILES_HEIGHT * 3;
 
-	void (*onBackgroundRender)(const uint8_t* buffer, uint8_t LY);
-	void (*onWindowRender)(const uint8_t*, const std::vector<uint8_t>& updatedPixels, uint8_t LY);
-	void (*onOAMRender)(const uint8_t* buffer, const std::vector<uint8_t>& updatedPixels, uint8_t LY);
+	void (*onBackgroundRender)(const uint8_t* buffer, uint8_t LY) { nullptr };
+	void (*onWindowRender)(const uint8_t*, const std::vector<uint8_t>& updatedPixels, uint8_t LY) { nullptr };
+	void (*onOAMRender)(const uint8_t* buffer, const std::vector<uint8_t>& updatedPixels, uint8_t LY) { nullptr };
 
-	void (*drawCallback)(const uint8_t* framebuffer);
+	void (*drawCallback)(const uint8_t* framebuffer) { nullptr };
 
 	constexpr void resetRenderCallbacks()
 	{
@@ -63,8 +63,7 @@ public:
 
 	PPU(MMU& mmu, CPU& cpu) : mmu(mmu), cpu(cpu)
 	{
-		setDMGPalette(BGB_GREEN_PALETTE);
-		reset();
+		std::memset(framebuffer.data(), 255, FRAMEBUFFER_SIZE); // White
 	}
 
 	void execute();
@@ -144,9 +143,9 @@ public:
 		bool gbcPriority : 1{ false };
 	};
 
-	ppuState s;
-	dmgRegs regs;
-	gbcRegs gbcRegs;
+	ppuState s{};
+	dmgRegs regs{};
+	gbcRegs gbcRegs{};
 private:
 	MMU& mmu;
 	CPU& cpu;
@@ -160,18 +159,18 @@ private:
 	std::array<uint8_t, 64> BGpaletteRAM{};
 	std::array<uint8_t, 64> OBPpaletteRAM{};
 
-	bool canAccessOAM;
-	bool canAccessVRAM;
+	bool canAccessOAM{};
+	bool canAccessVRAM{};
 
-	std::array<uint8_t, FRAMEBUFFER_SIZE> framebuffer;
+	std::array<uint8_t, FRAMEBUFFER_SIZE> framebuffer{};
 
-	std::array<BGPixelFlag, SCR_WIDTH> bgPixelFlags;
+	std::array<BGPixelFlag, SCR_WIDTH> bgPixelFlags{};
 
-	std::vector<uint8_t> updatedWindowPixels;
-	std::vector<uint8_t> updatedOAMPixels;
+	std::vector<uint8_t> updatedWindowPixels{};
+	std::vector<uint8_t> updatedOAMPixels{};
 
 	uint8_t objCount { 0 };
-	std::array<object, 10> selectedObjects;
+	std::array<object, 10> selectedObjects{};
 
 	static constexpr uint16_t OAM_SCAN_CYCLES = 20 * 4;
 	static constexpr uint16_t PIXEL_TRANSFER_CYCLES = 43 * 4;
@@ -186,15 +185,15 @@ private:
 		invokeDrawCallback();
 	}
 
-	std::array<color, 4> colors;
+	std::array<color, 4> colors { };
 	constexpr color getColor(uint8_t ind) { return colors[ind < colors.size() ? ind : 0]; }
 
 	constexpr void setPixel(uint8_t x, uint8_t y, color c) { PixelOps::setPixel(framebuffer.data(), SCR_WIDTH, x, y, c); }
 	constexpr color getPixel(uint8_t x, uint8_t y) { return PixelOps::getPixel(framebuffer.data(), SCR_WIDTH, x, y); }
 
-	std::array<uint8_t, 4> BGpalette;
-	std::array<uint8_t, 4> OBP0palette;
-	std::array<uint8_t, 4> OBP1palette;
+	std::array<uint8_t, 4> BGpalette{};
+	std::array<uint8_t, 4> OBP0palette{};
+	std::array<uint8_t, 4> OBP1palette{};
 
 	void updatePalette(uint8_t val, std::array<uint8_t, 4>& palette);
 
@@ -235,9 +234,9 @@ private:
 	void GBC_renderBGTile(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
 	void GBC_renderObjTile(const object& obj);
 
-	void(PPU::*renderWinTileFunc)(uint16_t, int16_t, uint8_t);
-	void(PPU::*renderBGTileFunc)(uint16_t, int16_t, uint8_t);
-	void(PPU::*renderObjTileFunc)(const object&);
+	void(PPU::*renderWinTileFunc)(uint16_t, int16_t, uint8_t) { nullptr };
+	void(PPU::*renderBGTileFunc)(uint16_t, int16_t, uint8_t) { nullptr };
+	void(PPU::*renderObjTileFunc)(const object&) { nullptr };
 
 	void updateFunctionPointers();
 

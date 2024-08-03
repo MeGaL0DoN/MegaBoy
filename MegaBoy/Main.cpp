@@ -109,12 +109,6 @@ void drawCallback(const uint8_t* framebuffer)
     debugUI::updateTextures(false);
 }
 
-void refreshGBTextures()
-{
-    OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu.getFrameBuffer());
-    OpenGL::updateTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu.getFrameBuffer());
-}
-
 void updateSelectedFilter()
 {
     currentShader = appConfig::filter == 1 ? &lcdShader : appConfig::filter == 2 ? &scalingShader : &regularShader;
@@ -155,13 +149,22 @@ void updateSelectedBlending()
     }
 }
 
+void refreshGBTextures()
+{
+    OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu.getFrameBuffer());
+    OpenGL::updateTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu.getFrameBuffer());
+}
+
 void updateSelectedPalette()
 {
     auto colors = appConfig::palette == 0 ? PPU::BGB_GREEN_PALETTE : appConfig::palette == 1 ? PPU::GRAY_PALETTE : PPU::CLASSIC_PALETTE;
-    if (gbCore.emulationPaused || !gbCore.cartridge.ROMLoaded) gbCore.ppu.updateDMG_ScreenColors(colors);
+    if (gbCore.emulationPaused)
+    {
+        gbCore.ppu.updateDMG_ScreenColors(colors);
+        refreshGBTextures();
+    }
 
     gbCore.ppu.setDMGPalette(colors);
-    refreshGBTextures();
 }
 
 void setBuffers()
@@ -199,6 +202,7 @@ void setBuffers()
 
     OpenGL::createTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
     OpenGL::createTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
+    refreshGBTextures();
 
     gbCore.ppu.drawCallback = drawCallback;
 
