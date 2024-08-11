@@ -68,6 +68,11 @@ std::string FPS_text{ "FPS: 00.00" };
 extern GBCore gbCore;
 //GBMultiplayer multiplayer { gbCore };
 
+double lastFrameTime = glfwGetTime();
+double fpsTimer{};
+double timer{};
+int frameCount{};
+
 inline void updateWindowTitle()
 {
     std::string title = (gbCore.gameTitle == "" ? "MegaBoy" : "MegaBoy - " + gbCore.gameTitle);
@@ -578,35 +583,6 @@ void render()
     glfwSwapBuffers(window);
 }
 
-bool pausedPreEvent;
-
-void window_iconify_callback(GLFWwindow* _window, int iconified)
-{
-    (void)_window;
-
-    if (iconified)
-    {
-        pausedPreEvent = gbCore.emulationPaused;
-        setEmulationPaused(true);
-    }
-    else
-        setEmulationPaused(pausedPreEvent);
-}
-void window_focus_callback(GLFWwindow* _window, int focused)
-{
-    (void)_window;
-
-    if (!appConfig::pauseOnFocus) return;
-
-    if (!focused)
-    {
-        pausedPreEvent = gbCore.emulationPaused;
-        setEmulationPaused(true);
-    }
-    else
-        setEmulationPaused(pausedPreEvent);
-}
-
 void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mods)
 {
     (void)_window; (void)scancode;
@@ -659,6 +635,33 @@ void drop_callback(GLFWwindow* _window, int count, const char** paths)
         loadFile(StringUtils::nativePath(std::string(paths[0])));
 }
 
+bool pausedPreEvent;
+void handleVisibilityChange(bool hidden)
+{
+    if (hidden)
+    {
+        pausedPreEvent = gbCore.emulationPaused;
+        setEmulationPaused(true);
+    }
+    else
+    {
+        setEmulationPaused(pausedPreEvent);
+        lastFrameTime = glfwGetTime(); // resetting delta time
+    }
+}
+
+void window_iconify_callback(GLFWwindow* _window, int iconified)
+{
+    (void)_window;
+    handleVisibilityChange(iconified);
+}
+void window_focus_callback(GLFWwindow* _window, int focused)
+{
+    (void)_window;
+    if (!appConfig::pauseOnFocus) return;
+    handleVisibilityChange(!focused);
+}
+
 void setWindowSizesToAspectRatio(int& newWidth, int& newHeight)
 {
     constexpr float ASPECT_RATIO = static_cast<float>(PPU::SCR_WIDTH) / PPU::SCR_HEIGHT;
@@ -693,6 +696,11 @@ const char* unloadCallback(int eventType, const void *reserved, void *userData)
 
     return "";
 }
+EM_BOOL visibilityChangeCallback(int eventType, const EmscriptenVisibilityChangeEvent *visibilityChangeEvent, void *userData)
+{
+    handleVisibilityChange(visibilityChangeEvent->hidden);
+    return EM_TRUE;
+}
 #else
 void framebuffer_size_callback(GLFWwindow* _window, int width, int height)
 {
@@ -725,7 +733,6 @@ bool setGLFW()
 
     glfwMakeContextCurrent(window);
     glfwSwapInterval(appConfig::vsync ? 1 : 0);
-    glfwSetWindowIconifyCallback(window, window_iconify_callback);
     glfwSetWindowFocusCallback(window, window_focus_callback);
     glfwSetWindowRefreshCallback(window, window_refresh_callback);
     glfwSetDropCallback(window, drop_callback);
@@ -734,8 +741,10 @@ bool setGLFW()
 #ifdef  EMSCRIPTEN
     emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, NULL, EM_TRUE, emscripten_resize_callback);
     emscripten_set_beforeunload_callback(nullptr, unloadCallback);
+    emscripten_set_visibilitychange_callback(nullptr, false, visibilityChangeCallback);
 #else
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+    glfwSetWindowIconifyCallback(window, window_iconify_callback);
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
@@ -815,11 +824,6 @@ void setImGUI()
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 300 es");
 }
-
-double lastFrameTime = glfwGetTime();
-double fpsTimer{};
-double timer{};
-int frameCount{};
 
 void mainLoop()
 {
