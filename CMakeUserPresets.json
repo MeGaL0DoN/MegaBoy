@@ -1,0 +1,17 @@
+{
+	"version": 3,
+	"configurePresets": [
+		{
+			"name": "emscripten-debug",
+			"inherits": "emscripten-debug-common",
+			"displayName": "Emscripten Debug",
+			"toolchainFile": "C:\\Users\\Igor\\AppData\\Local\\emsdk\\upstream\\emscripten\\cmake\\Modules\\Platform\\Emscripten.cmake"
+		},
+		{
+			"name": "emscripten-release",
+			"inherits": "emscripten-release-common",
+			"displayName": "Emscripten Release",
+			"toolchainFile": "C:\\Users\\Igor\\AppData\\Local\\emsdk\\upstream\\emscripten\\cmake\\Modules\\Platform\\Emscripten.cmake"
+		}
+	]
+}
