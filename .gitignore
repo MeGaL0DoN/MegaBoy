@@ -365,3 +365,7 @@ FodyWeavers.xsd
 cmake-build-debug/
 cmake-build-release/
 .idea/
+
+.CMakeUserPresets.json
+*.gb
+*.gbc
