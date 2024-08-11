@@ -43,19 +43,21 @@
       "name": "emscripten",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "installDir": "${sourceDir}/out/install/${presetName}",
+      "installDir": "${sourceDir}/out/install/${presetName}"
     },
     {
+      "hidden": true,
       "inherits": "emscripten",
-      "name": "emscripten-debug",
+      "name": "emscripten-debug-common",
       "displayName": "Emscripten Debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug"
       }
     },
     {
+      "hidden": true,
       "inherits": "emscripten",
-      "name": "emscripten-release",
+      "name": "emscripten-release-common",
       "displayName": "Emscripten Release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "MinSizeRel"
