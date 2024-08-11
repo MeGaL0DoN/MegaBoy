@@ -366,6 +366,6 @@ cmake-build-debug/
 cmake-build-release/
 .idea/
 
-.CMakeUserPresets.json
+CMakeUserPresets.json
 *.gb
 *.gbc
