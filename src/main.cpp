@@ -281,6 +281,19 @@ void openFileDialog(const char* filter)
 {
     emscripten_browser_file::upload(filter, handle_upload_file);
 }
+
+void emscripten_download_saveState()
+{
+    const std::string fileName = gbCore.gameTitle + " - Save State.mbs";
+    gbCore.saveState(fileName);
+    downloadFile(fileName.c_str());
+}
+void emscripten_download_batterySave()
+{
+    const std::string fileName = gbCore.gameTitle + " - Battery Save.sav";
+    gbCore.saveBattery(fileName);
+    downloadFile(fileName.c_str());
+}
 #endif
 
 void renderImGUI()
@@ -310,9 +323,7 @@ void renderImGUI()
                 if (ImGui::MenuItem("Export State"))
                 {
 #ifdef EMSCRIPTEN
-                    const std::string fileName = gbCore.gameTitle + " - Save State.mbs";
-                    gbCore.saveState(fileName);
-                    downloadFile(fileName.c_str());
+                    emscripten_download_saveState();
 #else
                     auto result = saveFileDialog(gbCore.gameTitle + " - Save State", saveStateFilterItem);
 
@@ -326,9 +337,7 @@ void renderImGUI()
                     if (ImGui::MenuItem("Export Battery"))
                     {
 #ifdef EMSCRIPTEN
-                        const std::string fileName = gbCore.gameTitle + " - Battery Save.sav";
-                        gbCore.saveBattery(fileName);
-                        downloadFile(fileName.c_str());
+                        emscripten_download_batterySave();
 #else
                         auto result = saveFileDialog(gbCore.gameTitle + " - Battery Save", batterySaveFilterItem);
 
@@ -671,7 +680,18 @@ EM_BOOL emscripten_resize_callback(int eventType, const EmscriptenUiEvent *uiEve
 
     setWindowSizesToAspectRatio(newWidth, newHeight);
     render();
+
     return EM_TRUE;
+}
+const char* unloadCallback(int eventType, const void *reserved, void *userData)
+{
+    if (gbCore.cartridge.ROMLoaded)
+    {
+        if (appConfig::autosaveState)
+            emscripten_download_saveState();
+    }
+
+    return "";
 }
 #else
 void framebuffer_size_callback(GLFWwindow* _window, int width, int height)
@@ -695,7 +715,7 @@ bool setGLFW()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
     glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
 
-    window = glfwCreateWindow(1, 1, "MegaBoy", NULL, NULL); //glfwCreateWindow(1, 1, "MegaBoy", NULL, NULL);
+    window = glfwCreateWindow(1, 1, "MegaBoy", NULL, NULL);
     if (!window)
     {
         std::cout << "Failed to create GLFW window" << std::endl;
@@ -713,6 +733,7 @@ bool setGLFW()
 
 #ifdef  EMSCRIPTEN
     emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, NULL, EM_TRUE, emscripten_resize_callback);
+    emscripten_set_beforeunload_callback(nullptr, unloadCallback);
 #else
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
