@@ -1,0 +1,22 @@
+{
+	"bmi-installation" : null,
+	"compiler-frontend-variant" : "MSVC",
+	"compiler-id" : "MSVC",
+	"compiler-simulate-id" : "",
+	"config" : "Debug",
+	"cxx-modules" : {},
+	"dir-cur-bld" : "C:/Users/Igor/CLionProjects/MegaBoy/cmake-build-debug/Libs/ImGUI",
+	"dir-cur-src" : "C:/Users/Igor/CLionProjects/MegaBoy/Libs/ImGUI",
+	"dir-top-bld" : "C:/Users/Igor/CLionProjects/MegaBoy/cmake-build-debug",
+	"dir-top-src" : "C:/Users/Igor/CLionProjects/MegaBoy",
+	"exports" : [],
+	"forward-modules-from-target-dirs" : [],
+	"include-dirs" : 
+	[
+		"C:\\Users\\Igor\\CLionProjects\\MegaBoy\\Libs\\ImGUI\\..",
+		"C:\\Users\\Igor\\CLionProjects\\MegaBoy\\Libs\\GLFW\\include"
+	],
+	"language" : "CXX",
+	"linked-target-dirs" : [],
+	"module-dir" : "C:/Users/Igor/CLionProjects/MegaBoy/cmake-build-debug/Libs/ImGUI/CMakeFiles/imgui.dir"
+}
