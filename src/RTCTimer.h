@@ -4,8 +4,6 @@
 #include <fstream>
 #include <chrono>
 
-//test
-
 struct RTCRegs
 {
 	uint8_t S{};
