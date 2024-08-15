@@ -27,6 +27,9 @@ namespace appConfig
 	inline std::string romPath{};
 	inline int saveStateNum{ 0 };
 
+	inline std::string dmgRomPath{};
+	inline std::string cgbRomPath{};
+
 	void loadConfigFile();
 	void updateConfigFile();
 }

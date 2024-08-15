@@ -58,6 +58,9 @@ void appConfig::loadConfigFile()
 
 	romPath = config["gameState"]["romPath"];
 	to_int(saveStateNum, "gameState", "saveStateNum");
+
+	dmgRomPath = config["bootRoms"]["dmgRomPath"];
+	cgbRomPath = config["bootRoms"]["cgbRomPath"];
 }
 
 void appConfig::updateConfigFile()
@@ -88,6 +91,12 @@ void appConfig::updateConfigFile()
 	}
 	else
 		config.remove("gameState");
+
+	if (!dmgRomPath.empty())
+		config["bootRoms"]["dmgRomPath"] = StringUtils::pathToUTF8(dmgRomPath);
+
+	if (!cgbRomPath.empty())
+		config["bootRoms"]["cgbRomPath"] = StringUtils::pathToUTF8(cgbRomPath);
 
 	file.generate(config, true);
 }

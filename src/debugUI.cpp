@@ -8,7 +8,7 @@ void debugUI::backgroundRenderEvent(const uint8_t* buffer, uint8_t LY)
     if (!BGFrameBuffer) return;
 
     for (uint8_t x = 0; x < PPU::SCR_WIDTH; x++)
-        PixelOps::setPixel(BGFrameBuffer.get(), PPU::SCR_WIDTH, x, LY, PixelOps::getPixel(buffer, PPU::SCR_WIDTH, x, LY));
+        setPixel(BGFrameBuffer.get(), PPU::SCR_WIDTH, x, LY, PixelOps::getPixel(buffer, PPU::SCR_WIDTH, x, LY));
 }
 
 void debugUI::OAM_renderEvent(const uint8_t* buffer, const std::vector<uint8_t>& updatedPixels, uint8_t LY)
@@ -16,22 +16,16 @@ void debugUI::OAM_renderEvent(const uint8_t* buffer, const std::vector<uint8_t>&
     if (!OAMFrameBuffer) return;
     clearBGScanline(OAMFrameBuffer.get(), LY);
 
-    for (int i = 0; i < updatedPixels.size(); i++)
-    {
-        uint8_t x = updatedPixels[i];
-        PixelOps::setPixel(OAMFrameBuffer.get(), PPU::SCR_WIDTH, x, LY, PixelOps::getPixel(buffer, PPU::SCR_WIDTH, x, LY));
-    }
+    for (const uint8_t x : updatedPixels)
+        setPixel(OAMFrameBuffer.get(), PPU::SCR_WIDTH, x, LY, PixelOps::getPixel(buffer, PPU::SCR_WIDTH, x, LY));
 }
 void debugUI::windowRenderEvent(const uint8_t* buffer, const std::vector<uint8_t>& updatedPixels, uint8_t LY)
 {
     if (!windowFrameBuffer) return;
     clearBGScanline(windowFrameBuffer.get(), LY);
 
-    for (int i = 0; i < updatedPixels.size(); i++)
-    {
-        uint8_t x = updatedPixels[i];
-        PixelOps::setPixel(windowFrameBuffer.get(), PPU::SCR_WIDTH, x, LY, PixelOps::getPixel(buffer, PPU::SCR_WIDTH, x, LY));
-    }
+    for (const uint8_t x : updatedPixels)
+        setPixel(windowFrameBuffer.get(), PPU::SCR_WIDTH, x, LY, PixelOps::getPixel(buffer, PPU::SCR_WIDTH, x, LY));
 }
 
 void debugUI::updateMenu()
@@ -47,6 +41,10 @@ void debugUI::updateMenu()
             else
                 std::fill(memoryData.get(), memoryData.get() + 4096, "");
         }
+        if (ImGui::MenuItem("CPU View"))
+        {
+            showCPUView = !showCPUView;
+        }
         if (ImGui::MenuItem("VRAM View"))
         {
             showVRAMView = !showVRAMView;
@@ -60,7 +58,7 @@ void debugUI::updateMenu()
             else
                 gbCore.ppu.resetRenderCallbacks();
         }
-        if (ImGui::MenuItem("Audio"))
+        if (ImGui::MenuItem("Audio View"))
         {
             showAudioView = !showAudioView;
         }
@@ -214,10 +212,71 @@ void debugUI::updateWindows(float scaleFactor)
 
         ImGui::End();
     }
+    if (showCPUView)
+    {
+        ImGui::SetNextWindowSizeConstraints(ImVec2(-1.f, -1.f), ImVec2(-1.f, -1.f));
+        ImGui::Begin("CPU View", &showCPUView);
+
+        std::string strBuf = "PC: " + to_hex_str(gbCore.cpu.s.PC);
+        ImGui::Text(strBuf.c_str());
+
+        strBuf = "SP: " + to_hex_str(gbCore.cpu.s.SP.val);
+        ImGui::Text(strBuf.c_str());
+
+        strBuf = "IE: " + to_hex_str(gbCore.cpu.s.IE);
+        ImGui::Text(strBuf.c_str());
+
+        ImGui::SameLine();
+
+        strBuf = "IF: " + to_hex_str(gbCore.cpu.s.IF);
+        ImGui::Text(strBuf.c_str());
+
+        strBuf = "DIV: " + to_hex_str(gbCore.cpu.s.DIV_reg);
+        ImGui::Text(strBuf.c_str());
+
+        ImGui::SameLine();
+
+        strBuf = "TIMA: " + to_hex_str(gbCore.cpu.s.TIMA_reg);
+        ImGui::Text(strBuf.c_str());
+
+        ImGui::SeparatorText("Registers");
+
+        strBuf = "AF: " + to_hex_str(gbCore.cpu.registers.AF.val);
+        ImGui::Text(strBuf.c_str());
+
+        ImGui::SameLine();
+
+        strBuf = "BC: " + to_hex_str(gbCore.cpu.registers.BC.val);
+        ImGui::Text(strBuf.c_str());
+
+        strBuf = "DE: " + to_hex_str(gbCore.cpu.registers.DE.val);
+        ImGui::Text(strBuf.c_str());
+
+        ImGui::SameLine();
+
+        strBuf = "HL: " + to_hex_str(gbCore.cpu.registers.HL.val);
+        ImGui::Text(strBuf.c_str());
+
+        ImGui::SeparatorText("Flags");
+
+        strBuf = "Zero: " + std::string(gbCore.cpu.registers.getFlag(FlagType::Zero) ? "1" : "0");
+        ImGui::Text(strBuf.c_str());
+
+        strBuf = "Carry: " + std::string(gbCore.cpu.registers.getFlag(FlagType::Carry) ? "1" : "0");
+        ImGui::Text(strBuf.c_str());
+
+        strBuf = "HalfCarry: " + std::string(gbCore.cpu.registers.getFlag(FlagType::HalfCarry) ? "1" : "0");
+        ImGui::Text(strBuf.c_str());
+
+        strBuf = "Negative: " + std::string(gbCore.cpu.registers.getFlag(FlagType::Subtract) ? "1" : "0");
+        ImGui::Text(strBuf.c_str());
+
+        ImGui::End();
+    }
 
     if (showVRAMView)
     {
-        ImGui::SetNextWindowSizeConstraints(ImVec2(460.0f * scaleFactor, (392.0f * scaleFactor) + ImGui::GetFrameHeight() * 2), ImVec2(FLT_MAX, FLT_MAX));
+        ImGui::SetNextWindowSizeConstraints(ImVec2(368.0f * scaleFactor, (314.0f * scaleFactor) + ImGui::GetFrameHeight() * 2), ImVec2(FLT_MAX, FLT_MAX));
         ImGui::Begin("VRAM View", &showVRAMView);
 
         if (ImGui::BeginTabBar("tabbar"))

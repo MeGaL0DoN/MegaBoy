@@ -24,7 +24,7 @@ void GBCore::loadBootROM()
 
 	if (appConfig::runBootROM)
 	{
-		const auto romPath = StringUtils::executableFolderPath / "data" / (System::Current() == GBSystem::DMG ? "dmg_boot.bin" : "cgb_boot.bin");
+		const std::filesystem::path romPath = StringUtils::nativePath(System::Current() == GBSystem::DMG ? appConfig::dmgRomPath : appConfig::cgbRomPath);
 		std::ifstream ifs(romPath, std::ios::binary | std::ios::ate);
 
 		if (ifs)

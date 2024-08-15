@@ -23,6 +23,10 @@ public:
 
 private:
 	static inline bool showMemoryView { false };
+	static inline bool showCPUView { false };
+	static inline bool showVRAMView{ false };
+	static inline bool showAudioView{ false };
+
 	static inline bool realTimeMemView { false };
 	static inline std::unique_ptr<std::string[]> memoryData;
 
@@ -31,13 +35,10 @@ private:
 	static inline std::unique_ptr<uint8_t[]> OAMFrameBuffer;
 	static inline std::unique_ptr<uint8_t[]> tileDataFrameBuffer;
 
-	static inline bool showVRAMView { false };
 	static inline uint32_t backgroundTexture {0};
 	static inline uint32_t windowTexture{ 0 };
 	static inline uint32_t OAMTexture{ 0 };
 	static inline uint32_t tileDataTexture {0};
-
-	static inline bool showAudioView{ false };
 
 	static inline void clearBGBuffer(uint8_t* buffer) { PixelOps::clearBuffer(buffer, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu.getCurrentPalette()[0]); }
 	static inline void clearTileDataBuffer() { PixelOps::clearBuffer(tileDataFrameBuffer.get(), PPU::TILES_WIDTH, PPU::TILES_HEIGHT, gbCore.ppu.getCurrentPalette()[0]); }

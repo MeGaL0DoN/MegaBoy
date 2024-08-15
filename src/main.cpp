@@ -50,12 +50,12 @@ bool fileDialogOpen;
 #endif
 
 #ifndef EMSCRIPTEN
-constexpr nfdnfilteritem_t openFilterItem[] = { {STR("Game ROM/Save"), STR("gb,gbc,sav,mbs")} };
+constexpr nfdnfilteritem_t openFilterItem[] = { {STR("Game ROM/Save"), STR("gb,gbc,sav,mbs,bin")} };
 constexpr nfdnfilteritem_t saveStateFilterItem[] = { {STR("Save State"), STR("mbs")} };
 constexpr nfdnfilteritem_t batterySaveFilterItem[] = { {STR("Battery Save"), STR("sav")} };
 constexpr nfdnfilteritem_t audioSaveFilterItem[] = { {STR("WAV File"), STR("wav")} };
 #else
-constexpr const char* openFilterItem = ".gb,.gbc,.sav,.mbs";
+constexpr const char* openFilterItem = ".gb,.gbc,.sav,.mbs,.bin";
 #endif
 
 #undef STR
@@ -75,7 +75,7 @@ int frameCount{};
 
 inline void updateWindowTitle()
 {
-    std::string title = (gbCore.gameTitle == "" ? "MegaBoy" : "MegaBoy - " + gbCore.gameTitle);
+    std::string title = (gbCore.gameTitle.empty() ? "MegaBoy" : "MegaBoy - " + gbCore.gameTitle);
     if (gbCore.cartridge.ROMLoaded) title += !gbCore.emulationPaused ? (" (" + FPS_text + ")") : "";
     glfwSetWindowTitle(window, title.c_str());
 }
@@ -92,6 +92,19 @@ inline bool loadFile(const std::filesystem::path& path)
 {
     if (std::filesystem::exists(path))
     {
+        if (path.filename() == "dmg_boot.bin")
+        {
+            appConfig::dmgRomPath = path.string();
+            appConfig::updateConfigFile();
+            return true;
+        }
+        if (path.filename() == "cgb_boot.bin")
+        {
+            appConfig::cgbRomPath = path.string();
+            appConfig::updateConfigFile();
+            return true;
+        }
+
         auto result = gbCore.loadFile(path);
 
         switch (result)
@@ -237,6 +250,8 @@ inline void updateImGUIViewports()
     }
 }
 
+constexpr bool isBootROMFile(const std::string& fileName) { return fileName == "dmg_boot.bin" || fileName == "cgb_boot.bin"; }
+
 #ifndef EMSCRIPTEN
 std::optional<std::filesystem::path> saveFileDialog(const std::string& defaultName, const nfdnfilteritem_t* filter)
 {
@@ -280,7 +295,9 @@ void handle_upload_file(std::string const &filename, std::string const &mime_typ
     fs.close();
 
     loadFile(filename);
-    std::filesystem::remove(filename);
+
+    if (!isBootROMFile(filename))
+        std::filesystem::remove(filename);
 }
 void openFileDialog(const char* filter)
 {
@@ -362,8 +379,22 @@ void renderImGUI()
                 appConfig::updateConfigFile();
 #endif
 
-            if (ImGui::Checkbox("Run Boot ROM", &appConfig::runBootROM))
-                appConfig::updateConfigFile();
+            static bool romsExist{ false };
+
+            if (ImGui::IsWindowAppearing())
+                romsExist = std::filesystem::exists(StringUtils::nativePath(appConfig::dmgRomPath)) || std::filesystem::exists(StringUtils::nativePath(appConfig::cgbRomPath));
+
+            if (!romsExist)
+            {
+                ImGui::BeginDisabled();
+                ImGui::Checkbox("Boot ROMs not Loaded!", &romsExist);
+                ImGui::EndDisabled();
+            }
+            else
+            {
+                if (ImGui::Checkbox("Run Boot ROM", &appConfig::runBootROM))
+                    appConfig::updateConfigFile();
+            }
 
             if (ImGui::Checkbox("Pause when unfocused", &appConfig::pauseOnFocus))
                 appConfig::updateConfigFile();
@@ -599,7 +630,7 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
         {
             if (!gbCore.cartridge.ROMLoaded) return;
 
-            if (mods & GLFW_MOD_CONTROL)
+            if (mods & GLFW_MOD_ALT)
                 gbCore.saveState(key - 48);
 
             else if (mods & GLFW_MOD_SHIFT)
@@ -632,7 +663,14 @@ void drop_callback(GLFWwindow* _window, int count, const char** paths)
     (void)_window;
 
     if (count > 0)
+    {
         loadFile(StringUtils::nativePath(std::string(paths[0])));
+
+#ifdef  EMSCRIPTEN
+        if (!isBootROMFile(std::filesystem::path{paths[0]}.filename()))
+            std::filesystem::remove(paths[0]);
+#endif
+    }
 }
 
 bool pausedPreEvent;
@@ -689,10 +727,7 @@ EM_BOOL emscripten_resize_callback(int eventType, const EmscriptenUiEvent *uiEve
 const char* unloadCallback(int eventType, const void *reserved, void *userData)
 {
     if (gbCore.cartridge.ROMLoaded)
-    {
-        if (appConfig::autosaveState)
-            emscripten_download_saveState();
-    }
+        return "Are you sure? Don't forget to export saves.";
 
     return "";
 }

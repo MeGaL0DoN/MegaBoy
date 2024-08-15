@@ -37,6 +37,7 @@ public:
 
 	friend InstructionsEngine;
 	friend class MMU;
+	friend class debugUI;
 
 	void reset();
 
