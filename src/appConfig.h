@@ -3,7 +3,7 @@
 
 namespace appConfig
 {
-	inline bool runBootROM { false };
+	inline bool runBootROM { true };
 	inline bool pauseOnFocus { false };
 	inline bool loadLastROM { true };
 	inline int systemPreference { 0 };

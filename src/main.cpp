@@ -60,8 +60,8 @@ constexpr const char* openFilterItem = ".gb,.gbc,.sav,.mbs,.bin";
 
 #undef STR
 
-const char* errorPopupTitle = "Error Loading the ROM!";
-bool errorLoadingROM{false};
+const char* popupTitle = "";
+bool showPopUp{false};
 
 std::string FPS_text{ "FPS: 00.00" };
 
@@ -87,45 +87,63 @@ inline void setEmulationPaused(bool val)
     updateWindowTitle();
 }
 
-std::filesystem::path currentROMPath{};
+constexpr const char* DMG_ROM_NAME = "dmg_boot.bin";
+constexpr const char* CGB_ROM_NAME = "cgb_boot.bin";
+
+void handleBootROMLoad(std::string& romPath, const std::filesystem::path filePath)
+{
+    romPath = filePath.string();
+    appConfig::updateConfigFile();
+
+    popupTitle = "Successfully Loaded Boot ROM!";
+    showPopUp = true;
+}
+
+std::filesystem::path currentFilePath{};
 inline bool loadFile(const std::filesystem::path& path)
 {
     if (std::filesystem::exists(path))
     {
-        if (path.filename() == "dmg_boot.bin")
+        if (path.filename() == DMG_ROM_NAME)
         {
-            appConfig::dmgRomPath = path.string();
-            appConfig::updateConfigFile();
+            handleBootROMLoad(appConfig::dmgRomPath, path);
             return true;
         }
-        if (path.filename() == "cgb_boot.bin")
+        if (path.filename() == CGB_ROM_NAME)
         {
-            appConfig::cgbRomPath = path.string();
-            appConfig::updateConfigFile();
+            handleBootROMLoad(appConfig::cgbRomPath, path);
             return true;
         }
 
-        auto result = gbCore.loadFile(path);
+        const auto result = gbCore.loadFile(path);
 
         switch (result)
         {
         case FileLoadResult::InvalidROM:
-            errorPopupTitle = "Error Loading the ROM!";
-            errorLoadingROM = true;
+            popupTitle = "Error Loading the ROM!";
+            showPopUp = true;
             break;
         case FileLoadResult::SaveStateROMNotFound:
-            errorPopupTitle = "ROM not found! Load the ROM first.";
-            errorLoadingROM = true;
+            popupTitle = "ROM not found! Load the ROM first.";
+            showPopUp = true;
             break;
         case FileLoadResult::Success:
         {
+#ifdef EMSCRIPTEN
+            if (path != currentFilePath && currentFilePath.filename() != DMG_ROM_NAME && currentFilePath.filename() != CGB_ROM_NAME)
+                std::filesystem::remove(currentFilePath);
+#endif
             updateWindowTitle();
             debugUI::clearBuffers();
-            currentROMPath = path;
+            currentFilePath = path;
             return true;
         }
         }
     }
+
+#ifdef EMSCRIPTEN
+    std::filesystem::remove(path);
+#endif
 
     return false;
 }
@@ -295,9 +313,6 @@ void handle_upload_file(std::string const &filename, std::string const &mime_typ
     fs.close();
 
     loadFile(filename);
-
-    if (!isBootROMFile(filename))
-        std::filesystem::remove(filename);
 }
 void openFileDialog(const char* filter)
 {
@@ -338,6 +353,12 @@ void renderImGUI()
                 if (result.has_value())
                     loadFile(result.value());
 #endif
+            }
+
+            if (!currentFilePath.empty())
+            {
+                if (ImGui::MenuItem("Reload"))
+                    loadFile(currentFilePath);
             }
 
             if (gbCore.cartridge.ROMLoaded)
@@ -521,8 +542,6 @@ void renderImGUI()
                     gbCore.saveCurrentROM();
                     gbCore.restartROM();
                 }
-                if (ImGui::MenuItem("Reload ROM"))
-                    loadFile(currentROMPath);
             }
 
             ImGui::EndMenu();
@@ -558,14 +577,14 @@ void renderImGUI()
         ImGui::EndMainMenuBar();
     }
 
-    if (errorLoadingROM)
+    if (showPopUp)
     {
-        ImGui::OpenPopup(errorPopupTitle);
-        errorLoadingROM = false;
-        ImGui::SetNextWindowSize(ImVec2(ImGui::CalcTextSize(errorPopupTitle).x + (ImGui::GetStyle().WindowPadding.x * 2), -1.0f), ImGuiCond_Appearing);
+        ImGui::OpenPopup(popupTitle);
+        showPopUp = false;
+        ImGui::SetNextWindowSize(ImVec2(ImGui::CalcTextSize(popupTitle).x + (ImGui::GetStyle().WindowPadding.x * 2), -1.0f), ImGuiCond_Appearing);
     }
 
-    if (ImGui::BeginPopupModal(errorPopupTitle, NULL, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize))
+    if (ImGui::BeginPopupModal(popupTitle, NULL, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize))
     {
         ImVec2 viewportCenter = ImGui::GetMainViewport()->GetCenter();
         ImVec2 windowSize = ImGui::GetWindowSize();
@@ -663,14 +682,7 @@ void drop_callback(GLFWwindow* _window, int count, const char** paths)
     (void)_window;
 
     if (count > 0)
-    {
         loadFile(StringUtils::nativePath(std::string(paths[0])));
-
-#ifdef  EMSCRIPTEN
-        if (!isBootROMFile(std::filesystem::path{paths[0]}.filename()))
-            std::filesystem::remove(paths[0]);
-#endif
-    }
 }
 
 bool pausedPreEvent;
