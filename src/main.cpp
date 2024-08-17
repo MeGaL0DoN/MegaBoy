@@ -43,22 +43,23 @@ Shader* currentShader;
 
 bool fileDialogOpen;
 
+#ifndef EMSCRIPTEN
+
 #ifdef _WIN32
 #define STR(s) L##s
 #else
 #define STR(s) s
 #endif
 
-#ifndef EMSCRIPTEN
 constexpr nfdnfilteritem_t openFilterItem[] = { {STR("Game ROM/Save"), STR("gb,gbc,sav,mbs,bin")} };
 constexpr nfdnfilteritem_t saveStateFilterItem[] = { {STR("Save State"), STR("mbs")} };
 constexpr nfdnfilteritem_t batterySaveFilterItem[] = { {STR("Battery Save"), STR("sav")} };
 constexpr nfdnfilteritem_t audioSaveFilterItem[] = { {STR("WAV File"), STR("wav")} };
+
+#undef STR
 #else
 constexpr const char* openFilterItem = ".gb,.gbc,.sav,.mbs,.bin";
 #endif
-
-#undef STR
 
 const char* popupTitle = "";
 bool showPopUp{false};
@@ -874,11 +875,13 @@ void setImGUI()
 
 void mainLoop()
 {
+    constexpr double MAX_DELTA_TIME = 0.1;
+
     double currentFrameTime = glfwGetTime();
     double deltaTime = currentFrameTime - lastFrameTime;
 
     fpsTimer += deltaTime;
-    timer += deltaTime;
+    timer += std::clamp(deltaTime, 0.0, MAX_DELTA_TIME);
 
     const bool updateCPU = appConfig::vsync || timer >= GBCore::FRAME_RATE;
     const bool updateRender = updateCPU || (!appConfig::vsync && !appConfig::fpsLock);

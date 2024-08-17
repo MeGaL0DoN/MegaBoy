@@ -126,21 +126,21 @@ uint8_t CPU::execute()
 {
 	cycles = 0;
 
-	if (s.shouldSetIME)
+	if (s.shouldSetIME) [[unlikely]]
 	{
 		s.IME = true;
 		s.shouldSetIME = false;
 	}
 
-	if (s.halted)
+	if (s.halted) [[unlikely]]
 		return handleHaltedState();
 
-	if (handleGHDMA())
+	if (handleGHDMA()) [[unlikely]]
 		return 1;
 
 	opcode = read8(s.PC);
 
-	if (s.halt_bug)
+	if (s.halt_bug) [[unlikely]]
 	{
 		s.PC--;
 		s.halt_bug = false;

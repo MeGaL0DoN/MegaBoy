@@ -10,7 +10,7 @@ bool CPU::interruptsPending()
 
 uint8_t CPU::handleInterrupts()
 {
-	if (s.IME && s.interruptLatch)
+	if (s.IME && s.interruptLatch) [[unlikely]]
 	{
 		instructions->PUSH(s.PC);
 		addCycles(2); // PUSH adds 3, need 5 in total.
@@ -19,7 +19,7 @@ uint8_t CPU::handleInterrupts()
 		s.halted = false;
 		uint8_t interrupt = s.IE & s.IF;
 
-		if (interrupt)
+		if (interrupt) [[likely]]
 		{
 			uint8_t interrruptBit{ static_cast<uint8_t>(std::countr_zero(interrupt)) };
 			s.PC = 0x0040 + interrruptBit * 8;
@@ -30,7 +30,7 @@ uint8_t CPU::handleInterrupts()
 
 		return 5;
 	}
-	else if (interruptsPending())
+	else if (interruptsPending()) [[unlikely]]
 	{
 		// halt bug
 		s.halted = false;

@@ -5,14 +5,6 @@
 #include <memory>
 #include "registers.h"
 
-enum class StatIRQ
-{
-	Mode0,
-	Mode1,
-	Mode2,
-	LYC
-};
-
 enum class Interrupt : uint8_t
 {
 	VBlank = 0,
