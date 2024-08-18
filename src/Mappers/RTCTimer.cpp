@@ -1,5 +1,5 @@
 #include "RTCTimer.h"
-#include "Utils/bitOps.h"
+#include "../Utils/bitOps.h"
 #include <fstream>
 
 void RTCTimer::incrementDay()

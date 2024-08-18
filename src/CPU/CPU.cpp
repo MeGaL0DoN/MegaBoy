@@ -1,7 +1,7 @@
 #include <cassert>
 #include "CPU.h"
 #include "instructionsEngine.h"
-#include "GBCore.h"
+#include "../GBCore.h"
 
 CPU::CPU(GBCore& gbCore) : gbCore(gbCore), instructions(std::make_unique<InstructionsEngine>(this))
 {

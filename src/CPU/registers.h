@@ -2,8 +2,8 @@
 #pragma warning(disable : 4201) // union type prunning, compiler extension.
 
 #include <cstdint>
-#include "bitOps.h"
-#include "gbSystem.h"
+#include "../Utils/bitOps.h"
+#include "../gbSystem.h"
 
 struct Register8
 {

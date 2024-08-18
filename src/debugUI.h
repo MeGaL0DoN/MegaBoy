@@ -3,7 +3,7 @@
 #include <memory>
 #include <vector>
 #include "GBCore.h"
-#include "glFunctions.h"
+#include "Utils/glFunctions.h"
 
 extern GBCore gbCore;
 

@@ -3,13 +3,13 @@
 #include <mini/ini.h>
 
 #include "MMU.h"
-#include "CPU.h"
+#include "CPU/CPU.h"
 #include "PPU.h"
-#include "APU.h"
+#include "APU/APU.h"
 #include "inputManager.h"
 #include "serialPort.h"
 #include "Cartridge.h"
-#include "stringUtils.h"
+#include "Utils/stringUtils.h"
 #include "appConfig.h"
 
 enum class FileLoadResult

@@ -1,6 +1,5 @@
 #include "MBC3.h"
-#include "Cartridge.h"
-#include "bitOps.h"
+#include "../Utils/bitOps.h"
 
 uint8_t MBC3::read(uint16_t addr) const
 {

@@ -1,11 +1,11 @@
 #pragma once
 #include "MMU.h"
-#include "CPU.h"
-#include "bitOps.h"
+#include "CPU/CPU.h"
+#include "Utils/bitOps.h"
 #include <array>
 #include <vector>
 
-#include "pixelOps.h"
+#include "Utils/pixelOps.h"
 using color = PixelOps::color;
 
 enum class PPUMode : uint8_t

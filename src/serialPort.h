@@ -1,5 +1,5 @@
 #pragma once
-#include "CPU.h"
+#include "CPU/CPU.h"
 #include <fstream>
 
 class serialPort

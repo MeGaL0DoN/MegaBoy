@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 #include "CPU.h"
-#include "GBCore.h"
+#include "../GBCore.h"
 
 class InstructionsEngine
 {

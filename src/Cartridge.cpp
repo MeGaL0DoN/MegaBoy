@@ -6,12 +6,12 @@
 #include "appConfig.h"
 
 #include "Cartridge.h"
-#include "RomOnlyMBC.h"
-#include "MBC1.h"
-#include "MBC2.h"
-#include "MBC3.h"
-#include "MBC5.h"
-#include "HuC1.h"
+#include "Mappers/RomOnlyMBC.h"
+#include "Mappers/MBC1.h"
+#include "Mappers/MBC2.h"
+#include "Mappers/MBC3.h"
+#include "Mappers/MBC5.h"
+#include "Mappers/HuC1.h"
 
 Cartridge::Cartridge(GBCore& gbCore) : gbCore(gbCore) { }
 

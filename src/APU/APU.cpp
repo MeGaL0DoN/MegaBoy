@@ -2,9 +2,9 @@
 #include <MiniAudio/miniaudio.h>
 
 #include "APU.h"
-#include "GBCore.h"
+#include "../GBCore.h"
 #include <iostream>
-#include "bitOps.h"
+#include "../Utils/bitOps.h"
 
 extern GBCore gbCore;
 
@@ -306,19 +306,14 @@ void APU::executeFrameSequencer()
 
 		if (frameSequencerStep % 2 == 0)
 		{
-			// run length;
 			channel1.executeLength();
 			channel2.executeLength();
 
 			if (frameSequencerStep == 2 || frameSequencerStep == 6)
-			{
-				// run sweep
 				executeSweep();
-			}
 		}
 		else if (frameSequencerStep == 7)
 		{
-			// run envelope
 			channel1.executeEnvelope();
 			channel2.executeEnvelope();
 		}

@@ -1,5 +1,4 @@
 #include "MBC2.h"
-#include "Cartridge.h"
 
 MBC2::MBC2(Cartridge& cartridge) : MBC(cartridge)
 {

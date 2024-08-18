@@ -19,14 +19,12 @@
 #include <optional>
 
 #include "GBCore.h"
-#include "GBMultiplayer.h"
-#include "Shader.h"
-#include "shaders.h"
-#include "debugUI.h"
-#include "glFunctions.h"
-#include "stringUtils.h"
 #include "appConfig.h"
+#include "debugUI.h"
 #include "resources.h"
+#include "Utils/Shader.h"
+#include "Utils/stringUtils.h"
+#include "Utils/glFunctions.h"
 
 GLFWwindow* window;
 
@@ -167,16 +165,16 @@ void updateSelectedFilter()
         switch (appConfig::filter)
         {
         case 1:
-            lcdShader.compile(shaders::lcd1xVertexShader, shaders::lcd1xFragmentShader);
+            lcdShader.compile(resources::lcd1xVertexShader, resources::lcd1xFragmentShader);
             lcdShader.setFloat2("TextureSize", PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
             break;
         case 2:
-            scalingShader.compile(shaders::omniscaleVertexShader, shaders::omniscaleFragmentShader);
+            scalingShader.compile(resources::omniscaleVertexShader, resources::omniscaleFragmentShader);
             scalingShader.setFloat2("OutputSize", PPU::SCR_WIDTH * 6, PPU::SCR_HEIGHT * 6);
             scalingShader.setFloat2("TextureSize", PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
             break;
         default:
-            regularShader.compile(shaders::regularVertexShader, shaders::regulaFragmentShader);
+            regularShader.compile(resources::regularVertexShader, resources::regulaFragmentShader);
             break;
         }
     }
@@ -547,19 +545,6 @@ void renderImGUI()
 
             ImGui::EndMenu();
         }
-
-        // TODO AFTER GBC: MULTIPLAYER
-
-        //if (ImGui::BeginMenu("Multiplayer"))
-        //{
-        //    if (ImGui::MenuItem("Host"))
-        //        multiplayer.host();
-
-        //    if (ImGui::MenuItem("Join"))
-        //        multiplayer.connect("127.0.0.1");
-
-        //    ImGui::EndMenu();
-        //}
 
         debugUI::updateMenu();
 

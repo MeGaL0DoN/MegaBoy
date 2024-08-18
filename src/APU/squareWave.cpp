@@ -1,6 +1,6 @@
 #include "squareWave.h"
 #include "APU.h"
-#include "bitOps.h"
+#include "../Utils/bitOps.h"
 
 void squareWave::trigger()
 {

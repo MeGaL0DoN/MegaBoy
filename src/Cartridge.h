@@ -2,8 +2,8 @@
 #include <fstream>
 #include <memory>
 #include <vector>
-#include "MBCBase.h"
-#include "RTCTimer.h"
+#include "Mappers/MBCBase.h"
+#include "Mappers/RTCTimer.h"
 
 class GBCore;
 
@@ -34,8 +34,8 @@ private:
 	{
 		checksum = 0;
 
-		for (size_t i = 0; i < rom.size(); ++i) 
-			checksum += rom[i];
+		for (uint8_t i : rom)
+			checksum += i;
 	}
 
 	bool proccessCartridgeHeader(const std::vector<uint8_t>& buffer);

@@ -16,57 +16,54 @@ add_executable(MegaBoy
         main.cpp
         appConfig.cpp
         appConfig.h
-        APU.cpp
-        APU.h
-        squareWave.cpp
-        squareWave.h
-        bitOps.h
-        Cartridge.cpp
-        Cartridge.h
-        CPU.cpp
-        CPU.h
-        CPU_interrupts.cpp
-        debugUI.cpp
-        debugUI.h
-        GBCore.cpp
-        GBCore.h
-        GBMultiplayer.cpp
-        GBMultiplayer.h
-        gbSystem.cpp
-        gbSystem.h
-        glFunctions.cpp
-        inputManager.cpp
-        inputManager.h
-        instructionsEngine.h
-        MBCBase.h
-        MBC.h
-        HuC1.cpp
-        HuC1.h      
-        RomOnlyMBC.h
-        MBC1.cpp
-        MBC1.h
-        MBC2.cpp
-        MBC2.h
-        MBC2.cpp
-        MBC3.cpp
-        MBC3.h
-        MBC5.cpp
-        MBC5.h
         MMU.cpp
         MMU.h
-        pixelOps.h
         PPU.cpp
         PPU.h
-        registers.h
         resources.h
-        shaders.h
-        stringUtils.h
-        RTCTimer.cpp
-        RTCTimer.h
         serialPort.cpp
         serialPort.h
-        Shader.cpp
-        Shader.h)
+        Cartridge.cpp
+        Cartridge.h
+        GBCore.cpp
+        GBCore.h
+        gbSystem.cpp
+        gbSystem.h
+        inputManager.cpp
+        inputManager.h
+        debugUI.cpp
+        debugUI.h
+        "APU/APU.cpp"
+        "APU/APU.h"
+        "APU/squareWave.cpp"
+        "APU/squareWave.h"
+        "CPU/CPU.cpp"
+        "CPU/CPU.h"
+        "CPU/CPU_interrupts.cpp"
+        "CPU/instructionsEngine.h"
+        "CPU/registers.h"
+        "Mappers/MBCBase.h"
+        "Mappers/MBC.h"
+        "Mappers/HuC1.cpp"
+        "Mappers/HuC1.h"      
+        "Mappers/RomOnlyMBC.h"
+        "Mappers/MBC1.cpp"
+        "Mappers/MBC1.h"
+        "Mappers/MBC2.cpp"
+        "Mappers/MBC2.h"
+        "Mappers/MBC2.cpp"
+        "Mappers/MBC3.cpp"
+        "Mappers/MBC3.h"
+        "Mappers/MBC5.cpp"
+        "Mappers/MBC5.h"
+        "Mappers/RTCTimer.cpp"
+        "Mappers/RTCTimer.h"
+        "Utils/glFunctions.cpp"
+        "Utils/bitOps.h"
+        "Utils/pixelOps.h"
+        "Utils/stringUtils.h"
+        "Utils/Shader.cpp"
+        "Utils/Shader.h")
 
 if (EMSCRIPTEN)
     target_link_options(MegaBoy PRIVATE -sUSE_GLFW=3 -sMIN_WEBGL_VERSION=2 -sMAX_WEBGL_VERSION=2

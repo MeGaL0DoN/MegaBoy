@@ -1,5 +1,5 @@
 #include "PPU.h"
-#include "bitOps.h"
+#include "Utils/bitOps.h"
 #include <iostream>
 #include <algorithm>
 

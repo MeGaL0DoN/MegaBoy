@@ -3,7 +3,7 @@
 #include <vector>
 #include <fstream>
 #include "MBCBase.h"
-#include "Cartridge.h"
+#include "../Cartridge.h"
 
 struct MBCstate
 {

@@ -1,5 +1,5 @@
 #include "inputManager.h"
-#include "bitOps.h"
+#include "Utils/bitOps.h"
 
 #include <map>
 

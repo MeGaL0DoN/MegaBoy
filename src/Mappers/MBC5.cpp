@@ -1,6 +1,5 @@
 #include "MBC5.h"
-#include "Cartridge.h"
-#include "bitOps.h"
+#include "../Utils/bitOps.h"
 
 uint8_t MBC5::read(uint16_t addr) const
 {

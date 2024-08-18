@@ -1,7 +1,7 @@
 ﻿#include "appConfig.h"
 #include <filesystem>
 #include <mini/ini.h>
-#include "stringUtils.h"
+#include "Utils/stringUtils.h"
 #include "GBCore.h"
 
 using namespace appConfig;

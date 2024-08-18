@@ -1,5 +1,4 @@
 #include "HuC1.h"
-#include "Cartridge.h"
 
 uint8_t HuC1::read(uint16_t addr) const
 {
