@@ -271,7 +271,7 @@ void APU::execute()
 	channel1.executeDuty();
 	channel2.executeDuty();
 
-	if (++sampleCycles >= CYCLES_PER_SAMPLE)
+	//if (++sampleCycles >= CYCLES_PER_SAMPLE)
 	{
 		//uint8_t enabledChannels { 0 };
 		float newSample { 0 };
@@ -291,7 +291,7 @@ void APU::execute()
 		newSample += channel2.getSample() * enableChannel2;
 
 		sample = (newSample / 4) * 32767;
-		sampleCycles = 0;
+	//	sampleCycles = 0;
 
 		//sampleBuffer[writeIndex] = sample;
 		//writeIndex = (writeIndex + 1) % BUFFER_SIZE;

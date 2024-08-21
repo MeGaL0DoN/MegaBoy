@@ -65,7 +65,6 @@ bool showPopUp{false};
 std::string FPS_text{ "FPS: 00.00" };
 
 extern GBCore gbCore;
-//GBMultiplayer multiplayer { gbCore };
 
 double lastFrameTime = glfwGetTime();
 double fpsTimer{};
@@ -267,7 +266,7 @@ inline void updateImGUIViewports()
     }
 }
 
-constexpr bool isBootROMFile(const std::string& fileName) { return fileName == "dmg_boot.bin" || fileName == "cgb_boot.bin"; }
+inline bool isBootROMFile(const std::string& fileName) { return fileName == "dmg_boot.bin" || fileName == "cgb_boot.bin"; }
 
 #ifndef EMSCRIPTEN
 std::optional<std::filesystem::path> saveFileDialog(const std::string& defaultName, const nfdnfilteritem_t* filter)
