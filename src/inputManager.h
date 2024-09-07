@@ -23,12 +23,12 @@ public:
 
 		if (readDpad)
 		{
-			resetBit(keyState, 4);
+			keyState = resetBit(keyState, 4);
 			keyState |= dpadState;
 		}
 		if (readButtons)
 		{
-			resetBit(keyState, 5);
+			keyState = resetBit(keyState, 5);
 			keyState |= buttonState;
 		}
 

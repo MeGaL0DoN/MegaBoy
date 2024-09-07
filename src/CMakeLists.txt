@@ -35,9 +35,8 @@ add_executable(MegaBoy
         debugUI.h
         "APU/APU.cpp"
         "APU/APU.h"
-        
-        
-        
+        "APU/squareWave.h" 
+        "APU/sweepWave.h"               
         "CPU/CPU.cpp"
         "CPU/CPU.h"
         "CPU/CPU_interrupts.cpp"
@@ -64,7 +63,7 @@ add_executable(MegaBoy
         "Utils/pixelOps.h"
         "Utils/stringUtils.h"
         "Utils/Shader.cpp"
-        "Utils/Shader.h"  "APU/squareWave.h" "APU/sweepWave.h")
+        "Utils/Shader.h")
 
 if (EMSCRIPTEN)
     target_link_options(MegaBoy PRIVATE -sUSE_GLFW=3 -sMIN_WEBGL_VERSION=2 -sMAX_WEBGL_VERSION=2

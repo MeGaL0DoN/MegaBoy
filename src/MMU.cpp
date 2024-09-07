@@ -565,7 +565,7 @@ uint8_t MMU::read8(uint16_t addr) const
 		case 0xFF55:
 			if constexpr (sys == GBSystem::GBC)
 			{
-				const uint8_t lengthVal = gbc.hdma.transferLength == 0 ? 0x7F : ((gbc.hdma.transferLength - 1) / 0x10);
+				const uint8_t lengthVal = (gbc.hdma.transferLength - 1) / 0x10;
 				return ((gbc.hdma.status == GHDMAStatus::None) << 7) | lengthVal;
 			}
 			else
