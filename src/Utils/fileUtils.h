@@ -6,7 +6,7 @@
 #include <unistd.h>
 #endif
 
-#ifdef __APPLE_
+#ifdef __APPLE__
 #include <libproc.h>
 #endif
 
