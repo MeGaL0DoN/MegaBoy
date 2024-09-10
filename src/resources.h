@@ -1,12 +1,16 @@
 #pragma once
 #include <cstdint>
 
+#ifdef EMSCRIPTEN
+constexpr const char* GL_VERSION_STR = "#version 300 es\n";
+#else
+constexpr const char* GL_VERSION_STR = "#version 330 core\n";
+#endif
+
 namespace resources
 {
-	inline constexpr const char* regularVertexShader = R"(#version 300 es
-
-precision highp float;
-
+	inline const std::string regularVertexShader = std::string(GL_VERSION_STR) +	
+R"(precision highp float;
 in vec3 aPos;
 in vec2 aTexCoord;
 
@@ -20,10 +24,8 @@ void main()
 
 )";
 
-	inline constexpr const char* regulaFragmentShader = R"(#version 300 es
-
-precision highp float;
-
+	inline const std::string regularFragmentShader = std::string(GL_VERSION_STR) +
+R"(precision highp float;
 out vec4 FragColor;
 in vec2 TexCoord;
 
@@ -38,9 +40,8 @@ void main()
 
 )";
 
-	inline constexpr const char* lcd1xVertexShader = R"(#version 300 es
-precision highp float;
-
+	inline const std::string lcd1xVertexShader = std::string(GL_VERSION_STR) +
+R"(precision highp float;
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec2 aTexCoord;
 
@@ -55,8 +56,8 @@ void main()
 }
 )";
 
-	inline constexpr const char* lcd1xFragmentShader = R"(#version 300 es
-precision highp float;
+	inline const std::string lcd1xFragmentShader = std::string(GL_VERSION_STR) +
+R"(precision highp float;
 
 uniform vec2 TextureSize;
 uniform sampler2D Texture;
@@ -91,8 +92,8 @@ void main()
 } 
 )";
 
-	inline constexpr const char* omniscaleVertexShader = R"(#version 300 es
-precision highp float;
+	inline const std::string omniscaleVertexShader = std::string(GL_VERSION_STR) +
+R"(precision highp float;
 
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec2 aTexCoord;
@@ -119,9 +120,8 @@ void main()
 }
 )";
 
-	inline constexpr const char* omniscaleFragmentShader = R"(#version 300 es
-/*
-MIT License
+	inline const std::string omniscaleFragmentShader = std::string(GL_VERSION_STR) +
+R"(/*MIT License
 
 Copyright (c) 2015-2016 Lior Halphon
 

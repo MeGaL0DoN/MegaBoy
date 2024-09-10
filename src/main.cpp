@@ -165,16 +165,16 @@ void updateSelectedFilter()
         switch (appConfig::filter)
         {
         case 1:
-            lcdShader.compile(resources::lcd1xVertexShader, resources::lcd1xFragmentShader);
+            lcdShader.compile(resources::lcd1xVertexShader.c_str(), resources::lcd1xFragmentShader.c_str());
             lcdShader.setFloat2("TextureSize", PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
             break;
         case 2:
-            scalingShader.compile(resources::omniscaleVertexShader, resources::omniscaleFragmentShader);
+            scalingShader.compile(resources::omniscaleVertexShader.c_str(), resources::omniscaleFragmentShader.c_str());
             scalingShader.setFloat2("OutputSize", PPU::SCR_WIDTH * 6, PPU::SCR_HEIGHT * 6);
             scalingShader.setFloat2("TextureSize", PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
             break;
         default:
-            regularShader.compile(resources::regularVertexShader, resources::regulaFragmentShader);
+            regularShader.compile(resources::regularVertexShader.c_str(), resources::regularFragmentShader.c_str());
             break;
         }
     }
@@ -857,7 +857,7 @@ void setImGUI()
 
     ImGui::StyleColorsDark();
     ImGui_ImplGlfw_InitForOpenGL(window, true);
-    ImGui_ImplOpenGL3_Init("#version 300 es");
+    ImGui_ImplOpenGL3_Init(GL_VERSION_STR);
 }
 
 void mainLoop()
