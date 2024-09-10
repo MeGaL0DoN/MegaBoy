@@ -14,6 +14,8 @@
 
 #include <GLFW/glfw3.h>
 
+#include <thread>
+
 #include <iostream>
 #include <filesystem>
 #include <optional>
@@ -448,16 +450,6 @@ void renderImGUI()
                 glfwSwapInterval(appConfig::vsync ? 1 : 0);
                 appConfig::updateConfigFile();
             }
-
-            if (!appConfig::vsync)
-            {
-                ImGui::Spacing();
-                ImGui::Separator();
-                ImGui::Spacing();
-
-                if (ImGui::Checkbox("FPS Lock", &appConfig::fpsLock))
-                    appConfig::updateConfigFile();
-            }
 #endif
             ImGui::SeparatorText("UI");
 
@@ -751,9 +743,16 @@ void window_refresh_callback(GLFWwindow* _window)
 bool setGLFW()
 {
     glfwInit();
+
+#ifdef EMSCRIPTEN
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
     glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+#else
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+#endif
 
     window = glfwCreateWindow(1, 1, "MegaBoy", NULL, NULL);
     if (!window)
@@ -826,9 +825,9 @@ void setWindowSize()
 int getScreenWidth()
 {
 #ifdef EMSCRIPTEN
-    int screenWidth = EM_ASM_INT ({
+    int screenWidth = EM_ASM_INT({
         return window.screen.width * (window.devicePixelRatio > 1.25 ? 1.25 : window.devicePixelRatio);
-    });
+        });
 #else
     int screenWidth = glfwGetVideoMode(glfwGetPrimaryMonitor())->width;
 #endif
@@ -851,7 +850,12 @@ void setImGUI()
     io.Fonts->AddFontFromMemoryTTF((void*)resources::robotoMonoFont, sizeof(resources::robotoMonoFont), scaleFactor * 17.0f);
     ImGui::GetStyle().ScaleAllSizes(scaleFactor);
 
+#ifdef __linux__
+    if (std::getenv("WAYLAND_DISPLAY") == nullptr) io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+#else
     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+#endif
+
     ImGui::StyleColorsDark();
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 300 es");
@@ -867,20 +871,23 @@ void mainLoop()
     fpsTimer += deltaTime;
     timer += std::clamp(deltaTime, 0.0, MAX_DELTA_TIME);
 
-    const bool updateCPU = appConfig::vsync || timer >= GBCore::FRAME_RATE;
-    const bool updateRender = updateCPU || (!appConfig::vsync && !appConfig::fpsLock);
+    bool newFrame = appConfig::vsync || timer >= GBCore::FRAME_RATE;
 
-    if (updateCPU)
-    {
-        gbCore.update(GBCore::calculateCycles(timer));
-        timer = 0;
-    }
-
-    if (updateRender)
+    if (newFrame)
     {
         glfwPollEvents();
+        gbCore.update(appConfig::vsync ? GBCore::calculateCycles(timer) : GBCore::CYCLES_PER_FRAME);
         render();
+        timer = appConfig::vsync ? 0 : timer - GBCore::FRAME_RATE;
         frameCount++;
+    }
+
+    if (!appConfig::vsync)
+    {
+        double remainder = GBCore::FRAME_RATE - timer;
+
+        if (remainder >= 0.002f)
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     if (fpsTimer >= 1.0)

@@ -27,7 +27,7 @@ public:
 
 	static constexpr uint32_t calculateCycles(double deltaTime) { return static_cast<uint32_t>((CYCLES_PER_FRAME * (deltaTime / FRAME_RATE))); }
 
-	void update(uint32_t cyclesToExecute = CYCLES_PER_FRAME);
+	void update(uint32_t cyclesToExecute);
 	void stepComponents();
 
 	inline FileLoadResult loadFile(const std::filesystem::path& _filePath)

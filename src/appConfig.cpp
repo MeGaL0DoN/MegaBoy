@@ -50,7 +50,6 @@ void appConfig::loadConfigFile()
 
 	to_bool(blending, "graphics", "blending");
 	to_bool(vsync, "graphics", "vsync");
-	to_bool(fpsLock, "graphics", "fpsLock");
 
 	to_int(palette, "graphics", "palette");
 	to_int(filter, "graphics", "filter");
@@ -78,7 +77,6 @@ void appConfig::updateConfigFile()
 
 	config["graphics"]["blending"] = to_string(blending);
 	config["graphics"]["vsync"] = to_string(vsync);
-	config["graphics"]["fpsLock"] = to_string(fpsLock);
 
 	config["graphics"]["palette"] = std::to_string(palette);
 	config["graphics"]["filter"] = std::to_string(filter);

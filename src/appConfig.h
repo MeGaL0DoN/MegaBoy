@@ -18,7 +18,6 @@ namespace appConfig
 #endif
 
 	inline bool blending { false };
-	inline bool fpsLock { true };
 	inline bool vsync { true };
 
 	inline int filter { 1 };
