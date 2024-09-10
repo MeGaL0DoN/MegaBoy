@@ -1,14 +1,14 @@
 ﻿#include "appConfig.h"
 #include <filesystem>
 #include <mini/ini.h>
-#include "Utils/stringUtils.h"
+#include "Utils/fileUtils.h"
 #include "GBCore.h"
 
 using namespace appConfig;
 
 extern GBCore gbCore;
 
-mINI::INIFile file { mINI::mINIFilePath(StringUtils::executableFolderPath / "data" / "config.ini") };
+mINI::INIFile file { mINI::mINIFilePath(FileUtils::executableFolderPath / "data" / "config.ini") };
 mINI::INIStructure config;
 
 inline void to_bool(bool& val, const char* section, const char* valName)
@@ -33,7 +33,7 @@ inline std::string to_string(bool val)
 
 void appConfig::loadConfigFile()
 {
-	const auto dataFolderPath { StringUtils::executableFolderPath / "data" };
+	const auto dataFolderPath { FileUtils::executableFolderPath / "data" };
 
 	if (!std::filesystem::exists(dataFolderPath))
 		std::filesystem::create_directory(dataFolderPath);
@@ -65,7 +65,7 @@ void appConfig::loadConfigFile()
 void appConfig::updateConfigFile()
 {
 #ifdef EMSCRIPTEN
-	return; // currently nor saving settings persistenyly on the web
+	return; // currently nor saving settings persistently on the web
 #endif
 
 	config["options"]["runBootROM"] = to_string(runBootROM);
@@ -84,17 +84,17 @@ void appConfig::updateConfigFile()
 
 	if (gbCore.cartridge.ROMLoaded)
 	{
-		config["gameState"]["romPath"] = StringUtils::pathToUTF8(gbCore.getROMPath());
+		config["gameState"]["romPath"] = FileUtils::pathToUTF8(gbCore.getROMPath());
 		config["gameState"]["saveStateNum"] = std::to_string(gbCore.getSaveNum());
 	}
 	else
 		config.remove("gameState");
 
 	if (!dmgRomPath.empty())
-		config["bootRoms"]["dmgRomPath"] = StringUtils::pathToUTF8(dmgRomPath);
+		config["bootRoms"]["dmgRomPath"] = FileUtils::pathToUTF8(dmgRomPath);
 
 	if (!cgbRomPath.empty())
-		config["bootRoms"]["cgbRomPath"] = StringUtils::pathToUTF8(cgbRomPath);
+		config["bootRoms"]["cgbRomPath"] = FileUtils::pathToUTF8(cgbRomPath);
 
 	file.generate(config, true);
 }

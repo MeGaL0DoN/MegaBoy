@@ -24,7 +24,7 @@
 #include "debugUI.h"
 #include "resources.h"
 #include "Utils/Shader.h"
-#include "Utils/stringUtils.h"
+#include "Utils/fileUtils.h"
 #include "Utils/glFunctions.h"
 
 GLFWwindow* window;
@@ -275,7 +275,7 @@ std::optional<std::filesystem::path> saveFileDialog(const std::string& defaultNa
     fileDialogOpen = true;
     NFD::UniquePathN outPath;
 
-    const auto NdefaultName = StringUtils::nativePath(defaultName);
+    const auto NdefaultName = FileUtils::nativePath(defaultName);
     nfdresult_t result = NFD::SaveDialog(outPath, filter, 1, nullptr, NdefaultName.c_str());
 
     fileDialogOpen = false;
@@ -402,7 +402,7 @@ void renderImGUI()
             static bool romsExist{ false };
 
             if (ImGui::IsWindowAppearing())
-                romsExist = std::filesystem::exists(StringUtils::nativePath(appConfig::dmgRomPath)) || std::filesystem::exists(StringUtils::nativePath(appConfig::cgbRomPath));
+                romsExist = std::filesystem::exists(FileUtils::nativePath(appConfig::dmgRomPath)) || std::filesystem::exists(FileUtils::nativePath(appConfig::cgbRomPath));
 
             if (!romsExist)
             {
@@ -658,7 +658,7 @@ void drop_callback(GLFWwindow* _window, int count, const char** paths)
     (void)_window;
 
     if (count > 0)
-        loadFile(StringUtils::nativePath(std::string(paths[0])));
+        loadFile(FileUtils::nativePath(paths[0]));
 }
 
 bool pausedPreEvent;
@@ -833,7 +833,7 @@ int getScreenWidth()
     return screenWidth;
 }
 
-const std::string imguiConfigPath = StringUtils::pathToUTF8(StringUtils::executableFolderPath / "data" / "imgui.ini");
+const std::string imguiConfigPath = FileUtils::pathToUTF8(FileUtils::executableFolderPath / "data" / "imgui.ini");
 
 void setImGUI()
 {
@@ -940,7 +940,7 @@ int main(int argc, char* argv[])
         {
             int saveNum = appConfig::saveStateNum;
 
-            if (loadFile(StringUtils::nativePath(appConfig::romPath)))
+            if (loadFile(FileUtils::nativePath(appConfig::romPath)))
             {
                 if (saveNum >= 0 && saveNum <= 10)
                     gbCore.loadState(saveNum);

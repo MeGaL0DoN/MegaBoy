@@ -2,15 +2,15 @@
 
 #ifdef _WIN32
 #include "Windows.h"
-#elif defined(__linux__) || defined(__unix__)
+#elif defined(__linux__) || defined(__unix__) || defined(__APPLE__)
 #include <unistd.h>
-#include <limits.h>
-
-#elif defined(__APPLE__)
-#include <mach-o/dyld.h>
 #endif
 
-namespace StringUtils
+#ifdef __APPLE_
+#include <libproc.h>
+#endif
+
+namespace FileUtils
 {
     #ifdef _WIN32
 
@@ -60,22 +60,17 @@ namespace StringUtils
 
     inline std::filesystem::path getExecutablePath() 
     {
-        #if defined(_WIN32)
+        #ifdef _WIN32
             wchar_t pathBuf[MAX_PATH];
             GetModuleFileNameW(NULL, pathBuf, MAX_PATH);
         #else
             char pathBuf[4096];
-        #if defined(__linux__) || defined(__unix__)
+        #ifdef __APPLE__
+            pid_t pid = getpid();
+            proc_pidpath(pid, pathBuf, sizeof(pathBuf));
+        #elif defined(__linux__) || defined(__unix__)
             ssize_t count = readlink("/proc/self/exe", pathBuf, sizeof(pathBuf));
-            if (count != -1) 
-                pathBuf[count] = '\0';
-
-        #elif defined(__APPLE__)
-            uint32_t size = sizeof(pathBuf);
-            if (_NSGetExecutablePath(pathBuf, &size) != 0) 
-                pathBuf[0] = '\0'; // buffer too small (!)
-            else 
-                realpath(pathBuf, pathBuf);
+            if (count != -1) pathBuf[count] = '\0';
         #endif
         #endif
            

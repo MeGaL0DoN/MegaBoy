@@ -1,8 +1,10 @@
-﻿#include "GBCore.h"
-#include "appConfig.h"
-#include <fstream>
+﻿#include <fstream>
 #include <string>
 #include <chrono>
+
+#include "GBCore.h"
+#include "appConfig.h"
+#include "Utils/fileUtils.h"
 
 GBCore gbCore{};
 
@@ -24,7 +26,7 @@ void GBCore::loadBootROM()
 
 	if (appConfig::runBootROM)
 	{
-		const std::filesystem::path romPath = StringUtils::nativePath(System::Current() == GBSystem::DMG ? appConfig::dmgRomPath : appConfig::cgbRomPath);
+		const std::filesystem::path romPath = FileUtils::nativePath(System::Current() == GBSystem::DMG ? appConfig::dmgRomPath : appConfig::cgbRomPath);
 		std::ifstream ifs(romPath, std::ios::binary | std::ios::ate);
 
 		if (ifs)
@@ -192,7 +194,7 @@ FileLoadResult GBCore::loadFile(std::ifstream& st)
 
 	if (success)
 	{
-		saveFolderPath = StringUtils::executableFolderPath / "saves" / (gbCore.gameTitle + " (" + std::to_string(cartridge.checksum) + ")");
+		saveFolderPath = FileUtils::executableFolderPath / "saves" / (gbCore.gameTitle + " (" + std::to_string(cartridge.checksum) + ")");
 		emulationPaused = false;
 		appConfig::updateConfigFile();
 		return FileLoadResult::Success;
@@ -216,7 +218,7 @@ void GBCore::batteryAutoSave()
 		if (appConfig::backupSaves && std::filesystem::exists(batterySavePath))
 		{
 			auto batteryBackupPath { batterySavePath };
-			batteryBackupPath.replace_filename(StringUtils::pathToUTF8(batterySavePath.stem()) + " - BACKUP.sav");
+			batteryBackupPath.replace_filename(FileUtils::pathToUTF8(batterySavePath.stem()) + " - BACKUP.sav");
 			std::filesystem::copy_file(batterySavePath, batteryBackupPath, std::filesystem::copy_options::overwrite_existing);
 		}
 
@@ -288,7 +290,7 @@ void GBCore::saveState(std::ofstream& st)
 
 	st << SAVE_STATE_SIGNATURE;
 
-	auto romFilePathStr = StringUtils::pathToUTF8(romFilePath);
+	auto romFilePathStr = FileUtils::pathToUTF8(romFilePath);
 
 	uint16_t filePathLen { static_cast<uint16_t>(romFilePathStr.length()) };
 	st.write(reinterpret_cast<char*>(&filePathLen), sizeof(filePathLen));
@@ -325,7 +327,7 @@ bool GBCore::loadState(std::ifstream& st)
 	{
 		bool romExists{ true };
 		
-		auto nativeRomPath = std::filesystem::path(StringUtils::nativePath(romPath));
+		auto nativeRomPath = std::filesystem::path(FileUtils::nativePath(romPath));
 		std::ifstream romStream(nativeRomPath, std::ios::in | std::ios::binary);
 
 		if (romStream)

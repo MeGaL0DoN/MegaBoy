@@ -9,7 +9,6 @@
 #include "inputManager.h"
 #include "serialPort.h"
 #include "Cartridge.h"
-#include "Utils/stringUtils.h"
 #include "appConfig.h"
 
 enum class FileLoadResult

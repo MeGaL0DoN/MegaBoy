@@ -61,7 +61,7 @@ add_executable(MegaBoy
         "Utils/glFunctions.cpp"
         "Utils/bitOps.h"
         "Utils/pixelOps.h"
-        "Utils/stringUtils.h"
+        "Utils/fileUtils.h"
         "Utils/Shader.cpp"
         "Utils/Shader.h")
 
