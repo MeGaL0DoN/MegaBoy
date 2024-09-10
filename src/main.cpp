@@ -15,7 +15,6 @@
 #include <GLFW/glfw3.h>
 
 #include <thread>
-
 #include <iostream>
 #include <filesystem>
 #include <optional>
@@ -908,10 +907,7 @@ void mainLoop()
     lastFrameTime = currentFrameTime;
 
     if (gbCore.emulationPaused || !gbCore.cartridge.ROMLoaded)
-    {
         glfwWaitEvents();
-        lastFrameTime = glfwGetTime();
-    }
 }
 
 int main(int argc, char* argv[])
