@@ -18,8 +18,8 @@
       }
     },
     {
-      "name": "win-debug",
-      "displayName": "Windows Debug",
+      "name": "msvc-debug",
+      "displayName": "MSVC Debug",
       "inherits": "windows-base",
       "architecture": {
         "value": "x64",
@@ -30,9 +30,9 @@
       }
     },
     {
-      "name": "win-release",
-      "displayName": "Windows Release",
-      "inherits": "win-debug",
+      "name": "msvc-release",
+      "displayName": "MSVC Release",
+      "inherits": "msvc-debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }

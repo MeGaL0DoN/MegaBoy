@@ -69,7 +69,8 @@ void GBCore::loadBootROM()
 
 void GBCore::update(uint32_t cyclesToExecute)
 {
-	if (!cartridge.ROMLoaded || emulationPaused) return;
+	if (!cartridge.ROMLoaded || emulationPaused) [[unlikely]] 
+		return;
 
 	uint32_t currentCycles { 0 };
 
@@ -78,7 +79,7 @@ void GBCore::update(uint32_t cyclesToExecute)
 		uint8_t cycles = cpu.execute() * (cpu.doubleSpeed() ? 2 : 4);
 		currentCycles += cycles;
 
-		if (cartridge.hasTimer)
+		if (cartridge.hasTimer) [[unlikely]]
 			cartridge.timer.addRTCcycles(cycles);
 	}
 }

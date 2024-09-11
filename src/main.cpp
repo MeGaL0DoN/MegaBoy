@@ -433,7 +433,8 @@ void renderImGUI()
         }
         if (ImGui::BeginMenu("Graphics"))
         {
-            ImGui::SeparatorText(FPS_text.c_str());;
+            if (gbCore.cartridge.ROMLoaded && !gbCore.emulationPaused)
+                ImGui::SeparatorText(FPS_text.c_str());;
 
 #ifndef EMSCRIPTEN
             if (ImGui::Checkbox("VSync", &appConfig::vsync))
