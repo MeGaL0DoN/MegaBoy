@@ -63,7 +63,7 @@ constexpr const char* openFilterItem = ".gb,.gbc,.sav,.mbs,.bin";
 const char* popupTitle = "";
 bool showPopUp{false};
 
-std::string FPS_text{ "FPS: 00.00" };
+std::string FPS_text{ "FPS: 00.00 - 0.00 ms" };
 
 extern GBCore gbCore;
 
@@ -71,11 +71,14 @@ double lastFrameTime = glfwGetTime();
 double fpsTimer{};
 double timer{};
 int frameCount{};
+double frameTimes{};
 
 inline void updateWindowTitle()
 {
     std::string title = (gbCore.gameTitle.empty() ? "MegaBoy" : "MegaBoy - " + gbCore.gameTitle);
+#ifndef EMSCRIPTEN
     if (gbCore.cartridge.ROMLoaded) title += !gbCore.emulationPaused ? (" (" + FPS_text + ")") : "";
+#endif
     glfwSetWindowTitle(window, title.c_str());
 }
 
@@ -180,20 +183,6 @@ void updateSelectedFilter()
     }
 }
 
-void updateSelectedBlending()
-{
-    if (appConfig::blending)
-    {
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    }
-    else
-    {
-        glDisable(GL_BLEND);
-        currentShader->setFloat("alpha", 1.0f);
-    }
-}
-
 void refreshGBTextures()
 {
     OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu.getFrameBuffer());
@@ -245,6 +234,9 @@ void setBuffers()
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
     OpenGL::createTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
     OpenGL::createTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
     refreshGBTextures();
@@ -252,8 +244,7 @@ void setBuffers()
     gbCore.ppu.drawCallback = drawCallback;
 
     updateSelectedFilter();
-    updateSelectedPalette();
-    updateSelectedBlending();
+    updateSelectedPalette(); 
 }
 
 inline void updateImGUIViewports()
@@ -398,7 +389,6 @@ void renderImGUI()
             if (ImGui::Checkbox("Load last ROM on Startup", &appConfig::loadLastROM))
                 appConfig::updateConfigFile();
 #endif
-
             static bool romsExist{ false };
 
             if (ImGui::IsWindowAppearing())
@@ -443,6 +433,8 @@ void renderImGUI()
         }
         if (ImGui::BeginMenu("Graphics"))
         {
+            ImGui::SeparatorText(FPS_text.c_str());;
+
 #ifndef EMSCRIPTEN
             if (ImGui::Checkbox("VSync", &appConfig::vsync))
             {
@@ -450,13 +442,9 @@ void renderImGUI()
                 appConfig::updateConfigFile();
             }
 #endif
-            ImGui::SeparatorText("UI");
 
-            if (ImGui::Checkbox("Screen Ghosting", &appConfig::blending))
-            {
-                updateSelectedBlending();
+            if (ImGui::Checkbox("Screen Ghosting (Blending)", &appConfig::blending))
                 appConfig::updateConfigFile();
-            }
 
             ImGui::SeparatorText("Filter");
             constexpr const char* filters[] = { "None", "LCD", "Upscaling" };
@@ -588,12 +576,11 @@ void renderImGUI()
 void renderGameBoy()
 {
     OpenGL::bindTexture(gbFramebufferTextures[0]);
+    currentShader->setFloat("alpha", 1.0f);
 
     if (appConfig::blending)
     {
-        currentShader->setFloat("alpha", 1.0f);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-
         currentShader->setFloat("alpha", 0.5f);
         OpenGL::bindTexture(gbFramebufferTextures[1]);
     }
@@ -606,7 +593,6 @@ void render()
     glClear(GL_COLOR_BUFFER_BIT);
     renderGameBoy();
     renderImGUI();
-    glfwSwapBuffers(window);
 }
 
 void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mods)
@@ -874,11 +860,17 @@ void mainLoop()
 
     if (newFrame)
     {
+        auto execStart = glfwGetTime();
+
         glfwPollEvents();
         gbCore.update(appConfig::vsync ? GBCore::calculateCycles(timer) : GBCore::CYCLES_PER_FRAME);
         render();
+
+        frameTimes += (glfwGetTime() - execStart);
         timer = appConfig::vsync ? 0 : timer - GBCore::FRAME_RATE;
         frameCount++;
+
+        glfwSwapBuffers(window);
     }
 
     if (!appConfig::vsync)
@@ -892,12 +884,18 @@ void mainLoop()
     if (fpsTimer >= 1.0)
     {
         double fps = frameCount / fpsTimer;
+        double avgFrameTimeMs = (frameTimes / frameCount) * 1000;
+
         std::ostringstream oss;
-        oss << "FPS: " << std::fixed << std::setprecision(2) << fps;
+        oss << "FPS: " << std::fixed << std::setprecision(2) << fps << " - " << avgFrameTimeMs << " ms";
         FPS_text = oss.str();
+
+#ifndef  EMSCRIPTEN
         updateWindowTitle();
+#endif 
 
         frameCount = 0;
+        frameTimes = 0;
         fpsTimer = 0;
 
         if (!gbCore.emulationPaused && appConfig::autosaveState)
