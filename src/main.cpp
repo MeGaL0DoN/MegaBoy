@@ -742,36 +742,25 @@ void window_refresh_callback(GLFWwindow* _window)
 
 void checkVSyncStatus()
 {
-    const double targetTime = (0.5 / glfwGetVideoMode(glfwGetPrimaryMonitor())->refreshRate);
+#if defined (__APPLE__)
+    glfwSwapInterval(0);
+    appConfig::vsync = false;
+    lockVSyncSetting = true;
+#elif defined(_WIN32) 
+    auto vsyncCheckFunc = reinterpret_cast<int(*)(void)>(glfwGetProcAddress("wglGetSwapIntervalEXT"));
 
     glfwSwapInterval(0);
-    double timeAccumulator { 0 };
 
-    for (int i = 0; i < 3; i++)
+    if (vsyncCheckFunc())
     {
-        double start = glfwGetTime();
-        glfwSwapBuffers(window);
-        timeAccumulator += (glfwGetTime() - start);
+        appConfig::vsync = true;
+        lockVSyncSetting = true;
     }
-
-    if ((timeAccumulator / 3) > targetTime)
-	{
-		appConfig::vsync = true;
-		lockVSyncSetting = true;
-	}
     else
     {
         glfwSwapInterval(1);
-        timeAccumulator = 0;
 
-        for (int i = 0; i < 3; i++)
-		{
-			double start = glfwGetTime();
-			glfwSwapBuffers(window);
-			timeAccumulator += (glfwGetTime() - start);
-		}
-
-        if ((timeAccumulator / 3) < targetTime)
+        if (!vsyncCheckFunc())
         {
             appConfig::vsync = false;
 			lockVSyncSetting = true;
@@ -779,6 +768,9 @@ void checkVSyncStatus()
         else if (!appConfig::vsync)
 			glfwSwapInterval(0);
     }
+#else
+    glfwSwapInterval(appConfig::vsync ? 1 : 0);
+#endif
 }
 
 bool setGLFW()
@@ -978,7 +970,7 @@ int main(int argc, char* argv[])
     setImGUI();
     setWindowSize();
 #ifndef EMSCRIPTEN
-    checkVSyncStatus();
+	checkVSyncStatus();
     NFD_Init();
 #endif
 
