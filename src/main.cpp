@@ -201,7 +201,7 @@ void updateSelectedPalette()
     gbCore.ppu.setDMGPalette(colors);
 }
 
-void setBuffers()
+void setOpenGL()
 {
     unsigned int VAO, VBO, EBO;
 
@@ -722,13 +722,20 @@ void framebuffer_size_callback(GLFWwindow* _window, int width, int height)
 
 void window_refresh_callback(GLFWwindow* _window)
 {
-    (void)_window;
-    if (!fileDialogOpen) render(); // ImGUI crashes if rendering is done while file dialog is open
+    if (!fileDialogOpen)
+    {
+        render();
+        glfwSwapBuffers(_window);
+    }
 }
 
 bool setGLFW()
 {
-    glfwInit();
+    if (!glfwInit())
+	{
+		std::cout << "Failed to initialize GLFW" << std::endl;
+		return false;
+	}
 
 #ifdef EMSCRIPTEN
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -916,12 +923,12 @@ int main(int argc, char* argv[])
 #endif
 
     if (!setGLFW()) return -1;
+    setOpenGL();
     setImGUI();
+    setWindowSize();
 #ifndef EMSCRIPTEN
     NFD_Init();
 #endif
-    setWindowSize();
-    setBuffers();
 
 #ifdef EMSCRIPTEN
     emscripten_set_main_loop(mainLoop, 0, 1);
