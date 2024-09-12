@@ -73,6 +73,8 @@ double timer{};
 int frameCount{};
 double frameTimes{};
 
+bool lockVSyncSetting{ false };
+
 inline void updateWindowTitle()
 {
     std::string title = (gbCore.gameTitle.empty() ? "MegaBoy" : "MegaBoy - " + gbCore.gameTitle);
@@ -437,13 +439,22 @@ void renderImGUI()
                 ImGui::SeparatorText(FPS_text.c_str());;
 
 #ifndef EMSCRIPTEN
+            if (lockVSyncSetting) ImGui::BeginDisabled();
+
             if (ImGui::Checkbox("VSync", &appConfig::vsync))
             {
                 glfwSwapInterval(appConfig::vsync ? 1 : 0);
                 appConfig::updateConfigFile();
             }
-#endif
 
+            if (lockVSyncSetting)
+            {
+                if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                    ImGui::SetTooltip("Forced in GPU driver settings");
+
+                ImGui::EndDisabled();
+            }               
+#endif
             if (ImGui::Checkbox("Screen Ghosting (Blending)", &appConfig::blending))
                 appConfig::updateConfigFile();
 
@@ -729,6 +740,47 @@ void window_refresh_callback(GLFWwindow* _window)
     }
 }
 
+void checkVSyncStatus()
+{
+    const double targetTime = (0.5 / glfwGetVideoMode(glfwGetPrimaryMonitor())->refreshRate);
+
+    glfwSwapInterval(0);
+    double timeAccumulator { 0 };
+
+    for (int i = 0; i < 3; i++)
+    {
+        double start = glfwGetTime();
+        glfwSwapBuffers(window);
+        timeAccumulator += (glfwGetTime() - start);
+    }
+
+    if ((timeAccumulator / 3) > targetTime)
+	{
+		appConfig::vsync = true;
+		lockVSyncSetting = true;
+	}
+    else
+    {
+        glfwSwapInterval(1);
+        timeAccumulator = 0;
+
+        for (int i = 0; i < 3; i++)
+		{
+			double start = glfwGetTime();
+			glfwSwapBuffers(window);
+			timeAccumulator += (glfwGetTime() - start);
+		}
+
+        if ((timeAccumulator / 3) < targetTime)
+        {
+            appConfig::vsync = false;
+			lockVSyncSetting = true;
+        }
+        else if (!appConfig::vsync)
+			glfwSwapInterval(0);
+    }
+}
+
 bool setGLFW()
 {
     if (!glfwInit())
@@ -756,7 +808,6 @@ bool setGLFW()
     }
 
     glfwMakeContextCurrent(window);
-    glfwSwapInterval(appConfig::vsync ? 1 : 0);
     glfwSetWindowFocusCallback(window, window_focus_callback);
     glfwSetWindowRefreshCallback(window, window_refresh_callback);
     glfwSetDropCallback(window, drop_callback);
@@ -927,6 +978,7 @@ int main(int argc, char* argv[])
     setImGUI();
     setWindowSize();
 #ifndef EMSCRIPTEN
+    checkVSyncStatus();
     NFD_Init();
 #endif
 

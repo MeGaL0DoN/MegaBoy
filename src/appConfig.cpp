@@ -65,7 +65,7 @@ void appConfig::loadConfigFile()
 void appConfig::updateConfigFile()
 {
 #ifdef EMSCRIPTEN
-	return; // currently nor saving settings persistently on the web
+	return; // currently not saving settings persistently on the web
 #endif
 
 	config["options"]["runBootROM"] = to_string(runBootROM);
