@@ -43,7 +43,6 @@ Shader* currentShader;
 bool fileDialogOpen;
 
 #ifndef EMSCRIPTEN
-
 #ifdef _WIN32
 #define STR(s) L##s
 #else
@@ -73,7 +72,7 @@ double timer{};
 int frameCount{};
 double frameTimes{};
 
-bool lockVSyncSetting{ false };
+bool lockVSyncSetting { false };
 
 inline void updateWindowTitle()
 {
@@ -196,7 +195,7 @@ void updateSelectedPalette()
     auto colors = appConfig::palette == 0 ? PPU::BGB_GREEN_PALETTE : appConfig::palette == 1 ? PPU::GRAY_PALETTE : PPU::CLASSIC_PALETTE;
     if (gbCore.emulationPaused)
     {
-        gbCore.ppu.updateDMG_ScreenColors(colors);
+        gbCore.ppu.updateDMGScreenColors(colors);
         refreshGBTextures();
     }
 
@@ -400,6 +399,10 @@ void renderImGUI()
             {
                 ImGui::BeginDisabled();
                 ImGui::Checkbox("Boot ROMs not Loaded!", &romsExist);
+
+                if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                    ImGui::SetTooltip("Drop 'dmg_boot.bin' or 'cgb_boot.bin'");
+
                 ImGui::EndDisabled();
             }
             else
@@ -482,7 +485,9 @@ void renderImGUI()
         {
             ImGui::SeparatorText("Settings");
 
-            ImGui::Checkbox("Enable Audio", &gbCore.apu.enableAudio);
+            if (ImGui::Checkbox("Enable Audio", &appConfig::enableAudio))
+                appConfig::updateConfigFile();
+
             static int volume { static_cast<int>(gbCore.apu.volume * 100) };
 
             if (ImGui::SliderInt("Volume", &volume, 0, 100))
@@ -707,6 +712,7 @@ EM_BOOL emscripten_resize_callback(int eventType, const EmscriptenUiEvent *uiEve
 
     setWindowSizesToAspectRatio(newWidth, newHeight);
     render();
+    glfwSwapBuffers(window);
 
     return EM_TRUE;
 }
@@ -727,6 +733,11 @@ void framebuffer_size_callback(GLFWwindow* _window, int width, int height)
 {
     (void)_window;
     viewport_width = width; viewport_height = height - menuBarHeight;
+    glViewport(0, 0, viewport_width, viewport_height);
+}
+void window_pos_callback(GLFWwindow* _window, int xpos, int ypos)
+{
+	(void)_window; (void)xpos; (void)ypos;
     glViewport(0, 0, viewport_width, viewport_height);
 }
 #endif
@@ -781,12 +792,12 @@ bool setGLFW()
 		return false;
 	}
 
-#ifdef EMSCRIPTEN
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+
+#ifdef EMSCRIPTEN
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
     glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
 #else
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 #endif
@@ -811,6 +822,7 @@ bool setGLFW()
     emscripten_set_visibilitychange_callback(nullptr, false, visibilityChangeCallback);
 #else
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+    glfwSetWindowPosCallback(window, window_pos_callback);
     glfwSetWindowIconifyCallback(window, window_iconify_callback);
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
@@ -924,6 +936,7 @@ void mainLoop()
         glfwSwapBuffers(window);
     }
 
+#ifndef EMSCRIPTEN
     if (!appConfig::vsync)
     {
         double remainder = GBCore::FRAME_RATE - timer;
@@ -931,6 +944,7 @@ void mainLoop()
         if (remainder >= 0.002f)
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
+#endif
 
     if (fpsTimer >= 1.0)
     {

@@ -16,24 +16,6 @@ enum class PPUMode : uint8_t
 	PixelTransfer = 3,
 };
 
-struct object
-{
-	int16_t X;
-	int16_t Y;
-	uint16_t tileAddr;
-	uint8_t attributes;
-
-	static bool objComparator(const object& obj1, const object& obj2)
-	{
-		if (obj1.X > obj2.X)
-			return true;
-		else if (obj1.X < obj2.X)
-			return false;
-
-		return obj1.tileAddr < obj2.tileAddr;
-	}
-};
-
 class PPU
 {
 public:
@@ -79,7 +61,7 @@ public:
 	constexpr void setDMGPalette(const std::array<color, 4>& newColors) { colors = newColors; }
 	constexpr const std::array<color, 4>& getCurrentPalette() { return colors; }
 
-	void updateDMG_ScreenColors(const std::array<color, 4>& newColors);
+	void updateDMGScreenColors(const std::array<color, 4>& newColors);
 
 	constexpr const std::array<uint8_t, 160>& getOAM() { return OAM; }
 
@@ -124,6 +106,90 @@ public:
 		addrPaletteReg OCPS{};
 	};
 
+	struct ObjFIFOEntry
+	{
+		uint8_t color : 2  {};
+		uint8_t palette : 3 {};
+		bool bgPriority : 1 {};
+		bool spritePriority : 1{};
+	};
+
+	enum class FetcherState : uint8_t
+	{
+		FetchTileNo,
+		FetchTileDataLow,
+		FetchTileDataHigh,
+		PushFIFO
+	};
+
+	template <typename T>
+	struct PixelFIFO
+	{
+		uint8_t cycles{ 0 };
+		FetcherState state{ FetcherState::FetchTileNo };
+		std::array<T, 8> data{};
+
+		uint16_t tileMap{};
+		uint8_t tileLow{};
+		uint8_t tileHigh{};
+
+		inline void push(T ent) { data[pushInd++] = ent; };
+		inline T pop() { return data[popInd++]; };
+
+		inline bool empty() { return pushInd == popInd; };
+		inline void clear() { pushInd = 0; popInd = 0; };
+
+		inline void reset()
+		{
+			cycles = 0;
+			state = FetcherState::FetchTileNo;
+			pushInd = 0; popInd = 0;
+		}
+
+	protected:
+		uint8_t pushInd{ 0 };
+		uint8_t popInd{ 0 };
+	};
+
+	struct ObjPixelFIFO : PixelFIFO<ObjFIFOEntry>
+	{
+		uint8_t objInd { };
+	};
+
+	struct BGPixelFIFO : PixelFIFO<uint8_t>
+	{
+		uint8_t fetchX { 0 };
+		bool newScanline { true };
+		bool fetchingWindow { false };
+
+		inline void reset()
+		{
+			PixelFIFO::reset();
+			fetchX = 0;
+			newScanline = true;
+			fetchingWindow = false;
+		}
+	};
+
+	struct OAMobject
+	{
+		int16_t X;
+		int16_t Y;
+		uint16_t tileAddr;
+		uint8_t attributes;
+		bool rendered;
+
+		static bool objComparator(const OAMobject& obj1, const OAMobject& obj2)
+		{
+			if (obj1.X > obj2.X)
+				return true;
+			else if (obj1.X < obj2.X)
+				return false;
+
+			return obj1.tileAddr < obj2.tileAddr;
+		}
+	};
+
 	struct ppuState
 	{
 		bool lycFlag { false };
@@ -131,8 +197,16 @@ public:
 
 		uint8_t LY { 0 };
 		uint8_t WLY { 0 };
+		int8_t scanlineDiscardPixels { -1 };
+		bool objFetcherActive { false };
 
-		uint16_t VBLANK_CYCLES;
+		uint8_t xPosCounter { 0 };
+
+		BGPixelFIFO bgFIFO{};
+		ObjPixelFIFO objFIFO{};
+
+		uint16_t VBLANK_CYCLES {};
+		uint16_t HBLANK_CYCLES {};
 		PPUMode state { PPUMode::OAMSearch };
 		uint16_t videoCycles { 0 };
 	};
@@ -170,11 +244,10 @@ private:
 	std::vector<uint8_t> updatedOAMPixels{};
 
 	uint8_t objCount { 0 };
-	std::array<object, 10> selectedObjects{};
+	std::array<OAMobject, 10> selectedObjects{};
 
+	static constexpr uint16_t TOTAL_SCANLINE_CYCLES = 456;
 	static constexpr uint16_t OAM_SCAN_CYCLES = 20 * 4;
-	static constexpr uint16_t PIXEL_TRANSFER_CYCLES = 43 * 4;
-	static constexpr uint16_t HBLANK_CYCLES = 51 * 4;
 	static constexpr uint16_t DEFAULT_VBLANK_CYCLES = 114 * 4;
 
 	constexpr void invokeDrawCallback() { if (drawCallback != nullptr) drawCallback(framebuffer.data()); }
@@ -207,13 +280,16 @@ private:
 	void handleOAMSearch();
 	void handleHBlank();
 	void handleVBlank();
+
+	void fillSpriteFIFO();
 	void handlePixelTransfer();
+	void resetPixelTransferState();
 
 	void renderScanLine();
 	void renderBackground();
 	void renderWindow();
 	void renderOAM();
-	void DMG_renderBlank();
+	void DMGrenderBlank();
 
 	inline void setVRAMBank(uint8_t val)
 	{
@@ -227,28 +303,36 @@ private:
 	}
 
 	template <bool updateWindowChangesBuffer>
-	void DMG_renderBGTile(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
-	void DMG_renderObjTile(const object& obj);
+	void DMGrenderBGTile(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
+	void DMGrenderObjTile(const OAMobject& obj);
 
 	template <bool updateWindowChangesBuffer>
-	void GBC_renderBGTile(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
-	void GBC_renderObjTile(const object& obj);
+	void GBCrenderBGTile(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
+	void GBCrenderObjTile(const OAMobject& obj);
 
 	void(PPU::*renderWinTileFunc)(uint16_t, int16_t, uint8_t) { nullptr };
 	void(PPU::*renderBGTileFunc)(uint16_t, int16_t, uint8_t) { nullptr };
-	void(PPU::*renderObjTileFunc)(const object&) { nullptr };
+	void(PPU::*renderObjTileFunc)(const OAMobject&) { nullptr };
 
 	void updateFunctionPointers();
 
 	inline uint16_t getBGTileAddr(uint8_t tileInd) { return BGUnsignedAddressing() ? tileInd * 16 : 0x1000 + static_cast<int8_t>(tileInd) * 16; }
+
+	inline uint8_t getBGTileOffset() { return !s.bgFIFO.fetchingWindow ? (2 * ((s.LY + regs.SCY) % 8)) : (2 * (s.WLY % 8)); }
+
+	inline uint8_t getObjTileOffset(const OAMobject& obj)
+	{
+		const bool yFlip = getBit(obj.attributes, 6);
+		return static_cast<uint8_t>(2 * (yFlip ? (obj.Y - s.LY + 7) : (8 - (obj.Y - s.LY + 8))));
+	}
 
 	inline bool GBCMasterPriority() { return !getBit(regs.LCDC, 0); }
 	inline bool TileMapsEnable() { return System::Current() == GBSystem::GBC || getBit(regs.LCDC, 0); }
 
 	inline bool OBJEnable() { return getBit(regs.LCDC, 1); }
 	inline bool DoubleOBJSize() { return getBit(regs.LCDC, 2); }
-	inline uint16_t BGTileAddr() { return getBit(regs.LCDC, 3) ? 0x1C00 : 0x1800; }
-	inline uint16_t WindowTileAddr() { return getBit(regs.LCDC, 6) ? 0x1C00 : 0x1800; }
+	inline uint16_t BGTileMapAddr() { return getBit(regs.LCDC, 3) ? 0x1C00 : 0x1800; }
+	inline uint16_t WindowTileMapAddr() { return getBit(regs.LCDC, 6) ? 0x1C00 : 0x1800; }
 	inline bool BGUnsignedAddressing() { return getBit(regs.LCDC, 4); }
 	inline bool WindowEnable() { return getBit(regs.LCDC, 5); }
 	inline bool LCDEnabled() { return getBit(regs.LCDC, 7); }

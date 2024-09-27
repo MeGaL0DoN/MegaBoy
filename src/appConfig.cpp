@@ -53,6 +53,9 @@ void appConfig::loadConfigFile()
 
 	to_int(palette, "graphics", "palette");
 	to_int(filter, "graphics", "filter");
+
+	to_bool(enableAudio, "audio", "enable");
+
 	to_int(systemPreference, "system", "preferredSystem");
 
 	romPath = config["gameState"]["romPath"];
@@ -77,9 +80,11 @@ void appConfig::updateConfigFile()
 
 	config["graphics"]["blending"] = to_string(blending);
 	config["graphics"]["vsync"] = to_string(vsync);
-
 	config["graphics"]["palette"] = std::to_string(palette);
 	config["graphics"]["filter"] = std::to_string(filter);
+
+	config["audio"]["enable"] = to_string(enableAudio);
+
 	config["system"]["preferredSystem"] = std::to_string(systemPreference);
 
 	if (gbCore.cartridge.ROMLoaded)

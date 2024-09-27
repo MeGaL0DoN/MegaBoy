@@ -32,7 +32,6 @@ public:
 	static constexpr uint16_t BITS_PER_SAMPLE = sizeof(int16_t) * CHAR_BIT;
 
 	float volume { 1.0 };
-	bool enableAudio { true };
 
 	bool enableChannel1 { true };
 	bool enableChannel2 { true };

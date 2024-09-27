@@ -39,7 +39,7 @@ void sound_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, 
 {
 	APU* apu = (APU*)pDevice->pUserData;
 
-	if (gbCore.emulationPaused || !gbCore.cartridge.ROMLoaded || !apu->enableAudio)
+	if (gbCore.emulationPaused || !gbCore.cartridge.ROMLoaded || !appConfig::enableAudio)
 		return;
 
 	int16_t* pOutput16 = (int16_t*)pOutput;

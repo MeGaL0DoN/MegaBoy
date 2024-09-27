@@ -2,6 +2,7 @@
 #include "Utils/bitOps.h"
 #include <iostream>
 #include <algorithm>
+#include <optional>
 
 void PPU::reset()
 {
@@ -39,15 +40,15 @@ void PPU::updateFunctionPointers()
 {
 	if (System::Current() == GBSystem::DMG)
 	{
-		renderObjTileFunc = &PPU::DMG_renderObjTile;
-		renderBGTileFunc = &PPU::DMG_renderBGTile<false>;
-		renderWinTileFunc = &PPU::DMG_renderBGTile<true>;
+		renderObjTileFunc = &PPU::DMGrenderObjTile;
+		renderBGTileFunc = &PPU::DMGrenderBGTile<false>;
+		renderWinTileFunc = &PPU::DMGrenderBGTile<true>;
 	}
 	else
 	{
-		renderObjTileFunc = &PPU::GBC_renderObjTile;
-		renderBGTileFunc = &PPU::GBC_renderBGTile<false>;
-		renderWinTileFunc = &PPU::GBC_renderBGTile<true>;
+		renderObjTileFunc = &PPU::GBCrenderObjTile;
+		renderBGTileFunc = &PPU::GBCrenderBGTile<false>;
+		renderWinTileFunc = &PPU::GBCrenderBGTile<true>;
 	}
 }
 
@@ -128,7 +129,7 @@ void PPU::updatePalette(uint8_t val, std::array<uint8_t, 4>& palette)
 		palette[i] = (getBit(val, i * 2 + 1) << 1) | getBit(val, i * 2);
 }
 
-void PPU::updateDMG_ScreenColors(const std::array<color, 4>& newColors)
+void PPU::updateDMGScreenColors(const std::array<color, 4>& newColors)
 {
 	if (System::Current() != GBSystem::DMG) 
 		return;
@@ -190,14 +191,14 @@ void PPU::SetPPUMode(PPUMode ppuState)
 	regs.STAT = setBit(regs.STAT, 1, static_cast<uint8_t>(ppuState) & 0x2);
 	regs.STAT = setBit(regs.STAT, 0, static_cast<uint8_t>(ppuState) & 0x1);
 
-	s.state = ppuState;
-
-	switch (s.state)
+	switch (ppuState)
 	{
 	case PPUMode::HBlank:
+		s.HBLANK_CYCLES = TOTAL_SCANLINE_CYCLES - OAM_SCAN_CYCLES - s.videoCycles;
 		canAccessOAM = true; canAccessVRAM = true;
 		break;
 	case PPUMode::VBlank:
+		s.VBLANK_CYCLES = DEFAULT_VBLANK_CYCLES;
 		canAccessOAM = true; canAccessVRAM = true;
 		break;
 	case PPUMode::OAMSearch:
@@ -205,14 +206,18 @@ void PPU::SetPPUMode(PPUMode ppuState)
 		break;
 	case PPUMode::PixelTransfer:
 		canAccessVRAM = false;
+		resetPixelTransferState();
 		break;
 	}
+
+	s.state = ppuState;
+	s.videoCycles = 0;
 }
 
 void PPU::execute()
 {
 	if (!LCDEnabled()) return;
-	s.videoCycles += (cpu.doubleSpeed() ? 2 : 4);
+	s.videoCycles++;
 
 	switch (s.state)
 	{
@@ -236,17 +241,16 @@ void PPU::execute()
 
 void PPU::handleHBlank()
 {
-	if (s.videoCycles >= HBLANK_CYCLES)
+	if (s.videoCycles >= s.HBLANK_CYCLES)
 	{
-		s.videoCycles -= HBLANK_CYCLES;
 		s.LY++;
+		if (s.bgFIFO.fetchingWindow) s.WLY++;
 
-		updatedOAMPixels.clear();
-		updatedWindowPixels.clear();
+		//updatedOAMPixels.clear();
+		//updatedWindowPixels.clear();
 
 		if (s.LY == 144)
 		{
-			s.VBLANK_CYCLES = DEFAULT_VBLANK_CYCLES;
 			SetPPUMode(PPUMode::VBlank);
 			cpu.requestInterrupt(Interrupt::VBlank);
 			invokeDrawCallback();
@@ -283,21 +287,225 @@ void PPU::handleVBlank()
 	}
 }
 
+void PPU::resetPixelTransferState()
+{
+	s.bgFIFO.reset();
+	s.xPosCounter = 0;
+	s.scanlineDiscardPixels = -1;
+	s.objFetcherActive = false;
+	s.objFIFO.objInd = 0;
+}
+
+void PPU::fillSpriteFIFO()
+{
+	if (!s.objFetcherActive && OBJEnable())
+	{
+		for (int i = 0; i < objCount; i++)
+		{
+			if (!selectedObjects[i].rendered && selectedObjects[i].X == s.xPosCounter)
+			{
+				selectedObjects[i].rendered = true;
+				s.objFIFO.objInd = i;
+				s.objFetcherActive = true;
+				s.objFIFO.reset();
+				//s.bgFIFO.state = FetcherState::FetchTileNo;
+			}
+		}
+	}
+}
+
 void PPU::handlePixelTransfer()
 {
-	if (s.videoCycles >= PIXEL_TRANSFER_CYCLES)
+	if (!s.objFetcherActive)
 	{
-		s.videoCycles -= PIXEL_TRANSFER_CYCLES;
-		renderScanLine();
-		SetPPUMode(PPUMode::HBlank);
+		switch (s.bgFIFO.state)
+		{
+		case FetcherState::FetchTileNo:
+			s.bgFIFO.cycles++;
+
+			if ((s.bgFIFO.cycles & 0x1) == 0)
+			{
+				if (!s.bgFIFO.fetchingWindow)
+				{
+					uint16_t yOffset = (static_cast<uint8_t>(s.LY + regs.SCY) / 8) * 32;
+					uint8_t xOffset = (s.bgFIFO.fetchX + (regs.SCX / 8)) & 0x1F;
+					s.bgFIFO.tileMap = VRAM_BANK0[BGTileMapAddr() + ((yOffset + xOffset) & 0x3FF)];
+				}
+				else
+				{
+					uint16_t yOffset = (s.WLY / 8) * 32;
+					uint8_t xOffset = s.bgFIFO.fetchX & 0x1F;
+					s.bgFIFO.tileMap = VRAM_BANK0[WindowTileMapAddr() + ((yOffset + xOffset) & 0x3FF)];
+				}
+
+				s.bgFIFO.fetchX++;
+				s.bgFIFO.state = FetcherState::FetchTileDataLow;
+			}
+			break;
+		case FetcherState::FetchTileDataLow:
+			s.bgFIFO.cycles++;
+
+			if ((s.bgFIFO.cycles & 0x1) == 0)
+			{
+				s.bgFIFO.tileLow = VRAM_BANK0[getBGTileAddr(s.bgFIFO.tileMap) + getBGTileOffset()];
+				s.bgFIFO.state = FetcherState::FetchTileDataHigh;
+			}
+			break;
+		case FetcherState::FetchTileDataHigh:
+			if (s.bgFIFO.newScanline)
+			{
+				s.bgFIFO.fetchX--;
+				s.bgFIFO.newScanline = false;
+				s.bgFIFO.state = FetcherState::FetchTileNo;
+				break;
+			}
+
+			s.bgFIFO.cycles++;
+
+			if ((s.bgFIFO.cycles & 0x1) == 0)
+			{
+				s.bgFIFO.tileHigh = VRAM_BANK0[getBGTileAddr(s.bgFIFO.tileMap) + getBGTileOffset() + 1];
+				s.bgFIFO.state = FetcherState::PushFIFO;
+			}
+			break;
+		case FetcherState::PushFIFO:
+			if (s.bgFIFO.empty())
+			{
+				s.bgFIFO.clear();
+
+				for (int i = 7; i >= 0; i--)
+				{
+					uint8_t color = (getBit(s.bgFIFO.tileHigh, i) << 1) | getBit(s.bgFIFO.tileLow, i);
+					s.bgFIFO.push(color);
+				}
+
+				if (s.scanlineDiscardPixels == -1)
+					s.scanlineDiscardPixels = (regs.SCX % 8);
+
+				s.bgFIFO.cycles = 0;
+				s.bgFIFO.state = FetcherState::FetchTileNo;
+			}
+			break;
+		}
 	}
+	else
+	{
+		const auto& obj = selectedObjects[s.objFIFO.objInd];
+
+		switch (s.objFIFO.state)
+		{
+		case FetcherState::FetchTileNo:
+			s.objFIFO.cycles++;
+
+			if ((s.objFIFO.cycles & 0x1) == 0)
+				s.objFIFO.state = FetcherState::FetchTileDataHigh;
+
+			break;
+		case FetcherState::FetchTileDataLow:
+			s.objFIFO.cycles++;
+
+			if ((s.objFIFO.cycles & 0x1) == 0)
+			{
+				s.objFIFO.tileLow = VRAM_BANK0[obj.tileAddr + getObjTileOffset(obj)];
+				s.objFIFO.state = FetcherState::FetchTileDataHigh;
+			}
+			break;
+		case FetcherState::FetchTileDataHigh:
+			s.objFIFO.cycles++;
+
+			if ((s.objFIFO.cycles & 0x1) == 0)
+			{
+				s.objFIFO.tileHigh = VRAM_BANK0[obj.tileAddr + getObjTileOffset(obj) + 1];
+				s.objFIFO.state = FetcherState::PushFIFO;
+			}
+			break;
+		case FetcherState::PushFIFO:
+			const bool xFlip = getBit(obj.attributes, 5);
+			const bool yFlip = static_cast<bool>(getBit(obj.attributes, 7));
+			const bool bgPriority = getBit(obj.attributes, 4);
+
+			if (xFlip)
+			{
+				for (int i = 0; i < 8; i++)
+				{
+					uint8_t color = (getBit(s.objFIFO.tileHigh, i) << 1) | getBit(s.objFIFO.tileLow, i);
+					s.objFIFO.push(ObjFIFOEntry{ color, bgPriority, yFlip, false });
+				}
+			}
+			else
+			{
+				for (int i = 7; i >= 0; i--)
+				{
+					uint8_t color = (getBit(s.objFIFO.tileHigh, i) << 1) | getBit(s.objFIFO.tileLow, i);
+					s.objFIFO.push(ObjFIFOEntry{ color, bgPriority, yFlip, false });
+				}
+			}
+
+			s.objFetcherActive = false;
+			fillSpriteFIFO();
+			break;
+		}
+	}
+
+	fillSpriteFIFO();
+
+	if (!s.objFetcherActive && !s.bgFIFO.empty())
+	{
+		uint8_t bgColorInd = s.bgFIFO.pop();
+		std::optional<ObjFIFOEntry> objFifoEntry = s.objFIFO.empty() ? std::nullopt : std::make_optional(s.objFIFO.pop());
+
+		if (s.scanlineDiscardPixels > 0)
+			s.scanlineDiscardPixels--;
+		else
+		{
+			if (!TileMapsEnable()) bgColorInd = 0;
+
+			color resultColor;
+
+			if (objFifoEntry.has_value())
+			{
+				const auto obj = objFifoEntry.value();
+				const auto& objPalette = obj.palette == 0 ? OBP0palette : OBP1palette;
+
+				resultColor = (obj.color != 0 && (!obj.bgPriority || bgColorInd == 0)) ?
+					getColor(objPalette[obj.color]) : getColor(BGpalette[bgColorInd]);
+			}
+			else
+				resultColor = getColor(BGpalette[bgColorInd]);
+
+			PixelOps::setPixel(framebuffer.data(), SCR_WIDTH, s.xPosCounter, s.LY, resultColor);
+			s.xPosCounter++;
+
+			if (s.xPosCounter == SCR_WIDTH)
+				SetPPUMode(PPUMode::HBlank);
+			else
+			{ 		
+				if (!s.bgFIFO.fetchingWindow)
+				{
+					if (WindowEnable() && s.xPosCounter >= regs.WX - 7 && s.LY >= regs.WY)
+					{
+						s.bgFIFO.fetchingWindow = true;
+						s.bgFIFO.clear();
+						s.bgFIFO.state = FetcherState::FetchTileNo;
+						s.bgFIFO.fetchX = 0;
+					}
+				}
+			}
+		}
+	}
+
+	//if (s.videoCycles >= s.DRAWING_CYCLES)
+	//{
+	//	s.videoCycles -= s.DRAWING_CYCLES;
+	//	renderScanLine();
+	//	SetPPUMode(PPUMode::HBlank);
+	//}
 }
 
 void PPU::handleOAMSearch()
 {
 	if (s.videoCycles >= OAM_SCAN_CYCLES)
 	{
-		s.videoCycles -= OAM_SCAN_CYCLES;
 		objCount = 0;
 
 		const bool doubleObj = DoubleOBJSize();
@@ -314,7 +522,7 @@ void PPU::handleOAMSearch()
 			{
 				if (s.LY >= objY && s.LY < objY + 8)
 				{
-					selectedObjects[objCount] = object{ objX, objY, static_cast<uint16_t>(tileInd * 16), attributes };
+					selectedObjects[objCount] = OAMobject { objX, objY, static_cast<uint16_t>(tileInd * 16), attributes, false };
 					objCount++;
 				}
 			}
@@ -323,13 +531,13 @@ void PPU::handleOAMSearch()
 				if (s.LY >= objY && s.LY < objY + 8)
 				{
 					uint16_t tileAddr = yFlip ? ((tileInd & 0xFE) + 1) * 16 : (tileInd & 0xFE) * 16;
-					selectedObjects[objCount] = object{ objX, objY, tileAddr, attributes };
+					selectedObjects[objCount] = OAMobject { objX, objY, tileAddr, attributes, false };
 					objCount++;
 				}
 				else if (s.LY >= objY + 8 && s.LY < objY + 16)
 				{
 					uint16_t tileAddr = yFlip ? (tileInd & 0xFE) * 16 : ((tileInd & 0xFE) + 1) * 16;
-					selectedObjects[objCount] = object{ objX, static_cast<int16_t>(objY + 8), tileAddr, attributes };
+					selectedObjects[objCount] = OAMobject { objX, static_cast<int16_t>(objY + 8), tileAddr, attributes, false };
 					objCount++;
 				}
 			}
@@ -339,7 +547,7 @@ void PPU::handleOAMSearch()
 		}
 
 		if (System::Current() == GBSystem::DMG)
-			std::sort(selectedObjects.begin(), selectedObjects.begin() + objCount, object::objComparator);
+			std::sort(selectedObjects.begin(), selectedObjects.begin() + objCount, OAMobject::objComparator);
 		else
 			std::reverse(selectedObjects.begin(), selectedObjects.begin() + objCount); 
 
@@ -364,12 +572,12 @@ void PPU::renderScanLine()
 		if (WindowEnable()) renderWindow();
 	}
 	else
-		DMG_renderBlank();
+		DMGrenderBlank();
 
 	if (OBJEnable()) renderOAM();
 }
 
-void PPU::DMG_renderBlank()
+void PPU::DMGrenderBlank()
 {
 	for (uint8_t x = 0; x < SCR_WIDTH; x++)
 	{
@@ -383,7 +591,7 @@ void PPU::DMG_renderBlank()
 
 void PPU::renderBackground()
 {
-	uint16_t bgTileAddr = BGTileAddr();
+	uint16_t bgTileAddr = BGTileMapAddr();
 	uint16_t tileYInd = (static_cast<uint8_t>(s.LY + regs.SCY) / 8) * 32;
 
 	for (uint8_t tileX = 0; tileX < 21; tileX++)
@@ -401,7 +609,7 @@ void PPU::renderWindow()
 	int16_t wx = static_cast<int16_t>(regs.WX) - 7;
 	if (s.LY < regs.WY || wx >= SCR_WIDTH) return;
 
-	uint16_t winTileAddr { WindowTileAddr() };
+	uint16_t winTileAddr { WindowTileMapAddr() };
 	uint16_t tileYInd {static_cast<uint16_t>(s.WLY / 8 * 32) };
 	uint8_t winTileXEnd{ static_cast<uint8_t>(32 - (wx / 8)) };
 
@@ -417,11 +625,11 @@ void PPU::renderWindow()
 		onWindowRender(framebuffer.data(), updatedWindowPixels, s.LY);
 }
 
-template void PPU::GBC_renderBGTile<true>(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
-template void PPU::GBC_renderBGTile<false>(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
+template void PPU::GBCrenderBGTile<true>(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
+template void PPU::GBCrenderBGTile<false>(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
 
 template <bool updateWindowChangesBuffer>
-void PPU::GBC_renderBGTile(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY)
+void PPU::GBCrenderBGTile(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY)
 {
 	const uint8_t attributes = VRAM_BANK1[tileMapInd];
 
@@ -455,7 +663,7 @@ void PPU::GBC_renderBGTile(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY
 	}
 }
 
-void PPU::GBC_renderObjTile(const object& obj)
+void PPU::GBCrenderObjTile(const OAMobject& obj)
 {
 	const bool xFlip = getBit(obj.attributes, 5);
 	const bool yFlip = getBit(obj.attributes, 6);
@@ -491,11 +699,11 @@ void PPU::GBC_renderObjTile(const object& obj)
 	}
 }
 
-template void PPU::DMG_renderBGTile<true>(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
-template void PPU::DMG_renderBGTile<false>(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
+template void PPU::DMGrenderBGTile<true>(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
+template void PPU::DMGrenderBGTile<false>(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
 
 template <bool updateWindowChangesBuffer>
-void PPU::DMG_renderBGTile(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY)
+void PPU::DMGrenderBGTile(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY)
 {
 	const uint8_t lineOffset = 2 * ((s.LY + scrollY) % 8);
 	const uint16_t tileAddr = getBGTileAddr(VRAM_BANK0[tileMapInd]);
@@ -518,7 +726,7 @@ void PPU::DMG_renderBGTile(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY
 	}
 }
 
-void PPU::DMG_renderObjTile(const object& obj)
+void PPU::DMGrenderObjTile(const OAMobject& obj)
 {
 	const bool xFlip = getBit(obj.attributes, 5);
 	const bool yFlip = getBit(obj.attributes, 6);

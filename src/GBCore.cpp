@@ -87,9 +87,19 @@ void GBCore::update(uint32_t cyclesToExecute)
 void GBCore::stepComponents()
 {
 	cpu.updateTimer();
-	ppu.execute();
+
+	//if (cpu.doubleSpeed())
+	//	ppu.execute();
+	//else
+	//{
+	//	ppu.execute();
+	//	ppu.execute();
+	//}
+
+	for (int i = 0; i < (4 >> cpu.doubleSpeed()); i++)
+		ppu.execute();
+
 	mmu.execute();
-	//apu.execute();
 	serial.execute();
 }
 
