@@ -88,14 +88,6 @@ void GBCore::stepComponents()
 {
 	cpu.updateTimer();
 
-	//if (cpu.doubleSpeed())
-	//	ppu.execute();
-	//else
-	//{
-	//	ppu.execute();
-	//	ppu.execute();
-	//}
-
 	for (int i = 0; i < (4 >> cpu.doubleSpeed()); i++)
 		ppu.execute();
 

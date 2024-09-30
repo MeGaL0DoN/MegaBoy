@@ -133,27 +133,52 @@ public:
 		uint8_t tileLow{};
 		uint8_t tileHigh{};
 
-		inline void push(T ent) { data[pushInd++] = ent; };
-		inline T pop() { return data[popInd++]; };
+		inline void push(T ent)
+		{
+			data[back++] = ent;
+			back &= 0x7;
+			size++;
+		}
+		inline T pop()
+		{
+			T val = data[front++];
+			front &= 0x7;
+			size--;
+			return val;
+		}
 
-		inline bool empty() { return pushInd == popInd; };
-		inline void clear() { pushInd = 0; popInd = 0; };
+		inline T& operator[](uint8_t ind)
+		{
+			return data[(front + ind) & 0x7];
+		}
+
+		inline bool full() { return size == 8; };
+		inline bool empty() { return size == 0; };
+
+		inline void clear() { front = 0; back = 0; size = 0; }
 
 		inline void reset()
 		{
 			cycles = 0;
 			state = FetcherState::FetchTileNo;
-			pushInd = 0; popInd = 0;
+			clear();
 		}
 
 	protected:
-		uint8_t pushInd{ 0 };
-		uint8_t popInd{ 0 };
+		uint8_t front { 0 };
+		uint8_t back { 0 };
+		uint8_t size { 0 };
 	};
 
 	struct ObjPixelFIFO : PixelFIFO<ObjFIFOEntry>
 	{
 		uint8_t objInd { };
+
+		inline void reset()
+		{
+			PixelFIFO::reset();
+			objInd = 0;
+		}
 	};
 
 	struct BGPixelFIFO : PixelFIFO<uint8_t>
@@ -173,21 +198,20 @@ public:
 
 	struct OAMobject
 	{
-		int16_t X;
-		int16_t Y;
-		uint16_t tileAddr;
-		uint8_t attributes;
-		bool rendered;
+		int16_t X {};
+		int16_t Y {};
+		uint16_t tileAddr {};
+		uint8_t attributes {};
 
-		static bool objComparator(const OAMobject& obj1, const OAMobject& obj2)
-		{
-			if (obj1.X > obj2.X)
-				return true;
-			else if (obj1.X < obj2.X)
-				return false;
+		//static bool ObjCompare(const OAMobject& obj1, const OAMobject& obj2)
+		//{
+		//	if (obj1.X < obj2.X)
+		//		return true;
+		//	else if (obj1.X > obj2.X)
+		//		return false;
 
-			return obj1.tileAddr < obj2.tileAddr;
-		}
+		//	return obj1.oamAddr > obj2.oamAddr;
+		//}
 	};
 
 	struct ppuState
@@ -197,10 +221,10 @@ public:
 
 		uint8_t LY { 0 };
 		uint8_t WLY { 0 };
-		int8_t scanlineDiscardPixels { -1 };
-		bool objFetcherActive { false };
 
+		int8_t scanlineDiscardPixels { -1 };
 		uint8_t xPosCounter { 0 };
+		bool objFetcherActive { false };
 
 		BGPixelFIFO bgFIFO{};
 		ObjPixelFIFO objFIFO{};
@@ -281,9 +305,13 @@ private:
 	void handleHBlank();
 	void handleVBlank();
 
-	void fillSpriteFIFO();
 	void handlePixelTransfer();
 	void resetPixelTransferState();
+
+	void tryStartSpriteFIFO();
+	void executeBGFetcher();
+	void executeObjFetcher();
+	void renderFIFOs();
 
 	void renderScanLine();
 	void renderBackground();

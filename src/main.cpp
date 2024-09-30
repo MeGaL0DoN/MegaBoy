@@ -87,6 +87,7 @@ inline void setEmulationPaused(bool val)
 {
     gbCore.emulationPaused = val;
     if (val) debugUI::updateTextures(true);
+    else lastFrameTime = glfwGetTime();
     updateWindowTitle();
 }
 
