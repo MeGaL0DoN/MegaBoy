@@ -1,6 +1,7 @@
 #include <cassert>
 #include "CPU.h"
 #include "instructionsEngine.h"
+#include "../defines.h"
 #include "../GBCore.h"
 
 CPU::CPU(GBCore& gbCore) : gbCore(gbCore), instructions(std::make_unique<InstructionsEngine>(this))
@@ -19,31 +20,23 @@ void CPU::reset()
 	cycles = 0;
 }
 
-#define WRITE(var) st.write(reinterpret_cast<char*>(&var), sizeof(var))
-
 void CPU::saveState(std::ofstream& st)
 {
-	WRITE(s);
-	WRITE(registers.AF.val);
-	WRITE(registers.BC.val);
-	WRITE(registers.DE.val);
-	WRITE(registers.HL.val);
+	ST_WRITE(s);
+	ST_WRITE(registers.AF.val);
+	ST_WRITE(registers.BC.val);
+	ST_WRITE(registers.DE.val);
+	ST_WRITE(registers.HL.val);
 }
-
-#undef WRITE
-
-#define READ(var) st.read(reinterpret_cast<char*>(&var), sizeof(var))
 
 void CPU::loadState(std::ifstream& st)
 {
-	READ(s);
-	READ(registers.AF.val);
-	READ(registers.BC.val);
-	READ(registers.DE.val);
-	READ(registers.HL.val);
+	ST_READ(s);
+	ST_READ(registers.AF.val);
+	ST_READ(registers.BC.val);
+	ST_READ(registers.DE.val);
+	ST_READ(registers.HL.val);
 }
-
-#undef READ
 
 void CPU::addCycle()
 {

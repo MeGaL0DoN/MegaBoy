@@ -1,6 +1,6 @@
 #include "MMU.h"
 #include "GBCore.h"
-#include <iostream>
+#include "defines.h"
 
 MMU::MMU(GBCore& gbCore) : gbCore(gbCore) {}
 
@@ -22,28 +22,28 @@ void MMU::updateFunctionPointers()
 
 void MMU::saveState(std::ofstream& st)
 {
-	st.write(reinterpret_cast<char*>(&s), sizeof(s));
+	ST_WRITE(s);
 
 	if (System::Current() == GBSystem::GBC)
-		st.write(reinterpret_cast<char*>(&gbc), sizeof(gbc));
+		ST_WRITE(gbc);
 
 	uint16_t WRAMSize = System::Current() == GBSystem::GBC ? 0x8000 : 0x2000;
 
 	st.write(reinterpret_cast<char*>(WRAM_BANKS.data()), WRAMSize);
-	st.write(reinterpret_cast<char*>(HRAM.data()), sizeof(HRAM));
+	ST_WRITE_ARR(HRAM);
 }
 
 void MMU::loadState(std::ifstream& st)
 {
-	st.read(reinterpret_cast<char*>(&s), sizeof(s));
+	ST_READ(s);
 
 	if (System::Current() == GBSystem::GBC)
-		st.read(reinterpret_cast<char*>(&gbc), sizeof(gbc));
+		ST_READ(gbc);
 
 	uint16_t WRAMSize = System::Current() == GBSystem::GBC ? 0x8000 : 0x2000;
 
 	st.read(reinterpret_cast<char*>(WRAM_BANKS.data()), WRAMSize);
-	st.read(reinterpret_cast<char*>(HRAM.data()), sizeof(HRAM));
+	ST_READ_ARR(HRAM);
 }
 
 void MMU::execute()

@@ -5,6 +5,7 @@
 #include <array>
 #include <vector>
 
+#include "defines.h"
 #include "Utils/pixelOps.h"
 using color = PixelOps::color;
 
@@ -164,6 +165,24 @@ public:
 			clear();
 		}
 
+		inline void saveState(std::ofstream& st)
+		{
+			ST_WRITE(cycles);
+			ST_WRITE(state);
+			ST_WRITE(front);
+			ST_WRITE(back);
+			ST_WRITE(size);
+			ST_WRITE_ARR(data);
+		}
+		inline void loadState(std::ifstream& st)
+		{
+			ST_READ(cycles);
+			ST_READ(state);
+			ST_READ(front);
+			ST_READ(back);
+			ST_READ(size);
+			ST_READ_ARR(data);
+		}
 	protected:
 		uint8_t front { 0 };
 		uint8_t back { 0 };
@@ -178,6 +197,17 @@ public:
 		{
 			PixelFIFO::reset();
 			objInd = 0;
+		}
+
+		inline void saveState(std::ofstream& st)
+		{
+			ST_WRITE(objInd);
+			PixelFIFO::saveState(st);
+		}
+		inline void loadState(std::ifstream& st)
+		{
+			ST_READ(objInd);
+			PixelFIFO::loadState(st);
 		}
 	};
 
@@ -194,6 +224,21 @@ public:
 			newScanline = true;
 			fetchingWindow = false;
 		}
+
+		inline void saveState(std::ofstream& st)
+		{
+			ST_WRITE(fetchX);
+			ST_WRITE(newScanline);
+			ST_WRITE(fetchingWindow);
+			PixelFIFO::saveState(st);
+		}
+		inline void loadState(std::ifstream& st)
+		{
+			ST_READ(fetchX);
+			ST_READ(newScanline);
+			ST_READ(fetchingWindow);
+			PixelFIFO::loadState(st);
+		}
 	};
 
 	struct OAMobject
@@ -202,16 +247,6 @@ public:
 		int16_t Y {};
 		uint16_t tileAddr {};
 		uint8_t attributes {};
-
-		//static bool ObjCompare(const OAMobject& obj1, const OAMobject& obj2)
-		//{
-		//	if (obj1.X < obj2.X)
-		//		return true;
-		//	else if (obj1.X > obj2.X)
-		//		return false;
-
-		//	return obj1.oamAddr > obj2.oamAddr;
-		//}
 	};
 
 	struct ppuState
@@ -225,9 +260,6 @@ public:
 		int8_t scanlineDiscardPixels { -1 };
 		uint8_t xPosCounter { 0 };
 		bool objFetcherActive { false };
-
-		BGPixelFIFO bgFIFO{};
-		ObjPixelFIFO objFIFO{};
 
 		uint16_t VBLANK_CYCLES {};
 		uint16_t HBLANK_CYCLES {};
@@ -244,6 +276,9 @@ public:
 	ppuState s{};
 	dmgRegs regs{};
 	gbcRegs gbcRegs{};
+
+	BGPixelFIFO bgFIFO{};
+	ObjPixelFIFO objFIFO{};
 private:
 	MMU& mmu;
 	CPU& cpu;
@@ -308,7 +343,7 @@ private:
 	void handlePixelTransfer();
 	void resetPixelTransferState();
 
-	void tryStartSpriteFIFO();
+	void tryStartSpriteFetcher();
 	void executeBGFetcher();
 	void executeObjFetcher();
 	void renderFIFOs();
@@ -346,7 +381,7 @@ private:
 
 	inline uint16_t getBGTileAddr(uint8_t tileInd) { return BGUnsignedAddressing() ? tileInd * 16 : 0x1000 + static_cast<int8_t>(tileInd) * 16; }
 
-	inline uint8_t getBGTileOffset() { return !s.bgFIFO.fetchingWindow ? (2 * ((s.LY + regs.SCY) % 8)) : (2 * (s.WLY % 8)); }
+	inline uint8_t getBGTileOffset() { return !bgFIFO.fetchingWindow ? (2 * ((s.LY + regs.SCY) % 8)) : (2 * (s.WLY % 8)); }
 
 	inline uint8_t getObjTileOffset(const OAMobject& obj)
 	{

@@ -1,7 +1,9 @@
 #pragma once
-#include "CPU/CPU.h"
 #include <map>
 #include <fstream>
+
+#include "CPU/CPU.h"
+#include "defines.h"
 
 class MMU;
 
@@ -41,8 +43,8 @@ public:
 		readDpad = !getBit(val, 4);
 	}
 
-	inline void saveState(std::ofstream& st) { st.write(reinterpret_cast<char*>(&readButtons), 1); st.write(reinterpret_cast<char*>(&readDpad), 1); }
-	inline void loadState(std::ifstream& st) { st.read(reinterpret_cast<char*>(&readButtons), 1); st.read(reinterpret_cast<char*>(&readDpad), 1);}
+	inline void saveState(std::ofstream& st) { ST_WRITE(readButtons), ST_WRITE(readDpad); }
+	inline void loadState(std::ifstream& st) { ST_READ(readButtons), ST_READ(readDpad); }
 
 private:
 	CPU& cpu;

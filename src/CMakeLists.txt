@@ -21,6 +21,7 @@ add_executable(MegaBoy
         PPU.cpp
         PPU.h
         resources.h
+        defines.h
         serialPort.cpp
         serialPort.h
         Cartridge.cpp
@@ -63,7 +64,7 @@ add_executable(MegaBoy
         "Utils/pixelOps.h"
         "Utils/fileUtils.h"
         "Utils/Shader.cpp"
-        "Utils/Shader.h")
+        "Utils/Shader.h" )
 
 if (EMSCRIPTEN)
     target_link_options(MegaBoy PRIVATE -sUSE_GLFW=3 -sMIN_WEBGL_VERSION=2 -sMAX_WEBGL_VERSION=2

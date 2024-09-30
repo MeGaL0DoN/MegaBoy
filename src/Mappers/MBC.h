@@ -3,6 +3,7 @@
 #include <vector>
 #include <fstream>
 #include "MBCBase.h"
+#include "../defines.h"
 #include "../Cartridge.h"
 
 struct MBCstate
@@ -37,13 +38,13 @@ public:
 
 	void saveState(std::ofstream& st) const override
 	{
-		st.write(reinterpret_cast<const char*>(&s), sizeof(s));
+		ST_WRITE(s);
 		saveBattery(st);
 	}
 
 	void loadState(std::ifstream& st) override
 	{
-		st.read(reinterpret_cast<char*>(&s), sizeof(s));
+		ST_READ(s);
 		loadBattery(st);
 	}
 

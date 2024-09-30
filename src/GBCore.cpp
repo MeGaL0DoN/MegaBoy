@@ -296,13 +296,13 @@ void GBCore::saveState(std::ofstream& st)
 	auto romFilePathStr = FileUtils::pathToUTF8(romFilePath);
 
 	uint16_t filePathLen { static_cast<uint16_t>(romFilePathStr.length()) };
-	st.write(reinterpret_cast<char*>(&filePathLen), sizeof(filePathLen));
+	ST_WRITE(filePathLen);
 	st << romFilePathStr;
 
-	st.write(reinterpret_cast<char*>(&cartridge.checksum), sizeof(cartridge.checksum));
+	ST_WRITE(cartridge.checksum);
 
 	auto system = System::Current();
-	st.write(reinterpret_cast<char*>(&system), sizeof(system));
+	ST_WRITE(system);
 
 	mmu.saveState(st);
 	cpu.saveState(st);
@@ -315,16 +315,16 @@ void GBCore::saveState(std::ofstream& st)
 bool GBCore::loadState(std::ifstream& st)
 {
 	uint16_t filePathLen { 0 };
-	st.read(reinterpret_cast<char*>(&filePathLen), sizeof(filePathLen));
+	ST_READ(filePathLen);
 
 	std::string romPath(filePathLen, 0);
 	st.read(romPath.data(), filePathLen);
 
 	uint32_t checkSum;
-	st.read(reinterpret_cast<char*>(&checkSum), sizeof(checkSum));
+	ST_READ(checkSum);
 
 	GBSystem system;
-	st.read(reinterpret_cast<char*>(&system), sizeof(system));
+	ST_READ(system);
 
 	if (!gbCore.cartridge.ROMLoaded || gbCore.cartridge.checksum != checkSum)
 	{
