@@ -153,6 +153,8 @@ public:
 			return data[(front + ind) & 0x7];
 		}
 
+		inline uint8_t length() { return size; }
+
 		inline bool full() { return size == 8; };
 		inline bool empty() { return size == 0; };
 
@@ -259,6 +261,8 @@ public:
 
 		int8_t scanlineDiscardPixels { -1 };
 		uint8_t xPosCounter { 0 };
+
+		bool objFetchRequested { false };
 		bool objFetcherActive { false };
 
 		uint16_t VBLANK_CYCLES {};
@@ -279,6 +283,9 @@ public:
 
 	BGPixelFIFO bgFIFO{};
 	ObjPixelFIFO objFIFO{};
+
+	uint8_t bgPixelsSaveInd{};
+	std::array<uint8_t, 8> savedBGPixels{};
 private:
 	MMU& mmu;
 	CPU& cpu;

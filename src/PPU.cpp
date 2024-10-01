@@ -242,9 +242,6 @@ void PPU::handleHBlank()
 		s.LY++;
 		if (bgFIFO.fetchingWindow) s.WLY++;
 
-		//updatedOAMPixels.clear();
-		//updatedWindowPixels.clear();
-
 		if (s.LY == 144)
 		{
 			SetPPUMode(PPUMode::VBlank);
@@ -289,17 +286,18 @@ void PPU::resetPixelTransferState()
 	objFIFO.reset();
 	s.xPosCounter = 0;
 	s.scanlineDiscardPixels = -1;
+	s.objFetchRequested = false;
 	s.objFetcherActive = false;
 }
 
 void PPU::tryStartSpriteFetcher()
 {
-	if (!s.objFetcherActive && OBJEnable())
+	if (!s.objFetchRequested && OBJEnable())
 	{
 		if (objFIFO.objInd < objCount && selectedObjects[objFIFO.objInd].X <= s.xPosCounter)
 		{
 			objFIFO.state = FetcherState::FetchTileNo; 
-			s.objFetcherActive = true;
+			s.objFetchRequested = true;
 		}
 	}
 }
@@ -357,7 +355,18 @@ void PPU::executeBGFetcher()
 		}
 		break;
 	case FetcherState::PushFIFO:
-		if (bgFIFO.empty())
+
+/*		if (bgPixelsSaveInd != 8)
+		{
+			bgFIFO.push(savedBGPixels[bgPixelsSaveInd++]);
+
+			if (bgPixelsSaveInd == 8)
+			{
+				bgFIFO.state = FetcherState::FetchTileNo;
+				bgFIFO.cycles = 0;
+			}
+		}
+		else*/ if (bgFIFO.empty())
 		{
 			for (int i = 7; i >= 0; i--)
 			{
@@ -366,11 +375,26 @@ void PPU::executeBGFetcher()
 			}
 
 			if (s.scanlineDiscardPixels == -1)
-				s.scanlineDiscardPixels = (regs.SCX % 8);
+				s.scanlineDiscardPixels = bgFIFO.fetchingWindow ? (regs.WX < 7 ? 7 - regs.WX : 0) : (regs.SCX & 0x7);
 
 			bgFIFO.cycles = 0;
 			bgFIFO.state = FetcherState::FetchTileNo;
 		}
+
+		//else if (s.objFetchRequested)
+		//{
+		//	bgPixelsSaveInd = 0;
+
+		//	for (int i = 7; i >= 0; i--)
+		//	{
+		//		uint8_t color = (getBit(bgFIFO.tileHigh, i) << 1) | getBit(bgFIFO.tileLow, i);
+		//		savedBGPixels[7 - i] = color;
+		//	}
+		//}
+
+		if (s.objFetchRequested)
+			s.objFetcherActive = true;
+
 		break;
 	}
 }
@@ -431,6 +455,7 @@ void PPU::executeObjFetcher()
 
 		objFIFO.objInd++;
 		s.objFetcherActive = false;
+		s.objFetchRequested = false;
 
 		tryStartSpriteFetcher();
 		break;
@@ -456,7 +481,7 @@ void PPU::renderFIFOs()
 			const auto obj = objFifoEntry.value();
 			const auto& objPalette = obj.palette == 0 ? OBP0palette : OBP1palette;
 
-			outputColor = (obj.color != 0 && (!obj.bgPriority || bgColorInd == 0)) ?
+			outputColor = (obj.color != 0 && (!obj.bgPriority || bgColorInd == 0) && OBJEnable()) ?
 				getColor(objPalette[obj.color]) : getColor(BGpalette[bgColorInd]);
 		}
 		else
@@ -467,19 +492,6 @@ void PPU::renderFIFOs()
 
 		if (s.xPosCounter == SCR_WIDTH)
 			SetPPUMode(PPUMode::HBlank);
-		else
-		{
-			if (!bgFIFO.fetchingWindow)
-			{
-				if (WindowEnable() && s.xPosCounter >= regs.WX - 7 && s.LY >= regs.WY)
-				{
-					bgFIFO.fetchingWindow = true;
-					bgFIFO.clear();
-					bgFIFO.state = FetcherState::FetchTileNo;
-					bgFIFO.fetchX = 0;
-				}
-			}
-		}
 	}
 }
 
@@ -492,7 +504,19 @@ void PPU::handlePixelTransfer()
 	else
 		executeBGFetcher();
 
-	if (!s.objFetcherActive && !bgFIFO.empty())
+	if (!bgFIFO.fetchingWindow)
+	{
+		if (WindowEnable() && s.xPosCounter >= regs.WX - 7 && s.LY >= regs.WY)
+		{
+			bgFIFO.fetchingWindow = true;
+			bgFIFO.clear();
+			bgFIFO.state = FetcherState::FetchTileNo;
+			bgFIFO.cycles = 0;
+			bgFIFO.fetchX = 0;
+		}
+	}
+
+	if (!s.objFetchRequested && !bgFIFO.empty())
 		renderFIFOs();
 }
 
