@@ -105,7 +105,7 @@ bool CPU::handleGHDMA()
 {
 	if (gbCore.mmu.gbc.hdma.status != GHDMAStatus::None)
 	{
-		if (gbCore.mmu.gbc.hdma.status == GHDMAStatus::GDMA || (gbCore.ppu.s.state == PPUMode::HBlank && gbCore.ppu.s.videoCycles < MMU::GHDMA_BLOCK_CYCLES))
+		if (gbCore.mmu.gbc.hdma.status == GHDMAStatus::GDMA || (gbCore.ppu->getMode() == PPUMode::HBlank && gbCore.ppu->getCycles() < MMU::GHDMA_BLOCK_CYCLES))
 		{
 			gbCore.mmu.executeGHDMA();
 			return true;

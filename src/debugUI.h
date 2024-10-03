@@ -4,6 +4,7 @@
 #include <vector>
 #include "GBCore.h"
 #include "Utils/glFunctions.h"
+#include "Utils/pixelOps.h"
 
 extern GBCore gbCore;
 
@@ -40,13 +41,13 @@ private:
 	static inline uint32_t OAMTexture{ 0 };
 	static inline uint32_t tileDataTexture {0};
 
-	static inline void clearBGBuffer(uint8_t* buffer) { PixelOps::clearBuffer(buffer, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu.getCurrentPalette()[0]); }
-	static inline void clearTileDataBuffer() { PixelOps::clearBuffer(tileDataFrameBuffer.get(), PPU::TILES_WIDTH, PPU::TILES_HEIGHT, gbCore.ppu.getCurrentPalette()[0]); }
+	static inline void clearBGBuffer(uint8_t* buffer) { PixelOps::clearBuffer(buffer, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, PPU::ColorPalette[0]); }
+	static inline void clearTileDataBuffer() { PixelOps::clearBuffer(tileDataFrameBuffer.get(), PPU::TILES_WIDTH, PPU::TILES_HEIGHT, PPU::ColorPalette[0]); }
 
 	static constexpr void clearBGScanline(uint8_t* buffer, uint8_t LY)
 	{
 		for (uint8_t x = 0; x < PPU::SCR_WIDTH; x++)
-			PixelOps::setPixel(buffer, PPU::SCR_WIDTH, x, LY, gbCore.ppu.getCurrentPalette()[0]);
+			PixelOps::setPixel(buffer, PPU::SCR_WIDTH, x, LY, PPU::ColorPalette[0]);
 	}
 
 	static void backgroundRenderEvent(const uint8_t* buffer, uint8_t LY);

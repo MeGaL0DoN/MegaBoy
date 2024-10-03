@@ -1,21 +1,27 @@
-#include "PPU.h"
+#include "PPUCore.h"
 #include "Utils/bitOps.h"
 #include <iostream>
 #include <algorithm>
 #include <optional>
 
-void PPU::reset()
+template class PPUCore<GBSystem::DMG>;
+template class PPUCore<GBSystem::GBC>;
+
+template <GBSystem sys>
+void PPUCore<sys>::reset()
 {
 	std::memset(OAM.data(), 0, sizeof(OAM));
 	std::memset(VRAM_BANK0.data(), 0, sizeof(VRAM_BANK0));
 	VRAM = VRAM_BANK0.data();
 	
-	if (System::Current() == GBSystem::GBC)
+	if constexpr (sys == GBSystem::GBC)
 	{
 		std::memset(VRAM_BANK1.data(), 0, sizeof(VRAM_BANK1));
 		std::memset(OBPpaletteRAM.data(), 255, sizeof(OBPpaletteRAM));
 		std::memset(BGpaletteRAM.data(), 255, sizeof(BGpaletteRAM));
 	}
+	else if constexpr (sys == GBSystem::DMG)
+		updatePalette(regs.BGP, BGpalette);
 
 	s = {};
 	regs = {};
@@ -23,11 +29,10 @@ void PPU::reset()
 
 	disableLCD(PPUMode::VBlank);
 	s.LY = 144;
-
-	updatePalette(regs.BGP, BGpalette);
-	updateFunctionPointers();
 }
-void PPU::disableLCD(PPUMode mode)
+
+template <GBSystem sys>
+void PPUCore<sys>::disableLCD(PPUMode mode)
 {
 	s.LY = 0;
 	s.WLY = 0;
@@ -36,28 +41,13 @@ void PPU::disableLCD(PPUMode mode)
 	SetPPUMode(mode);
 }
 
-void PPU::updateFunctionPointers()
-{
-	if (System::Current() == GBSystem::DMG)
-	{
-		renderObjTileFunc = &PPU::DMGrenderObjTile;
-		renderBGTileFunc = &PPU::DMGrenderBGTile<false>;
-		renderWinTileFunc = &PPU::DMGrenderBGTile<true>;
-	}
-	else
-	{
-		renderObjTileFunc = &PPU::GBCrenderObjTile;
-		renderBGTileFunc = &PPU::GBCrenderBGTile<false>;
-		renderWinTileFunc = &PPU::GBCrenderBGTile<true>;
-	}
-}
-
-void PPU::saveState(std::ofstream& st)
+template <GBSystem sys>
+void PPUCore<sys>::saveState(std::ofstream& st)
 {
 	ST_WRITE(regs);
 	ST_WRITE(s);
 
-	if (System::Current() == GBSystem::GBC)
+	if constexpr (sys == GBSystem::GBC)
 	{
 		ST_WRITE(gbcRegs);
 		ST_WRITE_ARR(VRAM_BANK1);
@@ -80,19 +70,20 @@ void PPU::saveState(std::ofstream& st)
 	}
 }
 
-void PPU::loadState(std::ifstream& st)
+template <GBSystem sys>
+void PPUCore<sys>::loadState(std::ifstream& st)
 {
 	ST_READ(regs);
 	ST_READ(s);
 
-	if (System::Current() == GBSystem::GBC)
+	if constexpr (sys == GBSystem::GBC)
 	{
 		ST_READ(gbcRegs);
 		ST_READ_ARR(VRAM_BANK1);
 		ST_READ_ARR(BGpaletteRAM);
 		ST_READ_ARR(OBPpaletteRAM);
 	}
-	else if (System::Current() == GBSystem::DMG)
+	else if constexpr (sys == GBSystem::DMG)
 	{
 		updatePalette(regs.BGP, BGpalette);
 		updatePalette(regs.OBP0, OBP0palette);
@@ -119,15 +110,10 @@ void PPU::loadState(std::ifstream& st)
 		clearBuffer();
 }
 
-void PPU::updatePalette(uint8_t val, std::array<uint8_t, 4>& palette)
+template <GBSystem sys>
+void PPUCore<sys>::refreshDMGScreenColors(const std::array<color, 4>& newColorPalette)
 {
-	for (uint8_t i = 0; i < 4; i++)
-		palette[i] = (getBit(val, i * 2 + 1) << 1) | getBit(val, i * 2);
-}
-
-void PPU::updateDMGScreenColors(const std::array<color, 4>& newColors)
-{
-	if (System::Current() != GBSystem::DMG) 
+	if constexpr (sys != GBSystem::DMG) 
 		return;
 
 	for (uint8_t x = 0; x < SCR_WIDTH; x++)
@@ -135,19 +121,21 @@ void PPU::updateDMGScreenColors(const std::array<color, 4>& newColors)
 		for (uint8_t y = 0; y < SCR_HEIGHT; y++)
 		{
 			color pixel = getPixel(x, y);
-			uint8_t pixelInd { static_cast<uint8_t>(std::find(colors.begin(), colors.end(), pixel) - colors.begin()) };
-			setPixel(x, y, newColors[pixelInd]);
+			uint8_t pixelInd { static_cast<uint8_t>(std::find(PPU::ColorPalette.begin(), PPU::ColorPalette.end(), pixel) - PPU::ColorPalette.begin()) };
+			setPixel(x, y, newColorPalette[pixelInd]);
 		}
 	}
 }
 
-void PPU::checkLYC()
+template <GBSystem sys>
+void PPUCore<sys>::checkLYC()
 {
 	s.lycFlag = s.LY == regs.LYC;
 	regs.STAT = setBit(regs.STAT, 2, s.lycFlag);
 }
 
-void PPU::requestSTAT()
+template <GBSystem sys>
+void PPUCore<sys>::requestSTAT()
 {
 	if (!s.blockStat)
 	{
@@ -156,7 +144,8 @@ void PPU::requestSTAT()
 	}
 }
 
-void PPU::updateInterrupts()
+template <GBSystem sys>
+void PPUCore<sys>::updateInterrupts()
 {
 	bool interrupt = s.lycFlag && LYC_STAT();
 
@@ -182,12 +171,13 @@ void PPU::updateInterrupts()
 		s.blockStat = false;
 }
 
-void PPU::SetPPUMode(PPUMode ppuState)
+template <GBSystem sys>
+void PPUCore<sys>::SetPPUMode(PPUMode PPUState)
 {
-	regs.STAT = setBit(regs.STAT, 1, static_cast<uint8_t>(ppuState) & 0x2);
-	regs.STAT = setBit(regs.STAT, 0, static_cast<uint8_t>(ppuState) & 0x1);
+	regs.STAT = setBit(regs.STAT, 1, static_cast<uint8_t>(PPUState) & 0x2);
+	regs.STAT = setBit(regs.STAT, 0, static_cast<uint8_t>(PPUState) & 0x1);
 
-	switch (ppuState)
+	switch (PPUState)
 	{
 	case PPUMode::HBlank:
 		s.HBLANK_CYCLES = TOTAL_SCANLINE_CYCLES - OAM_SCAN_CYCLES - s.videoCycles;
@@ -206,11 +196,12 @@ void PPU::SetPPUMode(PPUMode ppuState)
 		break;
 	}
 
-	s.state = ppuState;
+	s.state = PPUState;
 	s.videoCycles = 0;
 }
 
-void PPU::execute()
+template <GBSystem sys>
+void PPUCore<sys>::execute()
 {
 	if (!LCDEnabled()) return;
 	s.videoCycles++;
@@ -235,7 +226,8 @@ void PPU::execute()
 	updateInterrupts();
 }
 
-void PPU::handleHBlank()
+template <GBSystem sys>
+void PPUCore<sys>::handleHBlank()
 {
 	if (s.videoCycles >= s.HBLANK_CYCLES)
 	{
@@ -252,7 +244,9 @@ void PPU::handleHBlank()
 			SetPPUMode(PPUMode::OAMSearch);
 	}
 }
-void PPU::handleVBlank()
+
+template <GBSystem sys>
+void PPUCore<sys>::handleVBlank()
 {
 	if (s.videoCycles >= s.VBLANK_CYCLES)
 	{
@@ -280,7 +274,8 @@ void PPU::handleVBlank()
 	}
 }
 
-void PPU::resetPixelTransferState()
+template <GBSystem sys>
+void PPUCore<sys>::resetPixelTransferState()
 {
 	bgFIFO.reset();
 	objFIFO.reset();
@@ -290,7 +285,8 @@ void PPU::resetPixelTransferState()
 	s.objFetcherActive = false;
 }
 
-void PPU::tryStartSpriteFetcher()
+template <GBSystem sys>
+void PPUCore<sys>::tryStartSpriteFetcher()
 {
 	if (!s.objFetchRequested && OBJEnable())
 	{
@@ -302,7 +298,8 @@ void PPU::tryStartSpriteFetcher()
 	}
 }
 
-void PPU::executeBGFetcher()
+template <GBSystem sys>
+void PPUCore<sys>::executeBGFetcher()
 {
 	switch (bgFIFO.state)
 	{
@@ -354,43 +351,29 @@ void PPU::executeBGFetcher()
 			bgFIFO.state = FetcherState::PushFIFO;
 		}
 		break;
-	case FetcherState::PushFIFO:
-
-/*		if (bgPixelsSaveInd != 8)
+	case FetcherState::PushFIFO: 
+		if (bgFIFO.empty())
 		{
-			bgFIFO.push(savedBGPixels[bgPixelsSaveInd++]);
+			if (s.scanlineDiscardPixels == -1)
+				s.scanlineDiscardPixels = bgFIFO.fetchingWindow ? (regs.WX < 7 ? 7 - regs.WX : 0) : (regs.SCX & 0x7);
 
-			if (bgPixelsSaveInd == 8)
+			int cnt = 7;
+
+			if (bgFIFO.fetchingWindow)
 			{
-				bgFIFO.state = FetcherState::FetchTileNo;
-				bgFIFO.cycles = 0;
+				cnt -= s.scanlineDiscardPixels;
+				s.scanlineDiscardPixels = 0;
 			}
-		}
-		else*/ if (bgFIFO.empty())
-		{
-			for (int i = 7; i >= 0; i--)
+
+			for (int i = cnt; i >= 0; i--)
 			{
 				uint8_t color = (getBit(bgFIFO.tileHigh, i) << 1) | getBit(bgFIFO.tileLow, i);
 				bgFIFO.push(color);
 			}
 
-			if (s.scanlineDiscardPixels == -1)
-				s.scanlineDiscardPixels = bgFIFO.fetchingWindow ? (regs.WX < 7 ? 7 - regs.WX : 0) : (regs.SCX & 0x7);
-
 			bgFIFO.cycles = 0;
 			bgFIFO.state = FetcherState::FetchTileNo;
 		}
-
-		//else if (s.objFetchRequested)
-		//{
-		//	bgPixelsSaveInd = 0;
-
-		//	for (int i = 7; i >= 0; i--)
-		//	{
-		//		uint8_t color = (getBit(bgFIFO.tileHigh, i) << 1) | getBit(bgFIFO.tileLow, i);
-		//		savedBGPixels[7 - i] = color;
-		//	}
-		//}
 
 		if (s.objFetchRequested)
 			s.objFetcherActive = true;
@@ -399,7 +382,8 @@ void PPU::executeBGFetcher()
 	}
 }
 
-void PPU::executeObjFetcher()
+template <GBSystem sys>
+void PPUCore<sys>::executeObjFetcher()
 {
 	const auto& obj = selectedObjects[objFIFO.objInd];
 
@@ -462,7 +446,8 @@ void PPU::executeObjFetcher()
 	}
 }
 
-void PPU::renderFIFOs()
+template <GBSystem sys>
+void PPUCore<sys>::renderFIFOs()
 {
 	uint8_t bgColorInd = bgFIFO.pop();
 
@@ -495,7 +480,8 @@ void PPU::renderFIFOs()
 	}
 }
 
-void PPU::handlePixelTransfer()
+template <GBSystem sys>
+void PPUCore<sys>::handlePixelTransfer()
 {
 	tryStartSpriteFetcher();
 
@@ -513,6 +499,7 @@ void PPU::handlePixelTransfer()
 			bgFIFO.state = FetcherState::FetchTileNo;
 			bgFIFO.cycles = 0;
 			bgFIFO.fetchX = 0;
+			s.scanlineDiscardPixels = -1;
 		}
 	}
 
@@ -520,7 +507,8 @@ void PPU::handlePixelTransfer()
 		renderFIFOs();
 }
 
-void PPU::handleOAMSearch()
+template <GBSystem sys>
+void PPUCore<sys>::handleOAMSearch()
 {
 	if (s.videoCycles >= OAM_SCAN_CYCLES)
 	{
@@ -575,210 +563,211 @@ void PPU::handleOAMSearch()
 	}
 }
 
-void PPU::renderOAM()
-{
-	for (int i = 0; i < objCount; i++)
-		(this->*renderObjTileFunc)(selectedObjects[i]);
+//void PPUCore::renderOAM()
+//{
+//	for (int i = 0; i < objCount; i++)
+//		(this->*renderObjTileFunc)(selectedObjects[i]);
+//
+//	if (onOAMRender != nullptr)
+//		onOAMRender(framebuffer.data(), updatedOAMPixels, s.LY);
+//}
+//
+//void PPUCore::renderScanLine()
+//{
+//	if (TileMapsEnable())
+//	{
+//		renderBackground(); 
+//		if (WindowEnable()) renderWindow();
+//	}
+//	else
+//		DMGrenderBlank();
+//
+//	if (OBJEnable()) renderOAM();
+//}
+//
+//void PPUCore::DMGrenderBlank()
+//{
+//	for (uint8_t x = 0; x < SCR_WIDTH; x++)
+//	{
+//		setPixel(x, s.LY, getColor(BGpalette[0]));
+//		bgPixelFlags[x].opaque = true;
+//	}
+//
+//	if (onBackgroundRender != nullptr)
+//		onBackgroundRender(framebuffer.data(), s.LY);
+//}
 
-	if (onOAMRender != nullptr)
-		onOAMRender(framebuffer.data(), updatedOAMPixels, s.LY);
-}
+//void PPUCore::renderBackground()
+//{
+//	uint16_t bgTileAddr = BGTileMapAddr();
+//	uint16_t tileYInd = (static_cast<uint8_t>(s.LY + regs.SCY) / 8) * 32;
+//
+//	for (uint8_t tileX = 0; tileX < 21; tileX++)
+//	{
+//		uint16_t tileXInd = (tileX + regs.SCX / 8) % 32; 
+//		uint16_t bgMapInd = bgTileAddr + tileYInd + tileXInd;
+//		(this->*renderBGTileFunc)(bgMapInd, (tileX * 8 - regs.SCX % 8), regs.SCY);
+//	}
+//
+//	if (onBackgroundRender != nullptr)
+//		onBackgroundRender(framebuffer.data(), s.LY);
+//}
+//void PPUCore::renderWindow()
+//{
+//	int16_t wx = static_cast<int16_t>(regs.WX) - 7;
+//	if (s.LY < regs.WY || wx >= SCR_WIDTH) return;
+//
+//	uint16_t winTileAddr { WindowTileMapAddr() };
+//	uint16_t tileYInd {static_cast<uint16_t>(s.WLY / 8 * 32) };
+//	uint8_t winTileXEnd{ static_cast<uint8_t>(32 - (wx / 8)) };
+//
+//	for (uint8_t tileX = 0; tileX < winTileXEnd; tileX++)
+//	{
+//		uint16_t winMapInd = winTileAddr + tileYInd + tileX;
+//		(this->*renderWinTileFunc)(winMapInd, wx + tileX * 8, s.WLY - s.LY);
+//	};
+//
+//	s.WLY++;
+//
+//	if (onWindowRender != nullptr)
+//		onWindowRender(framebuffer.data(), updatedWindowPixels, s.LY);
+//}
+//
+//template void PPUCore::GBCrenderBGTile<true>(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
+//template void PPUCore::GBCrenderBGTile<false>(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
+//
+//template <bool updateWindowChangesBuffer>
+//void PPUCore::GBCrenderBGTile(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY)
+//{
+//	const uint8_t attributes = VRAM_BANK1[tileMapInd];
+//
+//	const uint8_t cgbPalette = attributes & 0x7;
+//	const bool BGpriority = getBit(attributes, 7);
+//	const bool xFlip = getBit(attributes, 5);
+//	const bool yFlip = getBit(attributes, 6);
+//	const uint8_t* bank = getBit(attributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data();
+//
+//	const uint8_t lineOffset = 2 * (yFlip ? (7 - (s.LY + scrollY) % 8) : ((s.LY + scrollY) % 8)); 
+//	const uint16_t tileAddr = getBGTileAddr(VRAM_BANK0[tileMapInd]);
+//
+//	const uint8_t lsbLineByte = bank[tileAddr + lineOffset];
+//	const uint8_t msbLineByte = bank[tileAddr + lineOffset + 1];
+//
+//	for (int8_t x = 7; x >= 0; x--)
+//	{
+//		int16_t xPos = xFlip ? x + screenX : 7 - x + screenX;
+//
+//		if (xPos >= 0 && xPos < SCR_WIDTH)
+//		{
+//			const uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
+//			const uint8_t paletteRAMInd = cgbPalette * 8 + colorId * 2;
+//			const uint16_t rgb5 = BGpaletteRAM[paletteRAMInd + 1] << 8 | BGpaletteRAM[paletteRAMInd];
+//
+//			setPixel(static_cast<uint8_t>(xPos), s.LY, color::fromRGB5(rgb5));
+//			bgPixelFlags[xPos].opaque = (colorId == 0);
+//			bgPixelFlags[xPos].gbcPriority = BGpriority;
+//			if constexpr (updateWindowChangesBuffer) updatedWindowPixels.push_back(static_cast<uint8_t>(xPos));
+//		}
+//	}
+//}
+//
+//void PPUCore::GBCrenderObjTile(const OAMobject& obj)
+//{
+//	const bool xFlip = getBit(obj.attributes, 5);
+//	const bool yFlip = getBit(obj.attributes, 6);
+//	const uint8_t cgbPalette = obj.attributes & 0x7;
+//	const uint8_t priority = getBit(obj.attributes, 7);
+//
+//	const uint8_t* bank = getBit(obj.attributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data();
+//
+//	if (obj.X < SCR_WIDTH && obj.X > -8)
+//	{
+//		const uint8_t lineOffset{ static_cast<uint8_t>(2 * (yFlip ? (obj.Y - s.LY + 7) : (8 - (obj.Y - s.LY + 8)))) };
+//		const uint8_t lsbLineByte{ bank[obj.tileAddr + lineOffset] };
+//		const uint8_t msbLineByte{ bank[obj.tileAddr + lineOffset + 1] };
+//
+//		for (int8_t x = 7; x >= 0; x--)
+//		{
+//			int16_t xPos = xFlip ? x + obj.X : 7 - x + obj.X;
+//
+//			if (xPos >= 0 && xPos < SCR_WIDTH)
+//			{
+//				uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
+//
+//				if (colorId != 0 && (bgPixelFlags[xPos].opaque || GBCMasterPriority() || (!priority && !bgPixelFlags[xPos].gbcPriority)))
+//				{
+//					uint8_t paletteRAMInd = cgbPalette * 8 + colorId * 2;
+//					uint16_t rgb5 = OBPpaletteRAM[paletteRAMInd + 1] << 8 | OBPpaletteRAM[paletteRAMInd];
+//
+//					setPixel(static_cast<uint8_t>(xPos), s.LY, color::fromRGB5(rgb5));
+//					updatedOAMPixels.push_back(static_cast<uint8_t>(xPos));
+//				}
+//			}
+//		}
+//	}
+//}
+//
+//template void PPUCore::DMGrenderBGTile<true>(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
+//template void PPUCore::DMGrenderBGTile<false>(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
+//
+//template <bool updateWindowChangesBuffer>
+//void PPUCore::DMGrenderBGTile(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY)
+//{
+//	const uint8_t lineOffset = 2 * ((s.LY + scrollY) % 8);
+//	const uint16_t tileAddr = getBGTileAddr(VRAM_BANK0[tileMapInd]);
+//
+//	const uint8_t lsbLineByte = VRAM_BANK0[tileAddr + lineOffset];
+//	const uint8_t msbLineByte = VRAM_BANK0[tileAddr + lineOffset + 1];
+//
+//	for (int8_t x = 7; x >= 0; x--)
+//	{
+//		int16_t xPos = 7 - x + screenX;
+//
+//		if (xPos >= 0 && xPos < SCR_WIDTH)
+//		{
+//			uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
+//			setPixel(static_cast<uint8_t>(xPos), s.LY, getColor(BGpalette[colorId]));
+//
+//			bgPixelFlags[xPos].opaque = (colorId == 0);
+//			if constexpr (updateWindowChangesBuffer) updatedWindowPixels.push_back(static_cast<uint8_t>(xPos));
+//		}
+//	}
+//}
+//
+//void PPUCore::DMGrenderObjTile(const OAMobject& obj)
+//{
+//	const bool xFlip = getBit(obj.attributes, 5);
+//	const bool yFlip = getBit(obj.attributes, 6);
+//	const auto& palette = getBit(obj.attributes, 4) ? OBP1palette : OBP0palette;
+//	const uint8_t priority = getBit(obj.attributes, 7);
+//
+//	if (obj.X < SCR_WIDTH && obj.X > -8)
+//	{
+//		const uint8_t lineOffset{ static_cast<uint8_t>(2 * (yFlip ? (obj.Y - s.LY + 7) : (8 - (obj.Y - s.LY + 8)))) };
+//		const uint8_t lsbLineByte{ VRAM_BANK0[obj.tileAddr + lineOffset] };
+//		const uint8_t msbLineByte{ VRAM_BANK0[obj.tileAddr + lineOffset + 1] };
+//
+//		for (int8_t x = 7; x >= 0; x--)
+//		{
+//			int16_t xPos = xFlip ? x + obj.X : 7 - x + obj.X;
+//
+//			if (xPos >= 0 && xPos < SCR_WIDTH)
+//			{
+//				uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
+//
+//				if (colorId != 0 && (priority == 0 || bgPixelFlags[xPos].opaque))
+//				{
+//					auto color = getColor(palette[colorId]);
+//					setPixel(static_cast<uint8_t>(xPos), s.LY, color);
+//					updatedOAMPixels.push_back(static_cast<uint8_t>(xPos));
+//				}
+//			}
+//		}
+//	}
+//}
 
-void PPU::renderScanLine()
-{
-	if (TileMapsEnable())
-	{
-		renderBackground(); 
-		if (WindowEnable()) renderWindow();
-	}
-	else
-		DMGrenderBlank();
-
-	if (OBJEnable()) renderOAM();
-}
-
-void PPU::DMGrenderBlank()
-{
-	for (uint8_t x = 0; x < SCR_WIDTH; x++)
-	{
-		setPixel(x, s.LY, getColor(BGpalette[0]));
-		bgPixelFlags[x].opaque = true;
-	}
-
-	if (onBackgroundRender != nullptr)
-		onBackgroundRender(framebuffer.data(), s.LY);
-}
-
-void PPU::renderBackground()
-{
-	uint16_t bgTileAddr = BGTileMapAddr();
-	uint16_t tileYInd = (static_cast<uint8_t>(s.LY + regs.SCY) / 8) * 32;
-
-	for (uint8_t tileX = 0; tileX < 21; tileX++)
-	{
-		uint16_t tileXInd = (tileX + regs.SCX / 8) % 32; 
-		uint16_t bgMapInd = bgTileAddr + tileYInd + tileXInd;
-		(this->*renderBGTileFunc)(bgMapInd, (tileX * 8 - regs.SCX % 8), regs.SCY);
-	}
-
-	if (onBackgroundRender != nullptr)
-		onBackgroundRender(framebuffer.data(), s.LY);
-}
-void PPU::renderWindow()
-{
-	int16_t wx = static_cast<int16_t>(regs.WX) - 7;
-	if (s.LY < regs.WY || wx >= SCR_WIDTH) return;
-
-	uint16_t winTileAddr { WindowTileMapAddr() };
-	uint16_t tileYInd {static_cast<uint16_t>(s.WLY / 8 * 32) };
-	uint8_t winTileXEnd{ static_cast<uint8_t>(32 - (wx / 8)) };
-
-	for (uint8_t tileX = 0; tileX < winTileXEnd; tileX++)
-	{
-		uint16_t winMapInd = winTileAddr + tileYInd + tileX;
-		(this->*renderWinTileFunc)(winMapInd, wx + tileX * 8, s.WLY - s.LY);
-	};
-
-	s.WLY++;
-
-	if (onWindowRender != nullptr)
-		onWindowRender(framebuffer.data(), updatedWindowPixels, s.LY);
-}
-
-template void PPU::GBCrenderBGTile<true>(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
-template void PPU::GBCrenderBGTile<false>(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
-
-template <bool updateWindowChangesBuffer>
-void PPU::GBCrenderBGTile(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY)
-{
-	const uint8_t attributes = VRAM_BANK1[tileMapInd];
-
-	const uint8_t cgbPalette = attributes & 0x7;
-	const bool BGpriority = getBit(attributes, 7);
-	const bool xFlip = getBit(attributes, 5);
-	const bool yFlip = getBit(attributes, 6);
-	const uint8_t* bank = getBit(attributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data();
-
-	const uint8_t lineOffset = 2 * (yFlip ? (7 - (s.LY + scrollY) % 8) : ((s.LY + scrollY) % 8)); 
-	const uint16_t tileAddr = getBGTileAddr(VRAM_BANK0[tileMapInd]);
-
-	const uint8_t lsbLineByte = bank[tileAddr + lineOffset];
-	const uint8_t msbLineByte = bank[tileAddr + lineOffset + 1];
-
-	for (int8_t x = 7; x >= 0; x--)
-	{
-		int16_t xPos = xFlip ? x + screenX : 7 - x + screenX;
-
-		if (xPos >= 0 && xPos < SCR_WIDTH)
-		{
-			const uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
-			const uint8_t paletteRAMInd = cgbPalette * 8 + colorId * 2;
-			const uint16_t rgb5 = BGpaletteRAM[paletteRAMInd + 1] << 8 | BGpaletteRAM[paletteRAMInd];
-
-			setPixel(static_cast<uint8_t>(xPos), s.LY, color::fromRGB5(rgb5));
-			bgPixelFlags[xPos].opaque = (colorId == 0);
-			bgPixelFlags[xPos].gbcPriority = BGpriority;
-			if constexpr (updateWindowChangesBuffer) updatedWindowPixels.push_back(static_cast<uint8_t>(xPos));
-		}
-	}
-}
-
-void PPU::GBCrenderObjTile(const OAMobject& obj)
-{
-	const bool xFlip = getBit(obj.attributes, 5);
-	const bool yFlip = getBit(obj.attributes, 6);
-	const uint8_t cgbPalette = obj.attributes & 0x7;
-	const uint8_t priority = getBit(obj.attributes, 7);
-
-	const uint8_t* bank = getBit(obj.attributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data();
-
-	if (obj.X < SCR_WIDTH && obj.X > -8)
-	{
-		const uint8_t lineOffset{ static_cast<uint8_t>(2 * (yFlip ? (obj.Y - s.LY + 7) : (8 - (obj.Y - s.LY + 8)))) };
-		const uint8_t lsbLineByte{ bank[obj.tileAddr + lineOffset] };
-		const uint8_t msbLineByte{ bank[obj.tileAddr + lineOffset + 1] };
-
-		for (int8_t x = 7; x >= 0; x--)
-		{
-			int16_t xPos = xFlip ? x + obj.X : 7 - x + obj.X;
-
-			if (xPos >= 0 && xPos < SCR_WIDTH)
-			{
-				uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
-
-				if (colorId != 0 && (bgPixelFlags[xPos].opaque || GBCMasterPriority() || (!priority && !bgPixelFlags[xPos].gbcPriority)))
-				{
-					uint8_t paletteRAMInd = cgbPalette * 8 + colorId * 2;
-					uint16_t rgb5 = OBPpaletteRAM[paletteRAMInd + 1] << 8 | OBPpaletteRAM[paletteRAMInd];
-
-					setPixel(static_cast<uint8_t>(xPos), s.LY, color::fromRGB5(rgb5));
-					updatedOAMPixels.push_back(static_cast<uint8_t>(xPos));
-				}
-			}
-		}
-	}
-}
-
-template void PPU::DMGrenderBGTile<true>(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
-template void PPU::DMGrenderBGTile<false>(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
-
-template <bool updateWindowChangesBuffer>
-void PPU::DMGrenderBGTile(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY)
-{
-	const uint8_t lineOffset = 2 * ((s.LY + scrollY) % 8);
-	const uint16_t tileAddr = getBGTileAddr(VRAM_BANK0[tileMapInd]);
-
-	const uint8_t lsbLineByte = VRAM_BANK0[tileAddr + lineOffset];
-	const uint8_t msbLineByte = VRAM_BANK0[tileAddr + lineOffset + 1];
-
-	for (int8_t x = 7; x >= 0; x--)
-	{
-		int16_t xPos = 7 - x + screenX;
-
-		if (xPos >= 0 && xPos < SCR_WIDTH)
-		{
-			uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
-			setPixel(static_cast<uint8_t>(xPos), s.LY, getColor(BGpalette[colorId]));
-
-			bgPixelFlags[xPos].opaque = (colorId == 0);
-			if constexpr (updateWindowChangesBuffer) updatedWindowPixels.push_back(static_cast<uint8_t>(xPos));
-		}
-	}
-}
-
-void PPU::DMGrenderObjTile(const OAMobject& obj)
-{
-	const bool xFlip = getBit(obj.attributes, 5);
-	const bool yFlip = getBit(obj.attributes, 6);
-	const auto& palette = getBit(obj.attributes, 4) ? OBP1palette : OBP0palette;
-	const uint8_t priority = getBit(obj.attributes, 7);
-
-	if (obj.X < SCR_WIDTH && obj.X > -8)
-	{
-		const uint8_t lineOffset{ static_cast<uint8_t>(2 * (yFlip ? (obj.Y - s.LY + 7) : (8 - (obj.Y - s.LY + 8)))) };
-		const uint8_t lsbLineByte{ VRAM_BANK0[obj.tileAddr + lineOffset] };
-		const uint8_t msbLineByte{ VRAM_BANK0[obj.tileAddr + lineOffset + 1] };
-
-		for (int8_t x = 7; x >= 0; x--)
-		{
-			int16_t xPos = xFlip ? x + obj.X : 7 - x + obj.X;
-
-			if (xPos >= 0 && xPos < SCR_WIDTH)
-			{
-				uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
-
-				if (colorId != 0 && (priority == 0 || bgPixelFlags[xPos].opaque))
-				{
-					auto color = getColor(palette[colorId]);
-					setPixel(static_cast<uint8_t>(xPos), s.LY, color);
-					updatedOAMPixels.push_back(static_cast<uint8_t>(xPos));
-				}
-			}
-		}
-	}
-}
-
-void PPU::renderTileData(uint8_t* buffer, int vramBank)
+template <GBSystem sys>
+void PPUCore<sys>::renderTileData(uint8_t* buffer, int vramBank)
 {
 	if (!buffer)
 		return;
@@ -801,7 +790,7 @@ void PPU::renderTileData(uint8_t* buffer, int vramBank)
 			{
 				uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
 				uint8_t xPos { static_cast<uint8_t>(7 - x + screenX) };
-				PixelOps::setPixel(buffer, TILES_WIDTH, xPos, yPos, colors[colorId]);
+				PixelOps::setPixel(buffer, TILES_WIDTH, xPos, yPos, getColor(colorId));
 			}
 		}
 	}

@@ -18,8 +18,9 @@ add_executable(MegaBoy
         appConfig.h
         MMU.cpp
         MMU.h
-        PPU.cpp
         PPU.h
+        PPUCore.cpp
+        PPUCore.h
         resources.h
         defines.h
         serialPort.cpp

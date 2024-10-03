@@ -1,5 +1,7 @@
 #pragma once
 #include <string>
+#include <array>
+#include "Utils/pixelOps.h"
 
 namespace appConfig
 {

@@ -15,7 +15,7 @@ void GBCore::reset()
 	input.reset();
 	serial.reset();
 	cpu.reset();
-	ppu.reset();
+	ppu->reset();
 	mmu.reset();
 	apu.reset();
 }
@@ -61,7 +61,7 @@ void GBCore::loadBootROM()
 			}
 
 			// LCD disabled on boot ROM start
-			ppu.regs.LCDC = resetBit(ppu.regs.LCDC, 7);
+			ppu->regs.LCDC = resetBit(ppu->regs.LCDC, 7);
 			cpu.enableBootROM();
 		}
 	}
@@ -89,7 +89,7 @@ void GBCore::stepComponents()
 	cpu.updateTimer();
 
 	for (int i = 0; i < (4 >> cpu.doubleSpeed()); i++)
-		ppu.execute();
+		ppu->execute();
 
 	mmu.execute();
 	serial.execute();
@@ -306,7 +306,7 @@ void GBCore::saveState(std::ofstream& st)
 
 	mmu.saveState(st);
 	cpu.saveState(st);
-	ppu.saveState(st);
+	ppu->saveState(st);
 	serial.saveState(st);
 	input.saveState(st);
 	cartridge.getMapper()->saveState(st);
@@ -362,7 +362,7 @@ bool GBCore::loadState(std::ifstream& st)
 
 	mmu.loadState(st);
 	cpu.loadState(st);
-	ppu.loadState(st);
+	ppu->loadState(st);
 	serial.loadState(st);
 	input.loadState(st);
 	cartridge.getMapper()->loadState(st);

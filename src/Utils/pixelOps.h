@@ -31,7 +31,7 @@ namespace PixelOps
 
 	constexpr void setPixel(uint8_t* buffer, uint16_t width, uint8_t x, uint8_t y, color c)
 	{
-		uint32_t baseInd = (y * width * 3) + (x * 3);
+		const uint32_t baseInd = (y * width * 3) + (x * 3);
 
 		buffer[baseInd] = c.R;
 		buffer[baseInd + 1] = c.G;
@@ -39,7 +39,7 @@ namespace PixelOps
 	}
 	constexpr color getPixel(const uint8_t* buffer, uint16_t width, uint8_t x, uint8_t y)
 	{
-		uint32_t baseInd = (y * width * 3) + (x * 3);
+		const uint32_t baseInd = (y * width * 3) + (x * 3);
 
 		return color
 		{

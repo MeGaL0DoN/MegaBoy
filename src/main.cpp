@@ -156,7 +156,7 @@ void drawCallback(const uint8_t* framebuffer)
 {
     OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
     std::swap(gbFramebufferTextures[0], gbFramebufferTextures[1]);
-    debugUI::updateTextures(false);
+    debugUI::updateTextures(false); // to remove
 }
 
 void updateSelectedFilter()
@@ -175,7 +175,7 @@ void updateSelectedFilter()
             break;
         case 2:
             scalingShader.compile(resources::omniscaleVertexShader.c_str(), resources::omniscaleFragmentShader.c_str());
-            scalingShader.setFloat2("OutputSize", PPU::SCR_WIDTH * 6, PPU::SCR_HEIGHT * 6);
+            scalingShader.setFloat2("OutputSize", PPU::SCR_WIDTH * 4, PPU::SCR_HEIGHT * 4);
             scalingShader.setFloat2("TextureSize", PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
             break;
         default:
@@ -187,20 +187,21 @@ void updateSelectedFilter()
 
 void refreshGBTextures()
 {
-    OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu.getFrameBuffer());
-    OpenGL::updateTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu.getFrameBuffer());
+    OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu->getFrameBuffer());
+    OpenGL::updateTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu->getFrameBuffer());
 }
 
 void updateSelectedPalette()
 {
-    auto colors = appConfig::palette == 0 ? PPU::BGB_GREEN_PALETTE : appConfig::palette == 1 ? PPU::GRAY_PALETTE : PPU::CLASSIC_PALETTE;
+    const auto& newColors = appConfig::palette == 0 ? PPU::BGB_GREEN_PALETTE : appConfig::palette == 1 ? PPU::GRAY_PALETTE : PPU::CLASSIC_PALETTE;
+
     if (gbCore.emulationPaused)
     {
-        gbCore.ppu.updateDMGScreenColors(colors);
+        gbCore.ppu->refreshDMGScreenColors(newColors);
         refreshGBTextures();
     }
 
-    gbCore.ppu.setDMGPalette(colors);
+    PPU::ColorPalette = newColors;
 }
 
 void setOpenGL()
@@ -241,12 +242,16 @@ void setOpenGL()
 
     OpenGL::createTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
     OpenGL::createTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
-    refreshGBTextures();
 
-    gbCore.ppu.drawCallback = drawCallback;
+    std::vector<uint8_t> whiteBG(PPU::FRAMEBUFFER_SIZE, 255);
+
+    OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, whiteBG.data());
+    OpenGL::updateTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, whiteBG.data());
 
     updateSelectedFilter();
     updateSelectedPalette(); 
+
+    gbCore.setDrawCallback(drawCallback);
 }
 
 inline void updateImGUIViewports()
@@ -883,15 +888,13 @@ int getScreenWidth()
     return screenWidth;
 }
 
-const std::string imguiConfigPath = FileUtils::pathToUTF8(FileUtils::executableFolderPath / "data" / "imgui.ini");
-
 void setImGUI()
 {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
 
     ImGuiIO& io = ImGui::GetIO();
-    io.IniFilename = imguiConfigPath.c_str();
+    io.IniFilename = NULL;
 
     const int resolutionX = getScreenWidth();
     scaleFactor = (resolutionX / 1920.0f);

@@ -53,7 +53,7 @@ void MMU::execute()
 
 	if (s.statRegChanged)
 	{
-		gbCore.ppu.regs.STAT = s.newStatVal;
+		gbCore.ppu->regs.STAT = s.newStatVal;
 		s.statRegChanged = false;
 	}
 }
@@ -84,7 +84,7 @@ void MMU::executeDMA()
 		s.dma.delayCycles--;
 	else
 	{
-		gbCore.ppu.OAM[s.dma.cycles++] = (this->*dma_nonblocking_read)(s.dma.sourceAddr++);
+		gbCore.ppu->OAM[s.dma.cycles++] = (this->*dma_nonblocking_read)(s.dma.sourceAddr++);
 
 		if (s.dma.restartRequest)
 		{
@@ -106,7 +106,7 @@ void MMU::executeGHDMA()
 		gbc.hdma.transferLength -= 0x10;
 
 		for (int i = 0; i < 0x10; i++)
-			gbCore.ppu.VRAM[gbc.hdma.currentDestAddr++] = (this->*dma_nonblocking_read)(gbc.hdma.currentSourceAddr++);
+			gbCore.ppu->VRAM[gbc.hdma.currentDestAddr++] = (this->*dma_nonblocking_read)(gbc.hdma.currentSourceAddr++);
 
 		if (gbc.hdma.transferLength == 0)
 			gbc.hdma.status = GHDMAStatus::None;
@@ -137,8 +137,8 @@ void MMU::write8(uint16_t addr, uint8_t val)
 	}
 	else if (addr <= 0x9FFF)
 	{
-		if (gbCore.ppu.canAccessVRAM)
-			gbCore.ppu.VRAM[addr - 0x8000] = val;
+		if (gbCore.ppu->canAccessVRAM)
+			gbCore.ppu->VRAM[addr - 0x8000] = val;
 	}
 	else if (addr <= 0xBFFF)
 	{
@@ -161,8 +161,8 @@ void MMU::write8(uint16_t addr, uint8_t val)
 	}
 	else if (addr <= 0xFE9F)
 	{
-		if (gbCore.ppu.canAccessOAM)
-			gbCore.ppu.OAM[addr - 0xFE00] = val;
+		if (gbCore.ppu->canAccessOAM)
+			gbCore.ppu->OAM[addr - 0xFE00] = val;
 	}
 	else if (addr <= 0xFEFF)
 	{
@@ -199,39 +199,39 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			gbCore.cpu.s.IF = val | 0xE0;
 			break;
 		case 0xFF40:
-			gbCore.ppu.regs.LCDC = val;
-			if (!getBit(val, 7)) gbCore.ppu.disableLCD();
+			gbCore.ppu->regs.LCDC = val;
+			if (!getBit(val, 7)) gbCore.ppu->disableLCD();
 			break;
 		case 0xFF41:
 		{
-			const uint8_t maskedSTAT = (gbCore.ppu.regs.STAT & 0x87) | (val & 0xF8);
+			const uint8_t maskedSTAT = (gbCore.ppu->regs.STAT & 0x87) | (val & 0xF8);
 
 			// spurious STAT interrupts (DMG only)
 			if constexpr (sys == GBSystem::DMG)
 			{
-				if (gbCore.ppu.s.state == PPUMode::VBlank || gbCore.ppu.s.LY == gbCore.ppu.regs.LYC)
+				if (gbCore.ppu->s.state == PPUMode::VBlank || gbCore.ppu->s.LY == gbCore.ppu->regs.LYC)
 				{
 					s.newStatVal = maskedSTAT;
-					gbCore.ppu.regs.STAT = 0xFF;
+					gbCore.ppu->regs.STAT = 0xFF;
 					s.statRegChanged = true;
 					break;
 				}
 			}
 
-			gbCore.ppu.regs.STAT = maskedSTAT;
+			gbCore.ppu->regs.STAT = maskedSTAT;
 			break;
 		}
 		case 0xFF42:
-			gbCore.ppu.regs.SCY = val;
+			gbCore.ppu->regs.SCY = val;
 			break;
 		case 0xFF43:
-			gbCore.ppu.regs.SCX = val;
+			gbCore.ppu->regs.SCX = val;
 			break;
 		case 0xFF44:
 			// read only LY register
 			break;
 		case 0xFF45:
-			gbCore.ppu.regs.LYC = val;
+			gbCore.ppu->regs.LYC = val;
 			break;
 		case 0xFF46:
 			if constexpr (sys == GBSystem::GBC)
@@ -241,22 +241,22 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			}
 			break;
 		case 0xFF47:
-			gbCore.ppu.regs.BGP = val;
-			gbCore.ppu.updatePalette(val, gbCore.ppu.BGpalette);
+			gbCore.ppu->regs.BGP = val;
+			gbCore.ppu->updatePalette(val, gbCore.ppu->BGpalette);
 			break;
 		case 0xFF48:
-			gbCore.ppu.regs.OBP0 = val;
-			gbCore.ppu.updatePalette(val, gbCore.ppu.OBP0palette);
+			gbCore.ppu->regs.OBP0 = val;
+			gbCore.ppu->updatePalette(val, gbCore.ppu->OBP0palette);
 			break;
 		case 0xFF49:
-			gbCore.ppu.regs.OBP1 = val;
-			gbCore.ppu.updatePalette(val, gbCore.ppu.OBP1palette);
+			gbCore.ppu->regs.OBP1 = val;
+			gbCore.ppu->updatePalette(val, gbCore.ppu->OBP1palette);
 			break;
 		case 0xFF4A:
-			gbCore.ppu.regs.WY = val;
+			gbCore.ppu->regs.WY = val;
 			break;
 		case 0xFF4B:
-			gbCore.ppu.regs.WX = val;
+			gbCore.ppu->regs.WX = val;
 			break;
 		case 0xFF50: // BANK register used by boot ROMs
 			gbCore.cpu.executingBootROM = false;
@@ -271,23 +271,23 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 		case 0xFF4F:
 			if constexpr (sys == GBSystem::GBC)
-				gbCore.ppu.setVRAMBank(val);
+				gbCore.ppu->setVRAMBank(val);
 			break;
 		case 0xFF68:
 			if constexpr (sys == GBSystem::GBC)
-				gbCore.ppu.gbcRegs.BCPS.write(val);
+				gbCore.ppu->gbcRegs.BCPS.write(val);
 			break;
 		case 0xFF69:
 			if constexpr (sys == GBSystem::GBC)
-				gbCore.ppu.writePaletteRAM(gbCore.ppu.BGpaletteRAM, gbCore.ppu.gbcRegs.BCPS, val);
+				gbCore.ppu->writePaletteRAM(gbCore.ppu->BGpaletteRAM, gbCore.ppu->gbcRegs.BCPS, val);
 			break;
 		case 0xFF6A:
 			if constexpr (sys == GBSystem::GBC)
-				gbCore.ppu.gbcRegs.OCPS.write(val);
+				gbCore.ppu->gbcRegs.OCPS.write(val);
 			break;
 		case 0xFF6B:
 			if constexpr (sys == GBSystem::GBC)
-				gbCore.ppu.writePaletteRAM(gbCore.ppu.OBPpaletteRAM, gbCore.ppu.gbcRegs.OCPS, val);
+				gbCore.ppu->writePaletteRAM(gbCore.ppu->OBPpaletteRAM, gbCore.ppu->gbcRegs.OCPS, val);
 			break;
 		case 0xFF70:
 			if constexpr (sys == GBSystem::GBC)
@@ -427,7 +427,7 @@ uint8_t MMU::read8(uint16_t addr) const
 	}
 	if (addr <= 0x9FFF)
 	{
-		return gbCore.ppu.canAccessVRAM ? gbCore.ppu.VRAM[addr - 0x8000] : 0xFF;
+		return gbCore.ppu->canAccessVRAM ? gbCore.ppu->VRAM[addr - 0x8000] : 0xFF;
 	}
 	if (addr <= 0xBFFF)
 	{
@@ -451,14 +451,14 @@ uint8_t MMU::read8(uint16_t addr) const
 	}
 	if (addr <= 0xFE9F)
 	{
-		return gbCore.ppu.canAccessOAM ? gbCore.ppu.OAM[addr - 0xFE00] : 0xFF;
+		return gbCore.ppu->canAccessOAM ? gbCore.ppu->OAM[addr - 0xFE00] : 0xFF;
 	}
 	if (addr <= 0xFEFF)
 	{
 		// prohibited area
 
 		if constexpr (sys == GBSystem::DMG)
-			return gbCore.ppu.canAccessOAM ? 0x00 : 0xFF;
+			return gbCore.ppu->canAccessOAM ? 0x00 : 0xFF;
 		else
 			return 0xFF;
 	}
@@ -483,29 +483,29 @@ uint8_t MMU::read8(uint16_t addr) const
 		case 0xFF0F:
 			return gbCore.cpu.s.IF;
 		case 0xFF40:
-			return gbCore.ppu.regs.LCDC;
+			return gbCore.ppu->regs.LCDC;
 		case 0xFF41:
-			return gbCore.ppu.regs.STAT;
+			return gbCore.ppu->regs.STAT;
 		case 0xFF42:
-			return gbCore.ppu.regs.SCY;
+			return gbCore.ppu->regs.SCY;
 		case 0xFF43:
-			return gbCore.ppu.regs.SCX;
+			return gbCore.ppu->regs.SCX;
 		case 0xFF44:
-			return gbCore.ppu.s.LY;
+			return gbCore.ppu->s.LY;
 		case 0xFF45:
-			return gbCore.ppu.regs.LYC;
+			return gbCore.ppu->regs.LYC;
 		case 0xFF46:
 			return s.dma.reg;
 		case 0xFF47:
-			return gbCore.ppu.regs.BGP;
+			return gbCore.ppu->regs.BGP;
 		case 0xFF48:
-			return gbCore.ppu.regs.OBP0;
+			return gbCore.ppu->regs.OBP0;
 		case 0xFF49:
-			return gbCore.ppu.regs.OBP1;
+			return gbCore.ppu->regs.OBP1;
 		case 0xFF4A:
-			return gbCore.ppu.regs.WY;
+			return gbCore.ppu->regs.WY;
 		case 0xFF4B:
-			return gbCore.ppu.regs.WX;
+			return gbCore.ppu->regs.WX;
 
 		case 0xFF4D:
 			if constexpr (sys == GBSystem::GBC)
@@ -514,27 +514,27 @@ uint8_t MMU::read8(uint16_t addr) const
 				return 0xFF;
 		case 0xFF4F:
 			if constexpr (sys == GBSystem::GBC)
-				return gbCore.ppu.gbcRegs.VBK;
+				return gbCore.ppu->gbcRegs.VBK;
 			else 
 				return 0xFF;
 		case 0xFF68:
 			if constexpr (sys == GBSystem::GBC)
-				return gbCore.ppu.gbcRegs.BCPS.read();
+				return gbCore.ppu->gbcRegs.BCPS.read();
 			else
 				return 0xFF;
 		case 0xFF69:
 			if constexpr (sys == GBSystem::GBC)
-				return gbCore.ppu.BGpaletteRAM[gbCore.ppu.gbcRegs.BCPS.value];
+				return gbCore.ppu->BGpaletteRAM[gbCore.ppu->gbcRegs.BCPS.value];
 			else
 				return 0xFF;
 		case 0xFF6A:
 			if constexpr (sys == GBSystem::GBC)
-				return gbCore.ppu.gbcRegs.OCPS.read();
+				return gbCore.ppu->gbcRegs.OCPS.read();
 			else
 				return 0xFF;
 		case 0xFF6B:
 			if constexpr (sys == GBSystem::GBC)
-				return gbCore.ppu.OBPpaletteRAM[gbCore.ppu.gbcRegs.OCPS.value];
+				return gbCore.ppu->OBPpaletteRAM[gbCore.ppu->gbcRegs.OCPS.value];
 			else
 				return 0xFF;
 		case 0xFF70:

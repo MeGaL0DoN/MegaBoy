@@ -4,7 +4,7 @@
 
 #include "MMU.h"
 #include "CPU/CPU.h"
-#include "PPU.h"
+#include "PPUCore.h"
 #include "APU/APU.h"
 #include "inputManager.h"
 #include "serialPort.h"
@@ -28,6 +28,11 @@ public:
 
 	void update(uint32_t cyclesToExecute);
 	void stepComponents();
+
+	inline void setDrawCallback(void (*callback)(const uint8_t* buffer))
+	{
+		this->drawCallback = callback;
+	}
 
 	inline FileLoadResult loadFile(const std::filesystem::path& _filePath)
 	{
@@ -84,12 +89,14 @@ public:
 
 	MMU mmu { *this };
 	CPU cpu { *this };
-	PPU ppu{ mmu, cpu };
+	std::unique_ptr<PPU> ppu;
 	APU apu{};
 	inputManager input { cpu };
 	serialPort serial { cpu };
 	Cartridge cartridge { *this };
 private:
+	void (*drawCallback)(const uint8_t* framebuffer) { nullptr };
+
 	std::filesystem::path saveFolderPath;
 	std::filesystem::path filePath;
 	std::filesystem::path romFilePath;
@@ -111,6 +118,10 @@ private:
 	{
 		if (cartridge.loadROM(st))
 		{
+			ppu = System::Current() == GBSystem::DMG ? std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::DMG>>(mmu, cpu) } : 
+													   std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::GBC>>(mmu, cpu) } ;
+			ppu->drawCallback = this->drawCallback;
+
 			reset();
 			romFilePath = filePath;
 			currentSave = 0;

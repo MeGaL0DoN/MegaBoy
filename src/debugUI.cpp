@@ -30,41 +30,41 @@ void debugUI::windowRenderEvent(const uint8_t* buffer, const std::vector<uint8_t
 
 void debugUI::updateMenu()
 {
-    if (ImGui::BeginMenu("Debug"))
-    {
-        if (ImGui::MenuItem("Memory View"))
-        {
-            showMemoryView = !showMemoryView;
+    //if (ImGui::BeginMenu("Debug"))
+    //{
+    //    if (ImGui::MenuItem("Memory View"))
+    //    {
+    //        showMemoryView = !showMemoryView;
 
-            if (memoryData == nullptr)
-                memoryData = std::make_unique<std::string[]>(4096);
-            else
-                std::fill(memoryData.get(), memoryData.get() + 4096, "");
-        }
-        if (ImGui::MenuItem("CPU View"))
-        {
-            showCPUView = !showCPUView;
-        }
-        if (ImGui::MenuItem("VRAM View"))
-        {
-            showVRAMView = !showVRAMView;
+    //        if (memoryData == nullptr)
+    //            memoryData = std::make_unique<std::string[]>(4096);
+    //        else
+    //            std::fill(memoryData.get(), memoryData.get() + 4096, "");
+    //    }
+    //    if (ImGui::MenuItem("CPU View"))
+    //    {
+    //        showCPUView = !showCPUView;
+    //    }
+    //    if (ImGui::MenuItem("VRAM View"))
+    //    {
+    //        showVRAMView = !showVRAMView;
 
-            if (showVRAMView)
-            {
-                gbCore.ppu.onBackgroundRender = debugUI::backgroundRenderEvent;
-                gbCore.ppu.onWindowRender = debugUI::windowRenderEvent;
-                gbCore.ppu.onOAMRender = debugUI::OAM_renderEvent;
-            }
-            else
-                gbCore.ppu.resetRenderCallbacks();
-        }
-        if (ImGui::MenuItem("Audio View"))
-        {
-            showAudioView = !showAudioView;
-        }
+    //        if (showVRAMView)
+    //        {
+    //            gbCore.ppu.onBackgroundRender = debugUI::backgroundRenderEvent;
+    //            gbCore.ppu.onWindowRender = debugUI::windowRenderEvent;
+    //            gbCore.ppu.onOAMRender = debugUI::OAM_renderEvent;
+    //        }
+    //        else
+    //            gbCore.ppu.resetRenderCallbacks();
+    //    }
+    //    if (ImGui::MenuItem("Audio View"))
+    //    {
+    //        showAudioView = !showAudioView;
+    //    }
 
-        ImGui::EndMenu();
-    }
+    //    ImGui::EndMenu();
+    //}
 }
 
 inline std::string to_hex_str(uint8_t i) 
@@ -144,247 +144,247 @@ int vramTile_Bank{ 0 };
 
 void debugUI::updateTextures(bool all)
 {
-    if (showVRAMView)
-    {
-        switch (all ? VRAMTab::Background : currentTab)
-        {
-        case VRAMTab::Background:
-            OpenGL::updateTexture(backgroundTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, BGFrameBuffer.get());
-            if (!all) break;
-        case VRAMTab::Window:
-            OpenGL::updateTexture(windowTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, windowFrameBuffer.get());
-            if (!all) break;
-        case VRAMTab::OAM:
-            OpenGL::updateTexture(OAMTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, OAMFrameBuffer.get());
-            if (!all) break;
-        case VRAMTab::TileData:
-            gbCore.ppu.renderTileData(tileDataFrameBuffer.get(), System::Current() == GBSystem::DMG ? 0 : vramTile_Bank);
-            OpenGL::updateTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileDataFrameBuffer.get());
-            break;
-        }
-    }
+//    if (showVRAMView)
+//    {
+//        switch (all ? VRAMTab::Background : currentTab)
+//        {
+//        case VRAMTab::Background:
+//            OpenGL::updateTexture(backgroundTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, BGFrameBuffer.get());
+//            if (!all) break;
+//        case VRAMTab::Window:
+//            OpenGL::updateTexture(windowTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, windowFrameBuffer.get());
+//            if (!all) break;
+//        case VRAMTab::OAM:
+//            OpenGL::updateTexture(OAMTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, OAMFrameBuffer.get());
+//            if (!all) break;
+//        case VRAMTab::TileData:
+//            gbCore.ppu->renderTileData(tileDataFrameBuffer.get(), System::Current() == GBSystem::DMG ? 0 : vramTile_Bank);
+//            OpenGL::updateTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileDataFrameBuffer.get());
+//            break;
+//        }
+//    }
 }
 
 void debugUI::updateWindows(float scaleFactor)
 {
-    if (showMemoryView)
-    {
-        ImGui::SetNextWindowSizeConstraints(ImVec2(-1.f, ImGui::GetFontSize() * 19.2f), ImVec2(INFINITY, INFINITY));
-        ImGui::Begin("Memory View", &showMemoryView);
+    //if (showMemoryView)
+    //{
+    //    ImGui::SetNextWindowSizeConstraints(ImVec2(-1.f, ImGui::GetFontSize() * 19.2f), ImVec2(INFINITY, INFINITY));
+    //    ImGui::Begin("Memory View", &showMemoryView);
 
-        ImGui::BeginDisabled(realTimeMemView);
+    //    ImGui::BeginDisabled(realTimeMemView);
 
-        if (ImGui::Button("Refresh"))
-            std::fill(memoryData.get(), memoryData.get() + 4096, "");
+    //    if (ImGui::Button("Refresh"))
+    //        std::fill(memoryData.get(), memoryData.get() + 4096, "");
 
-        ImGui::EndDisabled();
+    //    ImGui::EndDisabled();
 
-        ImGui::SameLine();
-        ImGui::Checkbox("Auto Refresh", &realTimeMemView);
-        ImGui::Spacing();
-        displayMemHeader();
+    //    ImGui::SameLine();
+    //    ImGui::Checkbox("Auto Refresh", &realTimeMemView);
+    //    ImGui::Spacing();
+    //    displayMemHeader();
 
-        ImGui::BeginChild("content");
-        ImGuiListClipper clipper;
-        clipper.Begin(4096);
+    //    ImGui::BeginChild("content");
+    //    ImGuiListClipper clipper;
+    //    clipper.Begin(4096);
 
-        while (clipper.Step())
-        {
-            for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++)
-            {
-                if (realTimeMemView || memoryData[i] == "")
-                {
-                    memoryData[i] = "0x" + to_hex_str(static_cast<uint16_t>(i * 16)) + " ";
+    //    while (clipper.Step())
+    //    {
+    //        for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++)
+    //        {
+    //            if (realTimeMemView || memoryData[i] == "")
+    //            {
+    //                memoryData[i] = "0x" + to_hex_str(static_cast<uint16_t>(i * 16)) + " ";
 
-                    for (int j = 0; j < 16; j++)
-                    {
-                        if (gbCore.cartridge.ROMLoaded)
-                            memoryData[i] += to_hex_str(gbCore.mmu.read8(static_cast<uint16_t>(i * 16 + j))) + " ";
-                        else
-                            memoryData[i] += "ff ";
-                    }
-                }
+    //                for (int j = 0; j < 16; j++)
+    //                {
+    //                    if (gbCore.cartridge.ROMLoaded)
+    //                        memoryData[i] += to_hex_str(gbCore.mmu.read8(static_cast<uint16_t>(i * 16 + j))) + " ";
+    //                    else
+    //                        memoryData[i] += "ff ";
+    //                }
+    //            }
 
-                ImGui::Text(memoryData[i].data());;
-            }
-        }
-        ImGui::EndChild();
+    //            ImGui::Text(memoryData[i].data());;
+    //        }
+    //    }
+    //    ImGui::EndChild();
 
-        ImGui::End();
-    }
-    if (showCPUView)
-    {
-        ImGui::SetNextWindowSizeConstraints(ImVec2(-1.f, -1.f), ImVec2(-1.f, -1.f));
-        ImGui::Begin("CPU View", &showCPUView);
+    //    ImGui::End();
+    //}
+    //if (showCPUView)
+    //{
+    //    ImGui::SetNextWindowSizeConstraints(ImVec2(-1.f, -1.f), ImVec2(-1.f, -1.f));
+    //    ImGui::Begin("CPU View", &showCPUView);
 
-        std::string strBuf = "PC: " + to_hex_str(gbCore.cpu.s.PC);
-        ImGui::Text(strBuf.c_str());
+    //    std::string strBuf = "PC: " + to_hex_str(gbCore.cpu.s.PC);
+    //    ImGui::Text(strBuf.c_str());
 
-        strBuf = "SP: " + to_hex_str(gbCore.cpu.s.SP.val);
-        ImGui::Text(strBuf.c_str());
+    //    strBuf = "SP: " + to_hex_str(gbCore.cpu.s.SP.val);
+    //    ImGui::Text(strBuf.c_str());
 
-        strBuf = "IE: " + to_hex_str(gbCore.cpu.s.IE);
-        ImGui::Text(strBuf.c_str());
+    //    strBuf = "IE: " + to_hex_str(gbCore.cpu.s.IE);
+    //    ImGui::Text(strBuf.c_str());
 
-        ImGui::SameLine();
+    //    ImGui::SameLine();
 
-        strBuf = "IF: " + to_hex_str(gbCore.cpu.s.IF);
-        ImGui::Text(strBuf.c_str());
+    //    strBuf = "IF: " + to_hex_str(gbCore.cpu.s.IF);
+    //    ImGui::Text(strBuf.c_str());
 
-        strBuf = "DIV: " + to_hex_str(gbCore.cpu.s.DIV_reg);
-        ImGui::Text(strBuf.c_str());
+    //    strBuf = "DIV: " + to_hex_str(gbCore.cpu.s.DIV_reg);
+    //    ImGui::Text(strBuf.c_str());
 
-        ImGui::SameLine();
+    //    ImGui::SameLine();
 
-        strBuf = "TIMA: " + to_hex_str(gbCore.cpu.s.TIMA_reg);
-        ImGui::Text(strBuf.c_str());
+    //    strBuf = "TIMA: " + to_hex_str(gbCore.cpu.s.TIMA_reg);
+    //    ImGui::Text(strBuf.c_str());
 
-        ImGui::SeparatorText("Registers");
+    //    ImGui::SeparatorText("Registers");
 
-        strBuf = "AF: " + to_hex_str(gbCore.cpu.registers.AF.val);
-        ImGui::Text(strBuf.c_str());
+    //    strBuf = "AF: " + to_hex_str(gbCore.cpu.registers.AF.val);
+    //    ImGui::Text(strBuf.c_str());
 
-        ImGui::SameLine();
+    //    ImGui::SameLine();
 
-        strBuf = "BC: " + to_hex_str(gbCore.cpu.registers.BC.val);
-        ImGui::Text(strBuf.c_str());
+    //    strBuf = "BC: " + to_hex_str(gbCore.cpu.registers.BC.val);
+    //    ImGui::Text(strBuf.c_str());
 
-        strBuf = "DE: " + to_hex_str(gbCore.cpu.registers.DE.val);
-        ImGui::Text(strBuf.c_str());
+    //    strBuf = "DE: " + to_hex_str(gbCore.cpu.registers.DE.val);
+    //    ImGui::Text(strBuf.c_str());
 
-        ImGui::SameLine();
+    //    ImGui::SameLine();
 
-        strBuf = "HL: " + to_hex_str(gbCore.cpu.registers.HL.val);
-        ImGui::Text(strBuf.c_str());
+    //    strBuf = "HL: " + to_hex_str(gbCore.cpu.registers.HL.val);
+    //    ImGui::Text(strBuf.c_str());
 
-        ImGui::SeparatorText("Flags");
+    //    ImGui::SeparatorText("Flags");
 
-        strBuf = "Zero: " + std::string(gbCore.cpu.registers.getFlag(FlagType::Zero) ? "1" : "0");
-        ImGui::Text(strBuf.c_str());
+    //    strBuf = "Zero: " + std::string(gbCore.cpu.registers.getFlag(FlagType::Zero) ? "1" : "0");
+    //    ImGui::Text(strBuf.c_str());
 
-        strBuf = "Carry: " + std::string(gbCore.cpu.registers.getFlag(FlagType::Carry) ? "1" : "0");
-        ImGui::Text(strBuf.c_str());
+    //    strBuf = "Carry: " + std::string(gbCore.cpu.registers.getFlag(FlagType::Carry) ? "1" : "0");
+    //    ImGui::Text(strBuf.c_str());
 
-        strBuf = "HalfCarry: " + std::string(gbCore.cpu.registers.getFlag(FlagType::HalfCarry) ? "1" : "0");
-        ImGui::Text(strBuf.c_str());
+    //    strBuf = "HalfCarry: " + std::string(gbCore.cpu.registers.getFlag(FlagType::HalfCarry) ? "1" : "0");
+    //    ImGui::Text(strBuf.c_str());
 
-        strBuf = "Negative: " + std::string(gbCore.cpu.registers.getFlag(FlagType::Subtract) ? "1" : "0");
-        ImGui::Text(strBuf.c_str());
+    //    strBuf = "Negative: " + std::string(gbCore.cpu.registers.getFlag(FlagType::Subtract) ? "1" : "0");
+    //    ImGui::Text(strBuf.c_str());
 
-        ImGui::End();
-    }
+    //    ImGui::End();
+    //}
 
-    if (showVRAMView)
-    {
-        ImGui::SetNextWindowSizeConstraints(ImVec2(368.0f * scaleFactor, (314.0f * scaleFactor) + ImGui::GetFrameHeight() * 2), ImVec2(FLT_MAX, FLT_MAX));
-        ImGui::Begin("VRAM View", &showVRAMView);
+    //if (showVRAMView)
+    //{
+    //    ImGui::SetNextWindowSizeConstraints(ImVec2(368.0f * scaleFactor, (314.0f * scaleFactor) + ImGui::GetFrameHeight() * 2), ImVec2(FLT_MAX, FLT_MAX));
+    //    ImGui::Begin("VRAM View", &showVRAMView);
 
-        if (ImGui::BeginTabBar("tabbar"))
-        {
-            if (ImGui::BeginTabItem("Background"))
-            {
-                currentTab = VRAMTab::Background;
+    //    if (ImGui::BeginTabBar("tabbar"))
+    //    {
+    //        if (ImGui::BeginTabItem("Background"))
+    //        {
+    //            currentTab = VRAMTab::Background;
 
-                if (!backgroundTexture)
-                {
-                    BGFrameBuffer = std::make_unique<uint8_t[]>(PPU::FRAMEBUFFER_SIZE);
-                    clearBGBuffer(BGFrameBuffer.get());
-                    OpenGL::createTexture(backgroundTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, BGFrameBuffer.get());
-                }
+    //            if (!backgroundTexture)
+    //            {
+    //                BGFrameBuffer = std::make_unique<uint8_t[]>(PPU::FRAMEBUFFER_SIZE);
+    //                clearBGBuffer(BGFrameBuffer.get());
+    //                OpenGL::createTexture(backgroundTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, BGFrameBuffer.get());
+    //            }
 
-                displayImage(backgroundTexture);
-                ImGui::EndTabItem();
-            }
-            if (ImGui::BeginTabItem("Window"))
-            {
-                currentTab = VRAMTab::Window;
+    //            displayImage(backgroundTexture);
+    //            ImGui::EndTabItem();
+    //        }
+    //        if (ImGui::BeginTabItem("Window"))
+    //        {
+    //            currentTab = VRAMTab::Window;
 
-                if (!windowTexture)
-                {
-                    windowFrameBuffer = std::make_unique<uint8_t[]>(PPU::FRAMEBUFFER_SIZE);
-                    clearBGBuffer(windowFrameBuffer.get());
-                    OpenGL::createTexture(windowTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, windowFrameBuffer.get());
-                }
+    //            if (!windowTexture)
+    //            {
+    //                windowFrameBuffer = std::make_unique<uint8_t[]>(PPU::FRAMEBUFFER_SIZE);
+    //                clearBGBuffer(windowFrameBuffer.get());
+    //                OpenGL::createTexture(windowTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, windowFrameBuffer.get());
+    //            }
 
-                displayImage(windowTexture);
-                ImGui::EndTabItem();
-            }
-            if (ImGui::BeginTabItem("OAM"))
-            {
-                currentTab = VRAMTab::OAM;
+    //            displayImage(windowTexture);
+    //            ImGui::EndTabItem();
+    //        }
+    //        if (ImGui::BeginTabItem("OAM"))
+    //        {
+    //            currentTab = VRAMTab::OAM;
 
-                static bool showOAMMem {false};
-                ImGui::Checkbox("MEM View", &showOAMMem);
-                ImGui::Spacing();
+    //            static bool showOAMMem {false};
+    //            ImGui::Checkbox("MEM View", &showOAMMem);
+    //            ImGui::Spacing();
 
-                if (showOAMMem)
-                {
-                    displayMemHeader();
+    //            if (showOAMMem)
+    //            {
+    //                displayMemHeader();
 
-                    for (int i = 0; i < 10; i++)
-                    {
-                        std::string oamEntry = "0x" + to_hex_str(static_cast<uint16_t>(0xFE00 + i * 16)) + " ";
+    //                for (int i = 0; i < 10; i++)
+    //                {
+    //                    std::string oamEntry = "0x" + to_hex_str(static_cast<uint16_t>(0xFE00 + i * 16)) + " ";
 
-                        for (int j = 0; j < 16; j++)
-                            oamEntry += to_hex_str(gbCore.ppu.getOAM()[i * 16 + j]) + " ";
+    //                    for (int j = 0; j < 16; j++)
+    //                        oamEntry += to_hex_str(gbCore.ppu.getOAM()[i * 16 + j]) + " ";
 
-                        ImGui::Text(oamEntry.data());
-                    }
-                }
-                else
-                {
-                    if (!OAMTexture)
-                    {
-                        OAMFrameBuffer = std::make_unique<uint8_t[]>(PPU::FRAMEBUFFER_SIZE);
-                        clearBGBuffer(OAMFrameBuffer.get());
-                        OpenGL::createTexture(OAMTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, OAMFrameBuffer.get());
-                    }
+    //                    ImGui::Text(oamEntry.data());
+    //                }
+    //            }
+    //            else
+    //            {
+    //                if (!OAMTexture)
+    //                {
+    //                    OAMFrameBuffer = std::make_unique<uint8_t[]>(PPU::FRAMEBUFFER_SIZE);
+    //                    clearBGBuffer(OAMFrameBuffer.get());
+    //                    OpenGL::createTexture(OAMTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, OAMFrameBuffer.get());
+    //                }
 
-                    displayImage(OAMTexture);
-                }
+    //                displayImage(OAMTexture);
+    //            }
 
-                ImGui::EndTabItem();
-            }
-            if (ImGui::BeginTabItem("Tile Data"))
-            {
-                if (System::Current() == GBSystem::GBC)
-                {
-                    ImGui::RadioButton("VRAM Bank 0", &vramTile_Bank, 0);
-                    ImGui::SameLine();
-                    ImGui::RadioButton("VRAM Bank 1", &vramTile_Bank, 1);
-                }
+    //            ImGui::EndTabItem();
+    //        }
+    //        if (ImGui::BeginTabItem("Tile Data"))
+    //        {
+    //            if (System::Current() == GBSystem::GBC)
+    //            {
+    //                ImGui::RadioButton("VRAM Bank 0", &vramTile_Bank, 0);
+    //                ImGui::SameLine();
+    //                ImGui::RadioButton("VRAM Bank 1", &vramTile_Bank, 1);
+    //            }
 
-                currentTab = VRAMTab::TileData;
+    //            currentTab = VRAMTab::TileData;
 
-                if (!tileDataTexture)
-                {
-                    tileDataFrameBuffer = std::make_unique<uint8_t[]>(PPU::TILEDATA_FRAMEBUFFER_SIZE);
-                    clearTileDataBuffer();
-                    OpenGL::createTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileDataFrameBuffer.get());
-                }
+    //            if (!tileDataTexture)
+    //            {
+    //                tileDataFrameBuffer = std::make_unique<uint8_t[]>(PPU::TILEDATA_FRAMEBUFFER_SIZE);
+    //                clearTileDataBuffer();
+    //                OpenGL::createTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileDataFrameBuffer.get());
+    //            }
 
-                displayImage(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT);
-                ImGui::EndTabItem();
-            }
+    //            displayImage(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT);
+    //            ImGui::EndTabItem();
+    //        }
 
-            ImGui::EndTabBar();
-        }
+    //        ImGui::EndTabBar();
+    //    }
 
-        ImGui::End();
-    }
+    //    ImGui::End();
+    //}
 
-    if (showAudioView)
-    {
-        ImGui::SetNextWindowSizeConstraints(ImVec2(-1.f, -1.f), ImVec2(INFINITY, INFINITY));
-        ImGui::Begin("Audio", &showAudioView);
+    //if (showAudioView)
+    //{
+    //    ImGui::SetNextWindowSizeConstraints(ImVec2(-1.f, -1.f), ImVec2(INFINITY, INFINITY));
+    //    ImGui::Begin("Audio", &showAudioView);
 
-        ImGui::SeparatorText("Channel Options");
+    //    ImGui::SeparatorText("Channel Options");
 
-        ImGui::Checkbox("Channel 1", &gbCore.apu.enableChannel1);
-        ImGui::Checkbox("Channel 2", &gbCore.apu.enableChannel2);
-        ImGui::Checkbox("Channel 3", &gbCore.apu.enableChannel3);
-        ImGui::Checkbox("Channel 4", &gbCore.apu.enableChannel4);
+    //    ImGui::Checkbox("Channel 1", &gbCore.apu.enableChannel1);
+    //    ImGui::Checkbox("Channel 2", &gbCore.apu.enableChannel2);
+    //    ImGui::Checkbox("Channel 3", &gbCore.apu.enableChannel3);
+    //    ImGui::Checkbox("Channel 4", &gbCore.apu.enableChannel4);
 
-        ImGui::End();
-    }
+    //    ImGui::End();
+    //}
 }
