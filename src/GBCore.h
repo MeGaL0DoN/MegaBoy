@@ -24,6 +24,8 @@ public:
 	static constexpr uint32_t CYCLES_PER_FRAME = 17556 * 4;
 	static constexpr double FRAME_RATE = 1.0 / 59.7;
 
+	constexpr uint64_t totalCycles() { return cycleCounter; }
+
 	static constexpr uint32_t calculateCycles(double deltaTime) { return static_cast<uint32_t>((CYCLES_PER_FRAME * (deltaTime / FRAME_RATE))); }
 
 	void update(uint32_t cyclesToExecute);
@@ -96,6 +98,8 @@ public:
 	Cartridge cartridge { *this };
 private:
 	void (*drawCallback)(const uint8_t* framebuffer) { nullptr };
+
+	uint64_t cycleCounter{ 0 };
 
 	std::filesystem::path saveFolderPath;
 	std::filesystem::path filePath;

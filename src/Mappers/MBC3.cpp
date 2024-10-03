@@ -1,5 +1,15 @@
 #include "MBC3.h"
+#include "../GBCore.h"
 #include "../Utils/bitOps.h"
+
+extern GBCore gbCore;
+#define RTC cartridge.timer
+
+void MBC3::updateRTC() const
+{
+	RTC.addRTCcycles(gbCore.totalCycles() - lastRTCAccessCycles);
+	lastRTCAccessCycles = gbCore.totalCycles();
+}
 
 uint8_t MBC3::read(uint16_t addr) const
 {
@@ -17,8 +27,9 @@ uint8_t MBC3::read(uint16_t addr) const
 
 		if (s.rtcModeActive)
 		{
-			return RTC().s.latched ? RTC().s.latchedRegs.getReg(RTC().s.reg) : RTC().s.regs.getReg(RTC().s.reg);
-		}
+			updateRTC();
+			return RTC.s.latched ? RTC.s.latchedRegs.getReg(RTC.s.reg) : RTC.s.regs.getReg(RTC.s.reg);
+		}		
 		else return ram[(s.ramBank % cartridge.ramBanks) * 0x2000 + (addr - 0xA000)];
 	}
 
@@ -45,21 +56,22 @@ void MBC3::write(uint16_t addr, uint8_t val)
 		}
 		else if (val <= 0x0C)
 		{
-			s.rtcModeActive = true; // to fix
-			RTC().setReg(val);
+			s.rtcModeActive = true;
+			RTC.setReg(val);
 		}
 	}
 	else if (addr <= 0x7FFF)
 	{
-		if (val == 0x01 && RTC().s.latchWrite == 0x00)
+		if (val == 0x01 && RTC.s.latchWrite == 0x00)
 		{
-			RTC().s.latched = !RTC().s.latched;
+			updateRTC();
+			RTC.s.latched = !RTC.s.latched;
 
-			if (RTC().s.latched)
-				RTC().s.latchedRegs = RTC().s.regs;
+			if (RTC.s.latched)
+				RTC.s.latchedRegs = RTC.s.regs;
 		}
 
-		RTC().s.latchWrite = val;
+		RTC.s.latchWrite = val;
 	}
 	else if (addr <= 0xBFFF)
 	{
@@ -67,7 +79,8 @@ void MBC3::write(uint16_t addr, uint8_t val)
 
 		if (s.rtcModeActive)
 		{
-			RTC().writeReg(val);
+			updateRTC();
+			RTC.writeReg(val);
 		}
 		else ram[(s.ramBank % cartridge.ramBanks) * 0x2000 + (addr - 0xA000)] = val;
 	}

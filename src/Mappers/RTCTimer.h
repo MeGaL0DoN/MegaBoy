@@ -30,7 +30,7 @@ struct RTCRegs
 
 struct RTCState
 {
-	mutable RTCRegs regs{};
+	RTCRegs regs{};
 	RTCRegs latchedRegs{};
 
 	uint8_t reg{ 0 };

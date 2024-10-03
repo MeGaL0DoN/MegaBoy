@@ -35,25 +35,32 @@ void RTCTimer::addRTCcycles(uint32_t cycles)
 		uint64_t currentTime = unix_time();
 
 		if ((currentTime - lastUnixTime) > 1 && !wasHalted)
+		{
 			adjustRTC(); // Auto-adjusting RTC. (for example: emulation paused unexpectedly).
+			s.cycles = 0;
+		}
 		else
 		{
-			s.regs.S++;
-
-			if (s.regs.S == 60)
+			while (s.cycles >= CYCLES_PER_SECOND)
 			{
-				s.regs.S = 0;
-				s.regs.M++;
+				s.cycles -= CYCLES_PER_SECOND;
+				s.regs.S++;
 
-				if (s.regs.M == 60)
+				if (s.regs.S == 60)
 				{
-					s.regs.M = 0;
-					s.regs.H++;
+					s.regs.S = 0;
+					s.regs.M++;
 
-					if (s.regs.H == 24)
+					if (s.regs.M == 60)
 					{
-						s.regs.H = 0;
-						incrementDay();
+						s.regs.M = 0;
+						s.regs.H++;
+
+						if (s.regs.H == 24)
+						{
+							s.regs.H = 0;
+							incrementDay();
+						}
 					}
 				}
 			}
@@ -61,7 +68,6 @@ void RTCTimer::addRTCcycles(uint32_t cycles)
 			lastUnixTime = currentTime;
 		}
 
-		s.cycles = 0;
 		wasHalted = false;
 	}
 }
@@ -154,11 +160,11 @@ void RTCTimer::loadBattery(std::ifstream& st)
 	READ_AS_INT(s.regs.DL);
 	READ_AS_INT(s.regs.DH);
 
-	READ_AS_INT(s.regs.S);
-	READ_AS_INT(s.regs.M);
-	READ_AS_INT(s.regs.H);
-	READ_AS_INT(s.regs.DL);
-	READ_AS_INT(s.regs.DH);
+	READ_AS_INT(s.latchedRegs.S);
+	READ_AS_INT(s.latchedRegs.M);
+	READ_AS_INT(s.latchedRegs.H);
+	READ_AS_INT(s.latchedRegs.DL);
+	READ_AS_INT(s.latchedRegs.DH);
 
 	lastUnixTime = 0;
 

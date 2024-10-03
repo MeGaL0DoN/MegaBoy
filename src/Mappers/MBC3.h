@@ -1,6 +1,5 @@
 #pragma once
 #include "MBC.h"
-#include <thread>
 
 struct MBC3State : MBCstate
 {
@@ -30,12 +29,18 @@ public:
 		MBC::loadBattery(st);
 
 		if (cartridge.hasTimer)
+		{
+			lastRTCAccessCycles = 0;
 			cartridge.timer.loadBattery(st);
+		}
+	}
+
+	void reset(bool resetBattery) override
+	{
+		lastRTCAccessCycles = 0;
+		MBC::reset(resetBattery);
 	}
 private:
-	constexpr RTCTimer& RTC() { return cartridge.timer; }
-	constexpr const RTCTimer& RTC() const { return cartridge.timer; }
-
 	void resetBatteryState() override
 	{
 		MBC::resetBatteryState();
@@ -43,4 +48,7 @@ private:
 		if (cartridge.hasTimer)
 			cartridge.timer.reset();
 	}
+
+	mutable uint64_t lastRTCAccessCycles{ 0 };
+	void updateRTC() const;
 };

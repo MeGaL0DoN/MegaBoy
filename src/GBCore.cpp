@@ -11,6 +11,7 @@ GBCore gbCore{};
 void GBCore::reset()
 {
 	emulationPaused = false;
+	cycleCounter = 0;
 
 	input.reset();
 	serial.reset();
@@ -72,16 +73,10 @@ void GBCore::update(uint32_t cyclesToExecute)
 	if (!cartridge.ROMLoaded || emulationPaused) [[unlikely]] 
 		return;
 
-	uint32_t currentCycles { 0 };
+	const uint64_t targetCycles = cycleCounter + cyclesToExecute;
 
-	while (currentCycles < cyclesToExecute)
-	{
-		uint8_t cycles = cpu.execute() * (cpu.doubleSpeed() ? 2 : 4);
-		currentCycles += cycles;
-
-		if (cartridge.hasTimer) [[unlikely]]
-			cartridge.timer.addRTCcycles(cycles);
-	}
+	while (cycleCounter < targetCycles)
+		cycleCounter += (cpu.execute() * (cpu.doubleSpeed() ? 2 : 4));
 }
 
 void GBCore::stepComponents()
@@ -356,7 +351,7 @@ bool GBCore::loadState(std::ifstream& st)
 	}
 
 	System::Set(system);
-	gbCore.reset();
+	reset();
 
 	cpu.disableBootROM();
 
