@@ -18,14 +18,6 @@ enum class PPUMode : uint8_t
 	PixelTransfer = 3,
 };
 
-struct ObjFIFOEntry
-{
-	uint8_t color : 2  {};
-	uint8_t palette : 3 {};
-	bool bgPriority : 1 {};
-	bool spritePriority : 1{};
-};
-
 enum class FetcherState : uint8_t
 {
 	FetchTileNo,
@@ -34,32 +26,59 @@ enum class FetcherState : uint8_t
 	PushFIFO
 };
 
-template <typename T>
-struct PixelFIFO
+struct FIFOEntry
+{
+	uint8_t color : 2  {};
+	uint8_t palette : 3 {};
+	bool priority : 1 {};
+};
+
+struct FIFOState
 {
 	uint8_t cycles{ 0 };
 	FetcherState state{ FetcherState::FetchTileNo };
-	std::array<T, 8> data{};
 
-	uint16_t tileMap{};
 	uint8_t tileLow{};
 	uint8_t tileHigh{};
+};
+struct BGFIFOState : FIFOState
+{
+	uint16_t tileMap{};
+	uint8_t fetchX{ 0 };
+	uint8_t cgbAttributes{};
 
-	inline void push(T ent)
+	int8_t scanlineDiscardPixels { -1 };
+	bool newScanline{ true };
+	bool fetchingWindow{ false };
+};
+struct ObjFIFOState : FIFOState
+{
+	uint8_t objInd { 0 };
+	bool fetchRequested { false };
+	bool fetcherActive { false };
+};
+
+template <typename T>
+struct PixelFIFO
+{
+	std::array<FIFOEntry, 8> data{};
+	T s;
+
+	inline void push(FIFOEntry ent)
 	{
 		data[back++] = ent;
 		back &= 0x7;
 		size++;
 	}
-	inline T pop()
+	inline FIFOEntry pop()
 	{
-		T val = data[front++];
+		const auto val = data[front++];
 		front &= 0x7;
 		size--;
 		return val;
 	}
 
-	inline T& operator[](uint8_t ind)
+	inline FIFOEntry& operator[](uint8_t ind)
 	{
 		return data[(front + ind) & 0x7];
 	}
@@ -71,15 +90,13 @@ struct PixelFIFO
 
 	inline void reset()
 	{
-		cycles = 0;
-		state = FetcherState::FetchTileNo;
+		s = {};
 		clear();
 	}
 
 	inline void saveState(std::ofstream& st)
 	{
-		ST_WRITE(cycles);
-		ST_WRITE(state);
+		ST_WRITE(s);
 		ST_WRITE(front);
 		ST_WRITE(back);
 		ST_WRITE(size);
@@ -87,8 +104,7 @@ struct PixelFIFO
 	}
 	inline void loadState(std::ifstream& st)
 	{
-		ST_READ(cycles);
-		ST_READ(state);
+		ST_READ(s);
 		ST_READ(front);
 		ST_READ(back);
 		ST_READ(size);
@@ -100,57 +116,11 @@ protected:
 	uint8_t size{ 0 };
 };
 
-struct ObjPixelFIFO : PixelFIFO<ObjFIFOEntry>
-{
-	uint8_t objInd{ };
+struct BGPixelFIFO : PixelFIFO<BGFIFOState>
+{ };
 
-	inline void reset()
-	{
-		PixelFIFO::reset();
-		objInd = 0;
-	}
-
-	inline void saveState(std::ofstream& st)
-	{
-		ST_WRITE(objInd);
-		PixelFIFO::saveState(st);
-	}
-	inline void loadState(std::ifstream& st)
-	{
-		ST_READ(objInd);
-		PixelFIFO::loadState(st);
-	}
-};
-
-struct BGPixelFIFO : PixelFIFO<uint8_t>
-{
-	uint8_t fetchX{ 0 };
-	bool newScanline{ true };
-	bool fetchingWindow{ false };
-
-	inline void reset()
-	{
-		PixelFIFO::reset();
-		fetchX = 0;
-		newScanline = true;
-		fetchingWindow = false;
-	}
-
-	inline void saveState(std::ofstream& st)
-	{
-		ST_WRITE(fetchX);
-		ST_WRITE(newScanline);
-		ST_WRITE(fetchingWindow);
-		PixelFIFO::saveState(st);
-	}
-	inline void loadState(std::ifstream& st)
-	{
-		ST_READ(fetchX);
-		ST_READ(newScanline);
-		ST_READ(fetchingWindow);
-		PixelFIFO::loadState(st);
-	}
-};
+struct ObjPixelFIFO : PixelFIFO<ObjFIFOState>
+{};
 
 struct OAMobject
 {
@@ -167,12 +137,7 @@ struct ppuState
 
 	uint8_t LY{ 0 };
 	uint8_t WLY{ 0 };
-
-	int8_t scanlineDiscardPixels{ -1 };
 	uint8_t xPosCounter{ 0 };
-
-	bool objFetchRequested{ false };
-	bool objFetcherActive{ false };
 
 	uint16_t VBLANK_CYCLES{};
 	uint16_t HBLANK_CYCLES{};
@@ -228,9 +193,9 @@ public:
 	static constexpr uint16_t TILES_HEIGHT = 24 * 8;
 
 	static constexpr uint32_t FRAMEBUFFER_SIZE = SCR_WIDTH * SCR_HEIGHT * 3;
-	static constexpr uint32_t TILEDATA_FRAMEBUFFER_SIZE = TILES_WIDTH * TILES_HEIGHT * 3;
+//	static constexpr uint32_t TILEDATA_FRAMEBUFFER_SIZE = TILES_WIDTH * TILES_HEIGHT * 3;
 
-	static inline std::array<PixelOps::color, 4> ColorPalette {};
+	static inline std::array<color, 4> ColorPalette {};
 
 	static constexpr std::array<color, 4> GRAY_PALETTE = { color {255, 255, 255}, color {169, 169, 169}, color {84, 84, 84}, color {0, 0, 0} };
 	static constexpr std::array<color, 4> CLASSIC_PALETTE = { color {155, 188, 15}, color {139, 172, 15}, color {48, 98, 48}, color {15, 56, 15} };

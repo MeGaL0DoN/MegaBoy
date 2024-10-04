@@ -9,10 +9,10 @@
 
 const std::map<int, uint8_t> buttonKeyConfig 
 {
-	{32, INT8(3)}, // Space (Start)
-	{257,INT8(2)}, // Enter (Select)
-	{90, INT8(1)}, // Z (B)
-	{88, INT8(0)}  // X (A)
+	{257, INT8(3) }, // Enter (Start)
+	{259, INT8(2) }, // Backspace (Select)
+	{ 90, INT8(1) }, // Z (B)
+	{ 88, INT8(0) }	 // X (A)
 };
 const std::map<int, uint8_t> dpadKeyConfig 
 {

@@ -47,10 +47,6 @@ private:
 		invokeDrawCallback();
 	}
 
-	constexpr color getColor(uint8_t colorID) { return PPU::ColorPalette[colorID]; }
-	constexpr void setPixel(uint8_t x, uint8_t y, color c) { PixelOps::setPixel(framebuffer.data(), SCR_WIDTH, x, y, c); }
-	constexpr color getPixel(uint8_t x, uint8_t y) { return PixelOps::getPixel(framebuffer.data(), SCR_WIDTH, x, y); }
-
 	void checkLYC();
 	void requestSTAT();
 	void updateInterrupts();
@@ -70,8 +66,54 @@ private:
 	void executeObjFetcher();
 	void renderFIFOs();
 
+	constexpr color getPixel(uint8_t x, uint8_t y) { return PixelOps::getPixel(framebuffer.data(), SCR_WIDTH, x, y); }
+	constexpr void setPixel(uint8_t x, uint8_t y, color c) { PixelOps::setPixel(framebuffer.data(), SCR_WIDTH, x, y, c); }
+
+	constexpr uint8_t getColorID(uint8_t tileLow, uint8_t tileHigh, uint8_t ind) { return ((tileHigh >> ind) & 1) << 1 | ((tileLow >> ind) & 1); }
+
+	template <bool obj>
+	constexpr color getColor(uint8_t colorID, uint8_t palette)
+	{
+		if constexpr (sys == GBSystem::DMG)
+		{
+			uint8_t* palettePtr;
+
+			if constexpr (obj)
+				palettePtr = palette == 0 ? OBP0palette.data() : OBP1palette.data();
+			else
+				palettePtr = BGpalette.data();
+
+			return PPU::ColorPalette[palettePtr[colorID]];
+		}
+		else
+		{
+			const uint8_t* paletteRamPtr;
+
+			if constexpr (obj)
+				paletteRamPtr = OBPpaletteRAM.data();
+			else
+				paletteRamPtr = BGpaletteRAM.data();
+
+			const uint8_t paletteRAMInd = palette * 8 + colorID * 2;
+			return color::fromRGB5(paletteRamPtr[paletteRAMInd + 1] << 8 | paletteRamPtr[paletteRAMInd]);
+		}
+	}
+
 	inline uint16_t getBGTileAddr(uint8_t tileInd) { return BGUnsignedAddressing() ? tileInd * 16 : 0x1000 + static_cast<int8_t>(tileInd) * 16; }
-	inline uint8_t getBGTileOffset() { return !bgFIFO.fetchingWindow ? (2 * ((s.LY + regs.SCY) % 8)) : (2 * (s.WLY % 8)); }
+
+	inline uint8_t getBGTileOffset()
+	{
+		const uint8_t bgLineOffset = (s.LY + regs.SCY) % 8;
+		const uint8_t windowLineOffset = s.WLY % 8;
+
+		if constexpr (sys == GBSystem::DMG)
+			return 2 * (bgFIFO.s.fetchingWindow ? windowLineOffset : bgLineOffset);
+		else
+		{
+			const bool yFlip = getBit(bgFIFO.s.cgbAttributes, 6);
+			return 2 * (bgFIFO.s.fetchingWindow ? (yFlip ? 7 - windowLineOffset : windowLineOffset) : (yFlip ? 7 - bgLineOffset : bgLineOffset));
+		}
+	}
 	inline uint8_t getObjTileOffset(const OAMobject& obj)
 	{
 		const bool yFlip = getBit(obj.attributes, 6);
@@ -79,7 +121,7 @@ private:
 	}
 
 	inline bool GBCMasterPriority() { return !getBit(regs.LCDC, 0); }
-	inline bool TileMapsEnable() { return System::Current() == GBSystem::GBC || getBit(regs.LCDC, 0); }
+	inline bool DMGTileMapsEnable() { return getBit(regs.LCDC, 0); }
 
 	inline bool OBJEnable() { return getBit(regs.LCDC, 1); }
 	inline bool DoubleOBJSize() { return getBit(regs.LCDC, 2); }

@@ -232,7 +232,7 @@ void PPUCore<sys>::handleHBlank()
 	if (s.videoCycles >= s.HBLANK_CYCLES)
 	{
 		s.LY++;
-		if (bgFIFO.fetchingWindow) s.WLY++;
+		if (bgFIFO.s.fetchingWindow) s.WLY++;
 
 		if (s.LY == 144)
 		{
@@ -280,20 +280,17 @@ void PPUCore<sys>::resetPixelTransferState()
 	bgFIFO.reset();
 	objFIFO.reset();
 	s.xPosCounter = 0;
-	s.scanlineDiscardPixels = -1;
-	s.objFetchRequested = false;
-	s.objFetcherActive = false;
 }
 
 template <GBSystem sys>
 void PPUCore<sys>::tryStartSpriteFetcher()
 {
-	if (!s.objFetchRequested && OBJEnable())
+	if (!objFIFO.s.fetchRequested && OBJEnable())
 	{
-		if (objFIFO.objInd < objCount && selectedObjects[objFIFO.objInd].X <= s.xPosCounter)
+		if (objFIFO.s.objInd < objCount && selectedObjects[objFIFO.s.objInd].X <= s.xPosCounter)
 		{
-			objFIFO.state = FetcherState::FetchTileNo; 
-			s.objFetchRequested = true;
+			objFIFO.s.state = FetcherState::FetchTileNo; 
+			objFIFO.s.fetchRequested = true;
 		}
 	}
 }
@@ -301,82 +298,116 @@ void PPUCore<sys>::tryStartSpriteFetcher()
 template <GBSystem sys>
 void PPUCore<sys>::executeBGFetcher()
 {
-	switch (bgFIFO.state)
+	switch (bgFIFO.s.state)
 	{
 	case FetcherState::FetchTileNo:
-		bgFIFO.cycles++;
+		bgFIFO.s.cycles++;
 
-		if ((bgFIFO.cycles & 0x1) == 0)
+		if ((bgFIFO.s.cycles & 0x1) == 0)
 		{
-			if (!bgFIFO.fetchingWindow)
+			uint16_t tileMapInd;
+
+			if (!bgFIFO.s.fetchingWindow)
 			{
 				uint16_t yOffset = (static_cast<uint8_t>(s.LY + regs.SCY) / 8) * 32;
-				uint8_t xOffset = (bgFIFO.fetchX + (regs.SCX / 8)) & 0x1F;
-				bgFIFO.tileMap = VRAM_BANK0[BGTileMapAddr() + ((yOffset + xOffset) & 0x3FF)];
+				uint8_t xOffset = (bgFIFO.s.fetchX + (regs.SCX / 8)) & 0x1F;
+				tileMapInd = BGTileMapAddr() + ((yOffset + xOffset) & 0x3FF);
 			}
 			else
 			{
 				uint16_t yOffset = (s.WLY / 8) * 32;
-				uint8_t xOffset = bgFIFO.fetchX & 0x1F;
-				bgFIFO.tileMap = VRAM_BANK0[WindowTileMapAddr() + ((yOffset + xOffset) & 0x3FF)];
+				uint8_t xOffset = bgFIFO.s.fetchX & 0x1F;
+				tileMapInd = WindowTileMapAddr() + ((yOffset + xOffset) & 0x3FF);
 			}
 
-			bgFIFO.fetchX++;
-			bgFIFO.state = FetcherState::FetchTileDataLow;
+			bgFIFO.s.tileMap = VRAM_BANK0[tileMapInd];
+
+			if constexpr (sys == GBSystem::GBC)
+				bgFIFO.s.cgbAttributes = VRAM_BANK1[tileMapInd];
+
+			bgFIFO.s.fetchX++;
+			bgFIFO.s.state = FetcherState::FetchTileDataLow;
 		}
 		break;
 	case FetcherState::FetchTileDataLow:
-		bgFIFO.cycles++;
+		bgFIFO.s.cycles++;
 
-		if ((bgFIFO.cycles & 0x1) == 0)
+		if ((bgFIFO.s.cycles & 0x1) == 0)
 		{
-			bgFIFO.tileLow = VRAM_BANK0[getBGTileAddr(bgFIFO.tileMap) + getBGTileOffset()];
-			bgFIFO.state = FetcherState::FetchTileDataHigh;
+			if constexpr (sys == GBSystem::GBC)
+			{
+				const uint8_t* bank = getBit(bgFIFO.s.cgbAttributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data();
+				bgFIFO.s.tileLow = bank[getBGTileAddr(bgFIFO.s.tileMap) + getBGTileOffset()];
+			}
+			else
+				bgFIFO.s.tileLow = VRAM_BANK0[getBGTileAddr(bgFIFO.s.tileMap) + getBGTileOffset()];
+
+			bgFIFO.s.state = FetcherState::FetchTileDataHigh;
 		}
 		break;
 	case FetcherState::FetchTileDataHigh:
-		if (bgFIFO.newScanline)
+		if (bgFIFO.s.newScanline)
 		{
-			bgFIFO.fetchX--;
-			bgFIFO.newScanline = false;
-			bgFIFO.state = FetcherState::FetchTileNo;
+			bgFIFO.s.fetchX--;
+			bgFIFO.s.newScanline = false;
+			bgFIFO.s.state = FetcherState::FetchTileNo;
 			break;
 		}
 
-		bgFIFO.cycles++;
+		bgFIFO.s.cycles++;
 
-		if ((bgFIFO.cycles & 0x1) == 0)
+		if ((bgFIFO.s.cycles & 0x1) == 0)
 		{
-			bgFIFO.tileHigh = VRAM_BANK0[getBGTileAddr(bgFIFO.tileMap) + getBGTileOffset() + 1];
-			bgFIFO.state = FetcherState::PushFIFO;
+			if constexpr (sys == GBSystem::GBC)
+			{
+				const uint8_t* bank = getBit(bgFIFO.s.cgbAttributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data();
+				bgFIFO.s.tileHigh = bank[getBGTileAddr(bgFIFO.s.tileMap) + getBGTileOffset() + 1];
+			}
+			else
+				bgFIFO.s.tileHigh = VRAM_BANK0[getBGTileAddr(bgFIFO.s.tileMap) + getBGTileOffset() + 1];
+
+			bgFIFO.s.state = FetcherState::PushFIFO;
 		}
 		break;
 	case FetcherState::PushFIFO: 
 		if (bgFIFO.empty())
 		{
-			if (s.scanlineDiscardPixels == -1)
-				s.scanlineDiscardPixels = bgFIFO.fetchingWindow ? (regs.WX < 7 ? 7 - regs.WX : 0) : (regs.SCX & 0x7);
+			if (bgFIFO.s.scanlineDiscardPixels == -1)
+				bgFIFO.s.scanlineDiscardPixels = bgFIFO.s.fetchingWindow ? (regs.WX < 7 ? 7 - regs.WX : 0) : (regs.SCX & 0x7);
 
 			int cnt = 7;
 
-			if (bgFIFO.fetchingWindow)
+			if (bgFIFO.s.fetchingWindow)
 			{
-				cnt -= s.scanlineDiscardPixels;
-				s.scanlineDiscardPixels = 0;
+				cnt -= bgFIFO.s.scanlineDiscardPixels;
+				bgFIFO.s.scanlineDiscardPixels = 0;
 			}
 
-			for (int i = cnt; i >= 0; i--)
+			if constexpr (sys == GBSystem::GBC)
 			{
-				uint8_t color = (getBit(bgFIFO.tileHigh, i) << 1) | getBit(bgFIFO.tileLow, i);
-				bgFIFO.push(color);
+				const bool xFlip = getBit(bgFIFO.s.cgbAttributes, 5);
+				const bool priority = getBit(bgFIFO.s.cgbAttributes, 7);
+				const uint8_t cgbPalette = bgFIFO.s.cgbAttributes & 0x7;
+
+				const int cntStart = (xFlip ? 0 : cnt);
+				const int cntEnd = xFlip ? cnt + 1 : -1;
+				const int cntStep = xFlip ? 1 : -1;
+
+				for (int i = cntStart; i != cntEnd; i += cntStep)
+					bgFIFO.push(FIFOEntry { getColorID(bgFIFO.s.tileLow, bgFIFO.s.tileHigh, i), cgbPalette, priority });
+			}
+			else
+			{
+				for (int i = cnt; i >= 0; i--)
+					bgFIFO.push(FIFOEntry { getColorID(bgFIFO.s.tileLow, bgFIFO.s.tileHigh, i) });
 			}
 
-			bgFIFO.cycles = 0;
-			bgFIFO.state = FetcherState::FetchTileNo;
+			bgFIFO.s.cycles = 0;
+			bgFIFO.s.state = FetcherState::FetchTileNo;
 		}
 
-		if (s.objFetchRequested)
-			s.objFetcherActive = true;
+		if (objFIFO.s.fetchRequested)
+			objFIFO.s.fetcherActive = true;
 
 		break;
 	}
@@ -385,61 +416,77 @@ void PPUCore<sys>::executeBGFetcher()
 template <GBSystem sys>
 void PPUCore<sys>::executeObjFetcher()
 {
-	const auto& obj = selectedObjects[objFIFO.objInd];
+	const auto& obj = selectedObjects[objFIFO.s.objInd];
 
-	switch (objFIFO.state)
+	switch (objFIFO.s.state)
 	{
 	case FetcherState::FetchTileNo:
-		objFIFO.cycles++;
+		objFIFO.s.cycles++;
 
-		if ((objFIFO.cycles & 0x1) == 0)
-			objFIFO.state = FetcherState::FetchTileDataLow;
+		if ((objFIFO.s.cycles & 0x1) == 0)
+			objFIFO.s.state = FetcherState::FetchTileDataLow;
 
 		break;
 	case FetcherState::FetchTileDataLow:
-		objFIFO.cycles++;
+		objFIFO.s.cycles++;
 
-		if ((objFIFO.cycles & 0x1) == 0)
+		if ((objFIFO.s.cycles & 0x1) == 0)
 		{
-			objFIFO.tileLow = VRAM_BANK0[obj.tileAddr + getObjTileOffset(obj)];
-			objFIFO.state = FetcherState::FetchTileDataHigh;
+			if constexpr (sys == GBSystem::GBC)
+			{
+				const uint8_t* bank = getBit(obj.attributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data();
+				objFIFO.s.tileLow = bank[obj.tileAddr + getObjTileOffset(obj)];
+			}
+			else
+				objFIFO.s.tileLow = VRAM_BANK0[obj.tileAddr + getObjTileOffset(obj)];
+
+			objFIFO.s.state = FetcherState::FetchTileDataHigh;
 		}
 		break;
 	case FetcherState::FetchTileDataHigh:
-		objFIFO.cycles++;
+		objFIFO.s.cycles++;
 
-		if ((objFIFO.cycles & 0x1) == 0)
+		if ((objFIFO.s.cycles & 0x1) == 0)
 		{
-			objFIFO.tileHigh = VRAM_BANK0[obj.tileAddr + getObjTileOffset(obj) + 1];
-			objFIFO.state = FetcherState::PushFIFO;
+			if constexpr (sys == GBSystem::GBC)
+			{
+				const uint8_t* bank = getBit(obj.attributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data();
+				objFIFO.s.tileHigh = bank[obj.tileAddr + getObjTileOffset(obj) + 1];
+			}
+			else
+				objFIFO.s.tileHigh = VRAM_BANK0[obj.tileAddr + getObjTileOffset(obj) + 1];
+
+			objFIFO.s.state = FetcherState::PushFIFO;
 		}
 		break;
 	case FetcherState::PushFIFO:
 		const bool bgPriority = getBit(obj.attributes, 7);
 		const bool xFlip = getBit(obj.attributes, 5);
-		const uint8_t palette = getBit(obj.attributes, 4);
+		uint8_t palette;
+
+		if constexpr (sys == GBSystem::DMG)
+			palette = getBit(obj.attributes, 4);
+		else
+			palette = obj.attributes & 0x7;
 
 		while (!objFIFO.full())
-			objFIFO.push(ObjFIFOEntry{});
+			objFIFO.push(FIFOEntry{});
 
-		int cntStart = (obj.X < 0) ? (xFlip ? (obj.X * -1) : (obj.X + 7)) : (xFlip ? 0 : 7);
-		int cntEnd = xFlip ? 8 : -1;
-		int cntStep = xFlip ? 1 : -1;
+		const int cntStart = (obj.X < 0) ? (xFlip ? (obj.X * -1) : (obj.X + 7)) : (xFlip ? 0 : 7);
+		const int cntEnd = xFlip ? 8 : -1;
+		const int cntStep = xFlip ? 1 : -1;
 
 		for (int i = cntStart; i != cntEnd; i += cntStep)
 		{
 			int fifoInd = xFlip ? (i - cntStart) : (cntStart - i);
 
 			if (objFIFO[fifoInd].color == 0)
-			{
-				uint8_t color = (getBit(objFIFO.tileHigh, i) << 1) | getBit(objFIFO.tileLow, i);
-				objFIFO[fifoInd] = ObjFIFOEntry{ color, palette, bgPriority, false };
-			}
+				objFIFO[fifoInd] = FIFOEntry { getColorID(objFIFO.s.tileLow, objFIFO.s.tileHigh, i), palette, bgPriority};
 		}
 
-		objFIFO.objInd++;
-		s.objFetcherActive = false;
-		s.objFetchRequested = false;
+		objFIFO.s.objInd++;
+		objFIFO.s.fetcherActive = false;
+		objFIFO.s.fetchRequested = false;
 
 		tryStartSpriteFetcher();
 		break;
@@ -449,28 +496,33 @@ void PPUCore<sys>::executeObjFetcher()
 template <GBSystem sys>
 void PPUCore<sys>::renderFIFOs()
 {
-	uint8_t bgColorInd = bgFIFO.pop();
+	auto bg = bgFIFO.pop();
 
-	if (s.scanlineDiscardPixels > 0)
-		s.scanlineDiscardPixels--;
+	if (bgFIFO.s.scanlineDiscardPixels > 0)
+		bgFIFO.s.scanlineDiscardPixels--;
 	else
 	{
-		std::optional<ObjFIFOEntry> objFifoEntry = objFIFO.empty() ? std::nullopt : std::make_optional(objFIFO.pop());
+		std::optional<FIFOEntry> objFifoEnt = objFIFO.empty() ? std::nullopt : std::make_optional(objFIFO.pop());
 
-		if (!TileMapsEnable()) bgColorInd = 0;
+		if constexpr (sys == GBSystem::DMG)
+			if (!DMGTileMapsEnable()) bg.color = 0;
 
 		color outputColor;
 
-		if (objFifoEntry.has_value())
+		if (objFifoEnt.has_value())
 		{
-			const auto obj = objFifoEntry.value();
-			const auto& objPalette = obj.palette == 0 ? OBP0palette : OBP1palette;
+			const auto obj = objFifoEnt.value();
+			bool objHasPriority = obj.color != 0 && OBJEnable();
 
-			outputColor = (obj.color != 0 && (!obj.bgPriority || bgColorInd == 0) && OBJEnable()) ?
-				getColor(objPalette[obj.color]) : getColor(BGpalette[bgColorInd]);
+			if constexpr (sys == GBSystem::DMG)
+				objHasPriority &= (!obj.priority || bg.color == 0);
+			else
+				objHasPriority &= (bg.color == 0 || GBCMasterPriority() || (!obj.priority && !bg.priority));
+
+			outputColor = objHasPriority ? getColor<true>(obj.color, obj.palette) : getColor<false>(bg.color, bg.palette);
 		}
 		else
-			outputColor = getColor(BGpalette[bgColorInd]);
+			outputColor = getColor<false>(bg.color, bg.palette);
 
 		PixelOps::setPixel(framebuffer.data(), SCR_WIDTH, s.xPosCounter, s.LY, outputColor);
 		s.xPosCounter++;
@@ -485,25 +537,21 @@ void PPUCore<sys>::handlePixelTransfer()
 {
 	tryStartSpriteFetcher();
 
-	if (s.objFetcherActive)
+	if (objFIFO.s.fetcherActive)
 		executeObjFetcher();
 	else
 		executeBGFetcher();
 
-	if (!bgFIFO.fetchingWindow)
+	if (!bgFIFO.s.fetchingWindow)
 	{
 		if (WindowEnable() && s.xPosCounter >= regs.WX - 7 && s.LY >= regs.WY)
 		{
-			bgFIFO.fetchingWindow = true;
-			bgFIFO.clear();
-			bgFIFO.state = FetcherState::FetchTileNo;
-			bgFIFO.cycles = 0;
-			bgFIFO.fetchX = 0;
-			s.scanlineDiscardPixels = -1;
+			bgFIFO.reset();
+			bgFIFO.s.fetchingWindow = true;
 		}
 	}
 
-	if (!s.objFetchRequested && !bgFIFO.empty())
+	if (!objFIFO.s.fetchRequested && !bgFIFO.empty())
 		renderFIFOs();
 }
 
@@ -769,29 +817,29 @@ void PPUCore<sys>::handleOAMSearch()
 template <GBSystem sys>
 void PPUCore<sys>::renderTileData(uint8_t* buffer, int vramBank)
 {
-	if (!buffer)
-		return;
+	//if (!buffer)
+	//	return;
 
-	const uint8_t* vram = vramBank == 1 ? VRAM_BANK1.data() : VRAM_BANK0.data();
+	//const uint8_t* vram = vramBank == 1 ? VRAM_BANK1.data() : VRAM_BANK0.data();
 
-	for (uint16_t addr = 0; addr < 0x17FF; addr += 16)
-	{
-		uint16_t tileInd = addr / 16;
-		uint16_t screenX = (tileInd % 16) * 8;
-		uint16_t screenY = (tileInd / 16) * 8;
+	//for (uint16_t addr = 0; addr < 0x17FF; addr += 16)
+	//{
+	//	uint16_t tileInd = addr / 16;
+	//	uint16_t screenX = (tileInd % 16) * 8;
+	//	uint16_t screenY = (tileInd / 16) * 8;
 
-		for (uint8_t y = 0; y < 8; y++)
-		{
-			uint8_t yPos { static_cast<uint8_t>(y + screenY) };
-			uint8_t lsbLineByte { vram[addr + y * 2] };
-			uint8_t msbLineByte { vram[addr + y * 2 + 1] };
+	//	for (uint8_t y = 0; y < 8; y++)
+	//	{
+	//		uint8_t yPos { static_cast<uint8_t>(y + screenY) };
+	//		uint8_t lsbLineByte { vram[addr + y * 2] };
+	//		uint8_t msbLineByte { vram[addr + y * 2 + 1] };
 
-			for (int8_t x = 7; x >= 0; x--)
-			{
-				uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
-				uint8_t xPos { static_cast<uint8_t>(7 - x + screenX) };
-				PixelOps::setPixel(buffer, TILES_WIDTH, xPos, yPos, getColor(colorId));
-			}
-		}
-	}
+	//		for (int8_t x = 7; x >= 0; x--)
+	//		{
+	//			uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
+	//			uint8_t xPos { static_cast<uint8_t>(7 - x + screenX) };
+	//			PixelOps::setPixel(buffer, TILES_WIDTH, xPos, yPos, getColor(colorId));
+	//		}
+	//	}
+	//}
 }

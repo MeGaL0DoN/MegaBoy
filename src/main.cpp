@@ -629,8 +629,9 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
             setEmulationPaused(!gbCore.emulationPaused);
             return;
         }
-        // number keys 1 though 0
-        if (key >= 48 && key <= 57)
+
+        // number keys 1 though 9
+        if (key >= 49 && key <= 57)
         {
             if (!gbCore.cartridge.ROMLoaded) return;
 
