@@ -551,7 +551,7 @@ void PPUCore<sys>::handlePixelTransfer()
 
 	if (!bgFIFO.s.fetchingWindow)
 	{
-		if (WindowEnable() && s.xPosCounter >= regs.WX - 7 && s.LY >= regs.WY)
+		if (WindowEnable() && s.LY >= regs.WY && s.xPosCounter >= regs.WX - 7 && regs.WX != 0)
 		{
 			bgFIFO.reset();
 			bgFIFO.s.fetchingWindow = true;

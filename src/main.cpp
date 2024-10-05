@@ -106,8 +106,10 @@ void handleBootROMLoad(std::string& romPath, const std::filesystem::path filePat
 std::filesystem::path currentFilePath{};
 inline bool loadFile(const std::filesystem::path& path)
 {
-    if (std::filesystem::exists(path))
+    if (std::ifstream ifs { path })
     {
+        ifs.close();
+
         if (path.filename() == DMG_ROM_NAME)
         {
             handleBootROMLoad(appConfig::dmgRomPath, path);
