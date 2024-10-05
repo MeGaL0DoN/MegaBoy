@@ -478,10 +478,17 @@ void PPUCore<sys>::executeObjFetcher()
 
 		for (int i = cntStart; i != cntEnd; i += cntStep)
 		{
-			int fifoInd = xFlip ? (i - cntStart) : (cntStart - i);
+			const int fifoInd = xFlip ? (i - cntStart) : (cntStart - i);
+			const uint8_t colorId = getColorID(objFIFO.s.tileLow, objFIFO.s.tileHigh, i);
+			bool overwriteObj;
 
-			if (objFIFO[fifoInd].color == 0)
-				objFIFO[fifoInd] = FIFOEntry { getColorID(objFIFO.s.tileLow, objFIFO.s.tileHigh, i), palette, bgPriority};
+			if constexpr (sys == GBSystem::DMG)
+				overwriteObj = objFIFO[fifoInd].color == 0;
+			else
+				overwriteObj = colorId != 0;
+
+			if (overwriteObj)
+				objFIFO[fifoInd] = FIFOEntry{ colorId, palette, bgPriority };
 		}
 
 		objFIFO.s.objInd++;
@@ -591,7 +598,7 @@ void PPUCore<sys>::handleOAMSearch()
 				else if (s.LY >= objY + 8 && s.LY < objY + 16)
 				{
 					uint16_t tileAddr = yFlip ? (tileInd & 0xFE) * 16 : ((tileInd & 0xFE) + 1) * 16;
-					selectedObjects[objCount] = OAMobject { objX, static_cast<int16_t>(objY + 8), tileAddr, attributes};
+					selectedObjects[objCount] = OAMobject { objX, static_cast<int16_t>(objY + 8), tileAddr, attributes };
 					objCount++;
 				}
 			}
@@ -600,219 +607,11 @@ void PPUCore<sys>::handleOAMSearch()
 				break;
 		}
 
-		//if (System::Current() == GBSystem::DMG)
-		//	std::sort(selectedObjects.begin(), selectedObjects.begin() + objCount, OAMobject::ObjCompare);
-		//else
-		//	std::reverse(selectedObjects.begin(), selectedObjects.begin() + objCount);
-
 		std::stable_sort(selectedObjects.begin(), selectedObjects.begin() + objCount, [](const auto& a, const auto& b) { return a.X < b.X; });
 
 		SetPPUMode(PPUMode::PixelTransfer);
 	}
 }
-
-//void PPUCore::renderOAM()
-//{
-//	for (int i = 0; i < objCount; i++)
-//		(this->*renderObjTileFunc)(selectedObjects[i]);
-//
-//	if (onOAMRender != nullptr)
-//		onOAMRender(framebuffer.data(), updatedOAMPixels, s.LY);
-//}
-//
-//void PPUCore::renderScanLine()
-//{
-//	if (TileMapsEnable())
-//	{
-//		renderBackground(); 
-//		if (WindowEnable()) renderWindow();
-//	}
-//	else
-//		DMGrenderBlank();
-//
-//	if (OBJEnable()) renderOAM();
-//}
-//
-//void PPUCore::DMGrenderBlank()
-//{
-//	for (uint8_t x = 0; x < SCR_WIDTH; x++)
-//	{
-//		setPixel(x, s.LY, getColor(BGpalette[0]));
-//		bgPixelFlags[x].opaque = true;
-//	}
-//
-//	if (onBackgroundRender != nullptr)
-//		onBackgroundRender(framebuffer.data(), s.LY);
-//}
-
-//void PPUCore::renderBackground()
-//{
-//	uint16_t bgTileAddr = BGTileMapAddr();
-//	uint16_t tileYInd = (static_cast<uint8_t>(s.LY + regs.SCY) / 8) * 32;
-//
-//	for (uint8_t tileX = 0; tileX < 21; tileX++)
-//	{
-//		uint16_t tileXInd = (tileX + regs.SCX / 8) % 32; 
-//		uint16_t bgMapInd = bgTileAddr + tileYInd + tileXInd;
-//		(this->*renderBGTileFunc)(bgMapInd, (tileX * 8 - regs.SCX % 8), regs.SCY);
-//	}
-//
-//	if (onBackgroundRender != nullptr)
-//		onBackgroundRender(framebuffer.data(), s.LY);
-//}
-//void PPUCore::renderWindow()
-//{
-//	int16_t wx = static_cast<int16_t>(regs.WX) - 7;
-//	if (s.LY < regs.WY || wx >= SCR_WIDTH) return;
-//
-//	uint16_t winTileAddr { WindowTileMapAddr() };
-//	uint16_t tileYInd {static_cast<uint16_t>(s.WLY / 8 * 32) };
-//	uint8_t winTileXEnd{ static_cast<uint8_t>(32 - (wx / 8)) };
-//
-//	for (uint8_t tileX = 0; tileX < winTileXEnd; tileX++)
-//	{
-//		uint16_t winMapInd = winTileAddr + tileYInd + tileX;
-//		(this->*renderWinTileFunc)(winMapInd, wx + tileX * 8, s.WLY - s.LY);
-//	};
-//
-//	s.WLY++;
-//
-//	if (onWindowRender != nullptr)
-//		onWindowRender(framebuffer.data(), updatedWindowPixels, s.LY);
-//}
-//
-//template void PPUCore::GBCrenderBGTile<true>(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
-//template void PPUCore::GBCrenderBGTile<false>(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
-//
-//template <bool updateWindowChangesBuffer>
-//void PPUCore::GBCrenderBGTile(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY)
-//{
-//	const uint8_t attributes = VRAM_BANK1[tileMapInd];
-//
-//	const uint8_t cgbPalette = attributes & 0x7;
-//	const bool BGpriority = getBit(attributes, 7);
-//	const bool xFlip = getBit(attributes, 5);
-//	const bool yFlip = getBit(attributes, 6);
-//	const uint8_t* bank = getBit(attributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data();
-//
-//	const uint8_t lineOffset = 2 * (yFlip ? (7 - (s.LY + scrollY) % 8) : ((s.LY + scrollY) % 8)); 
-//	const uint16_t tileAddr = getBGTileAddr(VRAM_BANK0[tileMapInd]);
-//
-//	const uint8_t lsbLineByte = bank[tileAddr + lineOffset];
-//	const uint8_t msbLineByte = bank[tileAddr + lineOffset + 1];
-//
-//	for (int8_t x = 7; x >= 0; x--)
-//	{
-//		int16_t xPos = xFlip ? x + screenX : 7 - x + screenX;
-//
-//		if (xPos >= 0 && xPos < SCR_WIDTH)
-//		{
-//			const uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
-//			const uint8_t paletteRAMInd = cgbPalette * 8 + colorId * 2;
-//			const uint16_t rgb5 = BGpaletteRAM[paletteRAMInd + 1] << 8 | BGpaletteRAM[paletteRAMInd];
-//
-//			setPixel(static_cast<uint8_t>(xPos), s.LY, color::fromRGB5(rgb5));
-//			bgPixelFlags[xPos].opaque = (colorId == 0);
-//			bgPixelFlags[xPos].gbcPriority = BGpriority;
-//			if constexpr (updateWindowChangesBuffer) updatedWindowPixels.push_back(static_cast<uint8_t>(xPos));
-//		}
-//	}
-//}
-//
-//void PPUCore::GBCrenderObjTile(const OAMobject& obj)
-//{
-//	const bool xFlip = getBit(obj.attributes, 5);
-//	const bool yFlip = getBit(obj.attributes, 6);
-//	const uint8_t cgbPalette = obj.attributes & 0x7;
-//	const uint8_t priority = getBit(obj.attributes, 7);
-//
-//	const uint8_t* bank = getBit(obj.attributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data();
-//
-//	if (obj.X < SCR_WIDTH && obj.X > -8)
-//	{
-//		const uint8_t lineOffset{ static_cast<uint8_t>(2 * (yFlip ? (obj.Y - s.LY + 7) : (8 - (obj.Y - s.LY + 8)))) };
-//		const uint8_t lsbLineByte{ bank[obj.tileAddr + lineOffset] };
-//		const uint8_t msbLineByte{ bank[obj.tileAddr + lineOffset + 1] };
-//
-//		for (int8_t x = 7; x >= 0; x--)
-//		{
-//			int16_t xPos = xFlip ? x + obj.X : 7 - x + obj.X;
-//
-//			if (xPos >= 0 && xPos < SCR_WIDTH)
-//			{
-//				uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
-//
-//				if (colorId != 0 && (bgPixelFlags[xPos].opaque || GBCMasterPriority() || (!priority && !bgPixelFlags[xPos].gbcPriority)))
-//				{
-//					uint8_t paletteRAMInd = cgbPalette * 8 + colorId * 2;
-//					uint16_t rgb5 = OBPpaletteRAM[paletteRAMInd + 1] << 8 | OBPpaletteRAM[paletteRAMInd];
-//
-//					setPixel(static_cast<uint8_t>(xPos), s.LY, color::fromRGB5(rgb5));
-//					updatedOAMPixels.push_back(static_cast<uint8_t>(xPos));
-//				}
-//			}
-//		}
-//	}
-//}
-//
-//template void PPUCore::DMGrenderBGTile<true>(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
-//template void PPUCore::DMGrenderBGTile<false>(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY);
-//
-//template <bool updateWindowChangesBuffer>
-//void PPUCore::DMGrenderBGTile(uint16_t tileMapInd, int16_t screenX, uint8_t scrollY)
-//{
-//	const uint8_t lineOffset = 2 * ((s.LY + scrollY) % 8);
-//	const uint16_t tileAddr = getBGTileAddr(VRAM_BANK0[tileMapInd]);
-//
-//	const uint8_t lsbLineByte = VRAM_BANK0[tileAddr + lineOffset];
-//	const uint8_t msbLineByte = VRAM_BANK0[tileAddr + lineOffset + 1];
-//
-//	for (int8_t x = 7; x >= 0; x--)
-//	{
-//		int16_t xPos = 7 - x + screenX;
-//
-//		if (xPos >= 0 && xPos < SCR_WIDTH)
-//		{
-//			uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
-//			setPixel(static_cast<uint8_t>(xPos), s.LY, getColor(BGpalette[colorId]));
-//
-//			bgPixelFlags[xPos].opaque = (colorId == 0);
-//			if constexpr (updateWindowChangesBuffer) updatedWindowPixels.push_back(static_cast<uint8_t>(xPos));
-//		}
-//	}
-//}
-//
-//void PPUCore::DMGrenderObjTile(const OAMobject& obj)
-//{
-//	const bool xFlip = getBit(obj.attributes, 5);
-//	const bool yFlip = getBit(obj.attributes, 6);
-//	const auto& palette = getBit(obj.attributes, 4) ? OBP1palette : OBP0palette;
-//	const uint8_t priority = getBit(obj.attributes, 7);
-//
-//	if (obj.X < SCR_WIDTH && obj.X > -8)
-//	{
-//		const uint8_t lineOffset{ static_cast<uint8_t>(2 * (yFlip ? (obj.Y - s.LY + 7) : (8 - (obj.Y - s.LY + 8)))) };
-//		const uint8_t lsbLineByte{ VRAM_BANK0[obj.tileAddr + lineOffset] };
-//		const uint8_t msbLineByte{ VRAM_BANK0[obj.tileAddr + lineOffset + 1] };
-//
-//		for (int8_t x = 7; x >= 0; x--)
-//		{
-//			int16_t xPos = xFlip ? x + obj.X : 7 - x + obj.X;
-//
-//			if (xPos >= 0 && xPos < SCR_WIDTH)
-//			{
-//				uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
-//
-//				if (colorId != 0 && (priority == 0 || bgPixelFlags[xPos].opaque))
-//				{
-//					auto color = getColor(palette[colorId]);
-//					setPixel(static_cast<uint8_t>(xPos), s.LY, color);
-//					updatedOAMPixels.push_back(static_cast<uint8_t>(xPos));
-//				}
-//			}
-//		}
-//	}
-//}
 
 template <GBSystem sys>
 void PPUCore<sys>::renderTileData(uint8_t* buffer, int vramBank)

@@ -193,7 +193,6 @@ public:
 	static constexpr uint16_t TILES_HEIGHT = 24 * 8;
 
 	static constexpr uint32_t FRAMEBUFFER_SIZE = SCR_WIDTH * SCR_HEIGHT * 3;
-//	static constexpr uint32_t TILEDATA_FRAMEBUFFER_SIZE = TILES_WIDTH * TILES_HEIGHT * 3;
 
 	static inline std::array<color, 4> ColorPalette {};
 
