@@ -44,6 +44,8 @@ public:
 
 	std::ofstream recordingStream;
 	std::vector<int16_t> recordingBuffer;
+
+	uint8_t NR50{};
 private:
 	void initMiniAudio();
 

@@ -18,8 +18,11 @@ public:
 	void saveState(std::ofstream& st) override;
 	void loadState(std::ifstream& st) override;
 
-	void renderTileData(uint8_t* buffer, int vramBank) override;
 	void refreshDMGScreenColors(const std::array<color, 4>& newColors) override;
+
+	void renderTileData(uint8_t* buffer, int vramBank) override;
+	inline void renderBGTileMap(uint8_t* buffer) override { renderTileMap(buffer, BGTileMapAddr()); }
+	inline void renderWindowTileMap(uint8_t* buffer) override { renderTileMap(buffer, WindowTileMapAddr()); }
 private:
 	MMU& mmu;
 	CPU& cpu;
@@ -35,6 +38,8 @@ private:
 		PixelOps::clearBuffer(framebuffer.data(), SCR_WIDTH, SCR_HEIGHT, System::Current() == GBSystem::DMG ? PPU::ColorPalette[0] : color { 255, 255, 255 });
 		invokeDrawCallback();
 	}
+
+	void renderTileMap(uint8_t* buffer, uint16_t tileMapAddr);
 
 	void checkLYC();
 	void requestSTAT();

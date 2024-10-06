@@ -378,6 +378,10 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			if (getBit(val, 7)) gbCore.apu.channel2.trigger();
 			break;
 
+		case 0xFF24: ////////
+			gbCore.apu.NR50 = val; 
+			break;
+
 		//default:
 		//	if (addr >= 0xFF30 && addr <= 0xFF3F)
 		//		gbCore.apu.waveRAM[addr - 0xFF30] = val;
@@ -634,8 +638,8 @@ uint8_t MMU::read8(uint16_t addr) const
 		//	return gbCore.apu.regs.NR43;
 		//case 0xFF23: 
 		//	return gbCore.apu.regs.NR44;
-		//case 0xFF24: 
-		//	return gbCore.apu.regs.NR50;
+		case 0xFF24: 
+			return gbCore.apu.NR50;// gbCore.apu.regs.NR50;
 		//case 0xFF25: 
 		//	return gbCore.apu.regs.NR51;
 		//case 0xFF26:

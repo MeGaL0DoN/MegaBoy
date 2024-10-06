@@ -128,6 +128,7 @@ struct OAMobject
 	int16_t Y{};
 	uint16_t tileAddr{};
 	uint8_t attributes{};
+	uint8_t oamAddr{};
 };
 
 struct ppuState
@@ -188,11 +189,15 @@ class PPU
 public:
 	static constexpr uint8_t SCR_WIDTH = 160;
 	static constexpr uint8_t SCR_HEIGHT = 144;
+	static constexpr uint32_t FRAMEBUFFER_SIZE = SCR_WIDTH * SCR_HEIGHT * 3;
 
 	static constexpr uint16_t TILES_WIDTH = 16 * 8;
 	static constexpr uint16_t TILES_HEIGHT = 24 * 8;
+	static constexpr uint32_t TILEDATA_FRAMEBUFFER_SIZE = TILES_WIDTH * TILES_HEIGHT * 3;
 
-	static constexpr uint32_t FRAMEBUFFER_SIZE = SCR_WIDTH * SCR_HEIGHT * 3;
+	static constexpr uint16_t TILEMAP_WIDTH = 32 * 8;
+	static constexpr uint16_t TILEMAP_HEIGHT = 32 * 8;
+	static constexpr uint32_t TILEMAP_FRAMEBUFFER_SIZE = TILEMAP_WIDTH * TILEMAP_HEIGHT * 3;
 
 	static inline std::array<color, 4> ColorPalette {};
 
@@ -209,7 +214,10 @@ public:
 	virtual void loadState(std::ifstream& st) = 0;
 
 	virtual void refreshDMGScreenColors(const std::array<color, 4>& newColorPalette) = 0;
+
 	virtual void renderTileData(uint8_t* buffer, int vramBank) = 0;
+	virtual void renderBGTileMap(uint8_t* buffer) = 0;
+	virtual void renderWindowTileMap(uint8_t* buffer) = 0;
 
 	constexpr const uint8_t* getFrameBuffer() { return framebuffer.data(); }
 	void (*drawCallback)(const uint8_t* framebuffer) { nullptr };

@@ -86,8 +86,7 @@ inline void updateWindowTitle()
 inline void setEmulationPaused(bool val)
 {
     gbCore.emulationPaused = val;
-    if (val) debugUI::updateTextures(true);
-    else lastFrameTime = glfwGetTime();
+    if (!val) lastFrameTime = glfwGetTime();
     updateWindowTitle();
 }
 
@@ -140,7 +139,6 @@ inline bool loadFile(const std::filesystem::path& path)
                 std::filesystem::remove(currentFilePath);
 #endif
             updateWindowTitle();
-            debugUI::clearBuffers();
             currentFilePath = path;
             return true;
         }
@@ -158,7 +156,6 @@ void drawCallback(const uint8_t* framebuffer)
 {
     OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
     std::swap(gbFramebufferTextures[0], gbFramebufferTextures[1]);
-    debugUI::updateTextures(false); // to remove
 }
 
 void updateSelectedFilter()
@@ -1013,7 +1010,7 @@ int main(int argc, char* argv[])
 
             if (loadFile(FileUtils::nativePath(appConfig::romPath)))
             {
-                if (saveNum >= 0 && saveNum <= 10)
+                if (saveNum >= 1 && saveNum <= 9)
                     gbCore.loadState(saveNum);
             }
         }
