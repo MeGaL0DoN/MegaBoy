@@ -83,7 +83,7 @@ void GBCore::stepComponents()
 {
 	cpu.updateTimer();
 
-	for (int i = 0; i < (4 >> cpu.doubleSpeed()); i++)
+	for (int i = 0; i < (4 >> static_cast<uint8_t>(cpu.doubleSpeed())); i++)
 		ppu->execute();
 
 	mmu.execute();

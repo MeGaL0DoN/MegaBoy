@@ -207,6 +207,8 @@ public:
 
 	friend class MMU;
 
+	virtual ~PPU() = default;
+
 	virtual void execute() = 0;
 	virtual void reset() = 0;
 
@@ -222,8 +224,8 @@ public:
 	constexpr const uint8_t* getFrameBuffer() { return framebuffer.data(); }
 	void (*drawCallback)(const uint8_t* framebuffer) { nullptr };
 
-	inline PPUMode getMode() { return s.state; }
-	inline uint16_t getCycles() { return s.videoCycles; }
+	inline PPUMode getMode() const { return s.state; }
+	inline uint16_t getCycles() const { return s.videoCycles; }
 
 	dmgRegs regs{};
 	gbcRegs gbcRegs{};
@@ -231,11 +233,11 @@ public:
 protected:
 	std::array<uint8_t, FRAMEBUFFER_SIZE> framebuffer{};
 
-	uint8_t* VRAM{ VRAM_BANK0.data() };
-
 	std::array<uint8_t, 160> OAM{};
 	std::array<uint8_t, 8192> VRAM_BANK0{};
 	std::array<uint8_t, 8192> VRAM_BANK1{};
+
+	uint8_t* VRAM { VRAM_BANK0.data() };
 
 	std::array<uint8_t, 4> BGpalette{};
 	std::array<uint8_t, 4> OBP0palette{};

@@ -555,9 +555,9 @@ void renderImGUI()
         }
         else if (gbCore.cartridge.ROMLoaded && gbCore.getSaveNum() != 0)
         {
-            std::string text = "Save: " + std::to_string(gbCore.getSaveNum());
+            const std::string saveText = "Save: " + std::to_string(gbCore.getSaveNum());
             ImGui::Separator();
-            ImGui::Text(text.c_str());
+            ImGui::Text("%s", saveText.c_str());
         }
 
         ImGui::EndMainMenuBar();

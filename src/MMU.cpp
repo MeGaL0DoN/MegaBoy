@@ -513,7 +513,7 @@ uint8_t MMU::read8(uint16_t addr) const
 
 		case 0xFF4D:
 			if constexpr (sys == GBSystem::GBC)
-				return 0x7E | (gbCore.cpu.s.GBCdoubleSpeed << 7) | gbCore.cpu.s.prepareSpeedSwitch;
+				return 0x7E | (static_cast<uint8_t>(gbCore.cpu.s.GBCdoubleSpeed) << 7) | static_cast<uint8_t>(gbCore.cpu.s.prepareSpeedSwitch);
 			else
 				return 0xFF;
 		case 0xFF4F:

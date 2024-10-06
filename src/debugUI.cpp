@@ -23,15 +23,6 @@ void debugUI::updateMenu()
         if (ImGui::MenuItem("VRAM View"))
         {
             showVRAMView = !showVRAMView;
-
-            //if (showVRAMView)
-            //{
-            //    gbCore.ppu.onBackgroundRender = debugUI::backgroundRenderEvent;
-            //    gbCore.ppu.onWindowRender = debugUI::windowRenderEvent;
-            //    gbCore.ppu.onOAMRender = debugUI::OAM_renderEvent;
-            //}
-            //else
-            //    gbCore.ppu.resetRenderCallbacks();
         }
         if (ImGui::MenuItem("Audio View"))
         {
@@ -106,40 +97,6 @@ inline void displayImage(uint32_t texture, uint16_t width = PPU::TILEMAP_WIDTH, 
     ImGui::Image(reinterpret_cast<void*>(_texture64), imageSize);
 }
 
-enum class VRAMTab
-{
-    Background,
-    Window,
-    OAM,
-    TileData
-};
-
-//VRAMTab currentTab;
-int vramTile_Bank{ 0 };
-
-//void debugUI::updateTextures(bool all)
-//{
-//    if (showVRAMView)
-//    {
-//        switch (all ? VRAMTab::Background : currentTab)
-//        {
-//        case VRAMTab::Background:
-//            OpenGL::updateTexture(backgroundTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, BGFrameBuffer.get());
-//            if (!all) break;
-//        case VRAMTab::Window:
-//            OpenGL::updateTexture(windowTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, windowFrameBuffer.get());
-//            if (!all) break;
-//        case VRAMTab::OAM:
-//            OpenGL::updateTexture(OAMTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, OAMFrameBuffer.get());
-//            if (!all) break;
-//        case VRAMTab::TileData:
-//            gbCore.ppu->renderTileData(tileDataFrameBuffer.get(), System::Current() == GBSystem::DMG ? 0 : vramTile_Bank);
-//            OpenGL::updateTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileDataFrameBuffer.get());
-//            break;
-//        }
-//    }
-//}
-
 void debugUI::updateWindows(float scaleFactor)
 {
     if (showMemoryView)
@@ -167,7 +124,7 @@ void debugUI::updateWindows(float scaleFactor)
         {
             for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++)
             {
-                if (realTimeMemView || memoryData[i] == "")
+                if (realTimeMemView || memoryData[i].empty())
                 {
                     memoryData[i] = "0x" + to_hex_str(static_cast<uint16_t>(i * 16)) + " ";
 
@@ -180,7 +137,7 @@ void debugUI::updateWindows(float scaleFactor)
                     }
                 }
 
-                ImGui::Text(memoryData[i].data());;
+                ImGui::Text("%s", memoryData[i].c_str());
             }
         }
         ImGui::EndChild();
@@ -193,58 +150,59 @@ void debugUI::updateWindows(float scaleFactor)
         ImGui::Begin("CPU View", &showCPUView);
 
         std::string strBuf = "PC: " + to_hex_str(gbCore.cpu.s.PC);
-        ImGui::Text(strBuf.c_str());
+
+        ImGui::Text("%s", strBuf.c_str());
 
         strBuf = "SP: " + to_hex_str(gbCore.cpu.s.SP.val);
-        ImGui::Text(strBuf.c_str());
+        ImGui::Text("%s", strBuf.c_str());
 
         strBuf = "IE: " + to_hex_str(gbCore.cpu.s.IE);
-        ImGui::Text(strBuf.c_str());
+        ImGui::Text("%s", strBuf.c_str());
 
         ImGui::SameLine();
 
         strBuf = "IF: " + to_hex_str(gbCore.cpu.s.IF);
-        ImGui::Text(strBuf.c_str());
+        ImGui::Text("%s", strBuf.c_str());
 
         strBuf = "DIV: " + to_hex_str(gbCore.cpu.s.DIV_reg);
-        ImGui::Text(strBuf.c_str());
+        ImGui::Text("%s", strBuf.c_str());
 
         ImGui::SameLine();
 
         strBuf = "TIMA: " + to_hex_str(gbCore.cpu.s.TIMA_reg);
-        ImGui::Text(strBuf.c_str());
+        ImGui::Text("%s", strBuf.c_str());
 
         ImGui::SeparatorText("Registers");
 
         strBuf = "AF: " + to_hex_str(gbCore.cpu.registers.AF.val);
-        ImGui::Text(strBuf.c_str());
+        ImGui::Text("%s", strBuf.c_str());
 
         ImGui::SameLine();
 
         strBuf = "BC: " + to_hex_str(gbCore.cpu.registers.BC.val);
-        ImGui::Text(strBuf.c_str());
+        ImGui::Text("%s", strBuf.c_str());
 
         strBuf = "DE: " + to_hex_str(gbCore.cpu.registers.DE.val);
-        ImGui::Text(strBuf.c_str());
+        ImGui::Text("%s", strBuf.c_str());
 
         ImGui::SameLine();
 
         strBuf = "HL: " + to_hex_str(gbCore.cpu.registers.HL.val);
-        ImGui::Text(strBuf.c_str());
+        ImGui::Text("%s", strBuf.c_str());
 
         ImGui::SeparatorText("Flags");
 
         strBuf = "Zero: " + std::string(gbCore.cpu.registers.getFlag(FlagType::Zero) ? "1" : "0");
-        ImGui::Text(strBuf.c_str());
+        ImGui::Text("%s", strBuf.c_str());
 
         strBuf = "Carry: " + std::string(gbCore.cpu.registers.getFlag(FlagType::Carry) ? "1" : "0");
-        ImGui::Text(strBuf.c_str());
+        ImGui::Text("%s", strBuf.c_str());
 
         strBuf = "HalfCarry: " + std::string(gbCore.cpu.registers.getFlag(FlagType::HalfCarry) ? "1" : "0");
-        ImGui::Text(strBuf.c_str());
+        ImGui::Text("%s", strBuf.c_str());
 
         strBuf = "Negative: " + std::string(gbCore.cpu.registers.getFlag(FlagType::Subtract) ? "1" : "0");
-        ImGui::Text(strBuf.c_str());
+        ImGui::Text("%s", strBuf.c_str());
 
         ImGui::End();
     }
@@ -260,9 +218,9 @@ void debugUI::updateWindows(float scaleFactor)
             {
                 if (System::Current() == GBSystem::GBC)
                 {
-                    ImGui::RadioButton("VRAM Bank 0", &vramTile_Bank, 0);
+                    ImGui::RadioButton("VRAM Bank 0", &vramTileBank, 0);
                     ImGui::SameLine();
-                    ImGui::RadioButton("VRAM Bank 1", &vramTile_Bank, 1);
+                    ImGui::RadioButton("VRAM Bank 1", &vramTileBank, 1);
                 }
 
                 if (!tileDataTexture)
@@ -272,8 +230,11 @@ void debugUI::updateWindows(float scaleFactor)
                     OpenGL::createTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileDataFrameBuffer.get());
                 }
 
-                gbCore.ppu->renderTileData(tileDataFrameBuffer.get(), System::Current() == GBSystem::DMG ? 0 : vramTile_Bank);
-                OpenGL::updateTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileDataFrameBuffer.get());
+                if (gbCore.cartridge.ROMLoaded)
+                {
+                    gbCore.ppu->renderTileData(tileDataFrameBuffer.get(), System::Current() == GBSystem::DMG ? 0 : vramTileBank);
+                    OpenGL::updateTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileDataFrameBuffer.get());
+                }
 
                 displayImage(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT);
                 ImGui::EndTabItem();
@@ -288,8 +249,11 @@ void debugUI::updateWindows(float scaleFactor)
                     OpenGL::createTexture(backgroundTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, BGFrameBuffer.get());
                 }
 
-                gbCore.ppu->renderBGTileMap(BGFrameBuffer.get());
-                OpenGL::updateTexture(backgroundTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, BGFrameBuffer.get());
+                if (gbCore.cartridge.ROMLoaded)
+				{
+					gbCore.ppu->renderBGTileMap(BGFrameBuffer.get());
+					OpenGL::updateTexture(backgroundTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, BGFrameBuffer.get());
+				}
 
                 displayImage(backgroundTexture);
                 ImGui::EndTabItem();
@@ -304,8 +268,11 @@ void debugUI::updateWindows(float scaleFactor)
                     OpenGL::createTexture(windowTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, windowFrameBuffer.get());
                 }
 
-                gbCore.ppu->renderWindowTileMap(windowFrameBuffer.get());
-                OpenGL::updateTexture(windowTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, windowFrameBuffer.get());
+                if (gbCore.cartridge.ROMLoaded)
+                {
+                    gbCore.ppu->renderWindowTileMap(windowFrameBuffer.get());
+                    OpenGL::updateTexture(windowTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, windowFrameBuffer.get());
+                }
 
                 displayImage(windowTexture);
                 ImGui::EndTabItem();

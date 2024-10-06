@@ -162,6 +162,8 @@ void PPUCore<sys>::updateInterrupts()
 		case PPUMode::OAMSearch:
 			if (OAM_STAT()) interrupt = true;
 			break;
+		default:
+			break;
 		}
 	}
 

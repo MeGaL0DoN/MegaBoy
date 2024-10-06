@@ -29,7 +29,9 @@ private:
 
 	static inline uint32_t backgroundTexture {0};
 	static inline uint32_t windowTexture{ 0 };
+
 	static inline uint32_t tileDataTexture {0};
+	static inline int vramTileBank{ 0 };
 
 	static inline void clearBuffer(uint8_t* buffer, uint16_t width, uint16_t height) { PixelOps::clearBuffer(buffer, width, height, PPU::ColorPalette[0]); }
 };
