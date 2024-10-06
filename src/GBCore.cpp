@@ -351,6 +351,7 @@ bool GBCore::loadState(std::ifstream& st)
 	}
 
 	System::Set(system);
+	upddatePPUSystem();
 	reset();
 
 	cpu.disableBootROM();

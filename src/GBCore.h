@@ -118,14 +118,18 @@ private:
 		appConfig::updateConfigFile();
 	}
 
+	inline void upddatePPUSystem()
+	{
+		ppu = System::Current() == GBSystem::DMG ? std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::DMG>>(mmu, cpu) } : 
+												   std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::GBC>>(mmu, cpu) } ;
+		ppu->drawCallback = this->drawCallback;
+	}
+
 	inline bool loadROM(std::ifstream& st, const std::filesystem::path& filePath)
 	{
 		if (cartridge.loadROM(st))
 		{
-			ppu = System::Current() == GBSystem::DMG ? std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::DMG>>(mmu, cpu) } : 
-													   std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::GBC>>(mmu, cpu) } ;
-			ppu->drawCallback = this->drawCallback;
-
+			upddatePPUSystem();
 			reset();
 			romFilePath = filePath;
 			currentSave = 0;
