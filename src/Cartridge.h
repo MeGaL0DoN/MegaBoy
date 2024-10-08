@@ -43,4 +43,7 @@ private:
 	std::unique_ptr<MBCBase> mapper { nullptr };
 	GBCore& gbCore;
 	std::vector<uint8_t> rom{};
+
+	static constexpr int MIN_ROM_SIZE = 0x8000;
+	static constexpr int MAX_ROM_SIZE = 0x800000;
 };

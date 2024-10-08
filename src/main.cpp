@@ -20,6 +20,7 @@
 #include <optional>
 
 #include "GBCore.h"
+#include "gbSystem.h"
 #include "appConfig.h"
 #include "debugUI.h"
 #include "resources.h"
@@ -93,9 +94,9 @@ inline void setEmulationPaused(bool val)
 constexpr const char* DMG_ROM_NAME = "dmg_boot.bin";
 constexpr const char* CGB_ROM_NAME = "cgb_boot.bin";
 
-void handleBootROMLoad(std::string& romPath, const std::filesystem::path filePath)
+void handleBootROMLoad(std::string& destRomPath, const std::filesystem::path filePath)
 {
-    romPath = filePath.string();
+    destRomPath = filePath.string();
     appConfig::updateConfigFile();
 
     popupTitle = "Successfully Loaded Boot ROM!";
@@ -152,12 +153,6 @@ inline bool loadFile(const std::filesystem::path& path)
     return false;
 }
 
-void drawCallback(const uint8_t* framebuffer)
-{
-    OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
-    std::swap(gbFramebufferTextures[0], gbFramebufferTextures[1]);
-}
-
 void updateSelectedFilter()
 {
     currentShader = appConfig::filter == 1 ? &lcdShader : appConfig::filter == 2 ? &scalingShader : &regularShader;
@@ -184,6 +179,12 @@ void updateSelectedFilter()
     }
 }
 
+void drawCallback(const uint8_t* framebuffer)
+{
+    OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
+    std::swap(gbFramebufferTextures[0], gbFramebufferTextures[1]);
+}
+
 void refreshGBTextures()
 {
     OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu->getFrameBuffer());
@@ -194,7 +195,7 @@ void updateSelectedPalette()
 {
     const auto& newColors = appConfig::palette == 0 ? PPU::BGB_GREEN_PALETTE : appConfig::palette == 1 ? PPU::GRAY_PALETTE : PPU::CLASSIC_PALETTE;
 
-    if (gbCore.emulationPaused)
+    if (gbCore.emulationPaused && System::Current() == GBSystem::DMG)
     {
         gbCore.ppu->refreshDMGScreenColors(newColors);
         refreshGBTextures();
@@ -239,13 +240,10 @@ void setOpenGL()
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    OpenGL::createTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
-    OpenGL::createTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
+    const std::vector<uint8_t> whiteBG(PPU::FRAMEBUFFER_SIZE, 255);
 
-    std::vector<uint8_t> whiteBG(PPU::FRAMEBUFFER_SIZE, 255);
-
-    OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, whiteBG.data());
-    OpenGL::updateTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, whiteBG.data());
+    OpenGL::createTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, whiteBG.data());
+    OpenGL::createTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, whiteBG.data());
 
     updateSelectedFilter();
     updateSelectedPalette(); 

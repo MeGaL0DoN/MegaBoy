@@ -1,7 +1,6 @@
 #pragma once
 #include <string>
 #include <memory>
-#include <vector>
 #include "GBCore.h"
 #include "Utils/glFunctions.h"
 #include "Utils/pixelOps.h"

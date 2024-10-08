@@ -19,7 +19,7 @@ bool Cartridge::loadROM(std::ifstream& ifs)
 {
 	ifs.seekg(0, std::ios::end);
 	std::ifstream::pos_type size = ifs.tellg();
-	if (size < 0x4000) return false; // If file size is less than 1 ROM bank then it is defintely invalid.
+	if (size < MIN_ROM_SIZE || size > MAX_ROM_SIZE) return false;
 
 	std::vector<uint8_t> fileBuffer;
 	fileBuffer.resize(size);

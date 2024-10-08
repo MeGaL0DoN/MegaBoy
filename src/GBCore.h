@@ -99,13 +99,13 @@ public:
 private:
 	void (*drawCallback)(const uint8_t* framebuffer) { nullptr };
 
-	uint64_t cycleCounter{ 0 };
+	uint64_t cycleCounter { 0 };
 
 	std::filesystem::path saveFolderPath;
 	std::filesystem::path filePath;
 	std::filesystem::path romFilePath;
 
-	int currentSave {0};
+	int currentSave { 0 };
 
 	inline std::filesystem::path getSaveFilePath(int saveNum)
 	{

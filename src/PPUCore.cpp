@@ -615,7 +615,9 @@ void PPUCore<sys>::handlePixelTransfer()
 		renderFIFOs();
 }
 
+
 // DEBUG
+
 
 template <GBSystem sys>
 void PPUCore<sys>::renderTileData(uint8_t* buffer, int vramBank)
@@ -624,20 +626,20 @@ void PPUCore<sys>::renderTileData(uint8_t* buffer, int vramBank)
 
 	for (uint16_t addr = 0; addr < 0x17FF; addr += 16)
 	{
-		uint16_t tileInd = addr / 16;
-		uint16_t screenX = (tileInd % 16) * 8;
-		uint16_t screenY = (tileInd / 16) * 8;
+		const uint16_t tileInd = addr / 16;
+		const uint16_t screenX = (tileInd % 16) * 8;
+		const uint16_t screenY = (tileInd / 16) * 8;
 
 		for (uint8_t y = 0; y < 8; y++)
 		{
-			uint8_t yPos { static_cast<uint8_t>(y + screenY) };
-			uint8_t lsbLineByte { vram[addr + y * 2] };
-			uint8_t msbLineByte { vram[addr + y * 2 + 1] };
+			const uint8_t yPos { static_cast<uint8_t>(y + screenY) };
+			const uint8_t lsbLineByte { vram[addr + y * 2] };
+			const uint8_t msbLineByte { vram[addr + y * 2 + 1] };
 
 			for (int8_t x = 7; x >= 0; x--)
 			{
-				uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
-				uint8_t xPos { static_cast<uint8_t>(7 - x + screenX) };
+				const uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
+				const uint8_t xPos { static_cast<uint8_t>(7 - x + screenX) };
 				PixelOps::setPixel(buffer, TILES_WIDTH, xPos, yPos, PPU::ColorPalette[colorId]);
 			}
 		}
@@ -682,8 +684,8 @@ void PPUCore<sys>::renderTileMap(uint8_t* buffer, uint16_t tileMapAddr)
 
 					for (int8_t tileX = xStart; tileX != xEnd; tileX += xStep)
 					{
-						uint8_t colorId = getColorID(lsbLineByte, msbLineByte, tileX);
-						uint8_t xPos{ static_cast<uint8_t>(7 - tileX + screenX) };
+						const uint8_t colorId = getColorID(lsbLineByte, msbLineByte, tileX);
+						const uint8_t xPos{ static_cast<uint8_t>(7 - tileX + screenX) };
 						PixelOps::setPixel(buffer, TILEMAP_WIDTH, xPos, yPos, getColor<false>(colorId, cgbPalette));
 					}
 				}
@@ -692,14 +694,14 @@ void PPUCore<sys>::renderTileMap(uint8_t* buffer, uint16_t tileMapAddr)
 			{
 				for (uint8_t tileY = 0; tileY < 8; tileY++)
 				{
-					uint8_t yPos{ static_cast<uint8_t>(tileY + screenY) };
-					uint8_t lsbLineByte{ VRAM_BANK0[getBGTileAddr(tileMap) + tileY * 2] };
-					uint8_t msbLineByte{ VRAM_BANK0[getBGTileAddr(tileMap) + tileY * 2 + 1] };
+					const uint8_t yPos{ static_cast<uint8_t>(tileY + screenY) };
+					const uint8_t lsbLineByte{ VRAM_BANK0[getBGTileAddr(tileMap) + tileY * 2] };
+					const uint8_t msbLineByte{ VRAM_BANK0[getBGTileAddr(tileMap) + tileY * 2 + 1] };
 
 					for (int8_t tileX = 7; tileX >= 0; tileX--)
 					{
-						uint8_t colorId = getColorID(lsbLineByte, msbLineByte, tileX);
-						uint8_t xPos{ static_cast<uint8_t>(7 - tileX + screenX) };
+						const uint8_t colorId = getColorID(lsbLineByte, msbLineByte, tileX);
+						const uint8_t xPos{ static_cast<uint8_t>(7 - tileX + screenX) };
 						PixelOps::setPixel(buffer, TILEMAP_WIDTH, xPos, yPos, getColor<false>(colorId, 0));
 					}
 				}
