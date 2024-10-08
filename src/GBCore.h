@@ -24,7 +24,7 @@ public:
 	static constexpr uint32_t CYCLES_PER_FRAME = 17556 * 4;
 	static constexpr double FRAME_RATE = 1.0 / 59.7;
 
-	constexpr uint64_t totalCycles() { return cycleCounter; }
+	constexpr uint64_t totalCycles() const { return cycleCounter; }
 
 	static constexpr uint32_t calculateCycles(double deltaTime) { return static_cast<uint32_t>((CYCLES_PER_FRAME * (deltaTime / FRAME_RATE))); }
 
@@ -46,20 +46,20 @@ public:
 	void loadState(int num);
 	void saveState(int num);
 
-	constexpr int getSaveNum() { return currentSave; }
+	constexpr int getSaveNum() const { return currentSave; }
 	constexpr const std::filesystem::path& getSaveFolderPath() { return saveFolderPath; }
 	constexpr const std::filesystem::path& getROMPath() { return romFilePath; }
 
-	inline void saveState(const std::filesystem::path& _filePath)
+	inline void saveState(const std::filesystem::path& _filePath) const
 	{
-		if (!cartridge.ROMLoaded || cpu.isExecutingBootROM())
+		if (!cartridge.ROMLoaded || cpu.isExecutingBootROM()) 
 			return;
 
 		std::ofstream st(_filePath, std::ios::out | std::ios::binary);
 		saveState(st);
 	}
 
-	inline void saveBattery(const std::filesystem::path& _filePath)
+	inline void saveBattery(const std::filesystem::path& _filePath) const
 	{
 		std::ofstream st(_filePath, std::ios::out | std::ios::binary);
 		cartridge.getMapper()->saveBattery(st);
@@ -71,17 +71,16 @@ public:
 		restartROM(false);
 	}
 
-	inline void saveCurrentROM()
+	inline void saveCurrentROM() const
 	{
 		autoSave();
 		backupSave(currentSave);
 		batteryAutoSave();
 	}
 
-	void autoSave();
-	void backupSave(int num);
-
-	void batteryAutoSave();
+	void autoSave() const;
+	void batteryAutoSave() const;
+	void backupSave(int num) const;
 
 	void reset();
 	void restartROM(bool resetBattery = true);
@@ -107,7 +106,7 @@ private:
 
 	int currentSave { 0 };
 
-	inline std::filesystem::path getSaveFilePath(int saveNum)
+	inline std::filesystem::path getSaveFilePath(int saveNum) const
 	{
 		return saveFolderPath / ("save" + std::to_string(saveNum) + ".mbs");
 	}
@@ -140,9 +139,9 @@ private:
 	}
 
 	static constexpr std::string_view SAVE_STATE_SIGNATURE = "MegaBoy Emulator Save State";
-	bool isSaveStateFile(std::ifstream& st);
+	static bool isSaveStateFile(std::ifstream& st);
 
-	void saveState(std::ofstream& st);
+	void saveState(std::ofstream& st) const;
 	bool loadState(std::ifstream& st);
 	FileLoadResult loadFile(std::ifstream& st);
 

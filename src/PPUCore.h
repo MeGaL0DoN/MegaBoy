@@ -7,7 +7,7 @@
 #include "CPU/CPU.h"
 
 template <GBSystem sys>
-class PPUCore : public PPU
+class PPUCore final : public PPU
 {
 public:
 	PPUCore(MMU& mmu, CPU& cpu) : mmu(mmu), cpu(cpu) { }

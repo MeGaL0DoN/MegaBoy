@@ -83,8 +83,8 @@ struct PixelFIFO
 		return data[(front + ind) & 0x7];
 	}
 
-	inline bool full() { return size == 8; };
-	inline bool empty() { return size == 0; };
+	inline bool full() const { return size == 8; };
+	inline bool empty() const { return size == 0; };
 
 	inline void clear() { front = 0; back = 0; size = 0; }
 
@@ -151,7 +151,7 @@ struct addrPaletteReg
 	uint8_t value : 6 { 0x00 };
 	bool autoIncrement{ false };
 
-	uint8_t read()
+	uint8_t read() const
 	{
 		return (static_cast<uint8_t>(autoIncrement) << 7 | value) | 0x40;
 	}
@@ -221,7 +221,7 @@ public:
 	virtual void renderBGTileMap(uint8_t* buffer) = 0;
 	virtual void renderWindowTileMap(uint8_t* buffer) = 0;
 
-	constexpr const uint8_t* getFrameBuffer() { return framebuffer.data(); }
+	constexpr const uint8_t* getFrameBuffer() const { return framebuffer.data(); }
 	void (*drawCallback)(const uint8_t* framebuffer) { nullptr };
 
 	inline PPUMode getMode() const { return s.state; }
@@ -256,22 +256,23 @@ protected:
 	bool canAccessOAM{};
 	bool canAccessVRAM{};
 
-	inline void updatePalette(uint8_t val, std::array<uint8_t, 4>& palette)
+	inline static void writePaletteRAM(std::array<uint8_t, 64>& ram, addrPaletteReg& addr, uint8_t val)
+	{
+		ram[addr.value] = val;
+		if (addr.autoIncrement) addr.value++;
+	}
+
+	inline static void updatePalette(uint8_t val, std::array<uint8_t, 4>& palette)
 	{
 		for (uint8_t i = 0; i < 4; i++)
 			palette[i] = (getBit(val, i * 2 + 1) << 1) | getBit(val, i * 2);
 	}
 
-	virtual void disableLCD(PPUMode mode = PPUMode::HBlank) = 0;
-
-	inline void writePaletteRAM(std::array<uint8_t, 64>& ram, addrPaletteReg& addr, uint8_t val)
-	{
-		ram[addr.value] = val;
-		if (addr.autoIncrement) addr.value++;
-	}
 	inline void setVRAMBank(uint8_t val)
 	{
 		VRAM = val & 0x1 ? VRAM_BANK1.data() : VRAM_BANK0.data();
 		gbcRegs.VBK = 0xFE | val;
 	}
+
+	virtual void disableLCD(PPUMode mode = PPUMode::HBlank) = 0;
 };

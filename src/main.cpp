@@ -94,7 +94,7 @@ inline void setEmulationPaused(bool val)
 constexpr const char* DMG_ROM_NAME = "dmg_boot.bin";
 constexpr const char* CGB_ROM_NAME = "cgb_boot.bin";
 
-void handleBootROMLoad(std::string& destRomPath, const std::filesystem::path filePath)
+void handleBootROMLoad(std::string& destRomPath, const std::filesystem::path& filePath)
 {
     destRomPath = filePath.string();
     appConfig::updateConfigFile();
@@ -121,9 +121,7 @@ inline bool loadFile(const std::filesystem::path& path)
             return true;
         }
 
-        const auto result = gbCore.loadFile(path);
-
-        switch (result)
+        switch (gbCore.loadFile(path))
         {
         case FileLoadResult::InvalidROM:
             popupTitle = "Error Loading the ROM!";
@@ -232,7 +230,7 @@ void setOpenGL()
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), nullptr);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
@@ -494,7 +492,7 @@ void renderImGUI()
             static int volume { static_cast<int>(gbCore.apu.volume * 100) };
 
             if (ImGui::SliderInt("Volume", &volume, 0, 100))
-                gbCore.apu.volume = volume / 100.0;
+                gbCore.apu.volume = static_cast<float>(volume / 100.0);
 
             ImGui::SeparatorText("Misc.");
 
@@ -568,7 +566,7 @@ void renderImGUI()
         ImGui::SetNextWindowSize(ImVec2(ImGui::CalcTextSize(popupTitle).x + (ImGui::GetStyle().WindowPadding.x * 2), -1.0f), ImGuiCond_Appearing);
     }
 
-    if (ImGui::BeginPopupModal(popupTitle, NULL, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize))
+    if (ImGui::BeginPopupModal(popupTitle, nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize))
     {
         ImVec2 viewportCenter = ImGui::GetMainViewport()->GetCenter();
         ImVec2 windowSize = ImGui::GetWindowSize();
@@ -600,12 +598,12 @@ void renderGameBoy()
 
     if (appConfig::blending)
     {
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
         currentShader->setFloat("alpha", 0.5f);
         OpenGL::bindTexture(gbFramebufferTextures[1]);
     }
 
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
 }
 
 void render()
@@ -695,24 +693,24 @@ void window_focus_callback(GLFWwindow* _window, int focused)
     handleVisibilityChange(!focused);
 }
 
-void setWindowSizesToAspectRatio(int& newWidth, int& newHeight)
+void setWindowSizesToAspectRatio(float& newWidth, float& newHeight)
 {
     constexpr float ASPECT_RATIO = static_cast<float>(PPU::SCR_WIDTH) / PPU::SCR_HEIGHT;
-    newHeight = static_cast<int>(newHeight * 0.95f);
+    newHeight *= 0.95f;
 
-    if ((newWidth / static_cast<float>(newHeight)) > ASPECT_RATIO)
-        newWidth = static_cast<int>(newHeight * ASPECT_RATIO);
+    if (newWidth / newHeight > ASPECT_RATIO)
+        newWidth = newHeight * ASPECT_RATIO;
     else
-        newHeight = static_cast<int>(newWidth / ASPECT_RATIO);
+        newHeight = newWidth / ASPECT_RATIO;
 
-    glfwSetWindowSize(window, newWidth, newHeight + menuBarHeight);
-    glViewport(0, 0, newWidth, newHeight);
+    glfwSetWindowSize(window, static_cast<int>(newWidth), static_cast<int>(newHeight + static_cast<float>(menuBarHeight)));
+    glViewport(0, 0, static_cast<int>(newWidth), static_cast<int>(newHeight));
 }
 
 #ifdef EMSCRIPTEN
 EM_BOOL emscripten_resize_callback(int eventType, const EmscriptenUiEvent *uiEvent, void *userData) {
-    int newWidth = uiEvent->windowInnerWidth;
-    int newHeight = uiEvent->windowInnerHeight;
+    float newWidth = uiEvent->windowInnerWidth;
+    float newHeight = uiEvent->windowInnerHeight;
 
     setWindowSizesToAspectRatio(newWidth, newHeight);
     render();
@@ -762,7 +760,7 @@ void checkVSyncStatus()
     appConfig::vsync = false;
     lockVSyncSetting = true;
 #elif defined(_WIN32) 
-    auto vsyncCheckFunc = reinterpret_cast<int(*)(void)>(glfwGetProcAddress("wglGetSwapIntervalEXT"));
+    auto vsyncCheckFunc = reinterpret_cast<int(*)()>(glfwGetProcAddress("wglGetSwapIntervalEXT"));
 
     glfwSwapInterval(0);
 
@@ -806,7 +804,7 @@ bool setGLFW()
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 #endif
 
-    window = glfwCreateWindow(1, 1, "MegaBoy", NULL, NULL);
+    window = glfwCreateWindow(1, 1, "MegaBoy", nullptr, nullptr);
     if (!window)
     {
         std::cout << "Failed to create GLFW window" << std::endl;
@@ -852,23 +850,23 @@ void setWindowSize()
     updateImGUIViewports();
 
 #ifdef EMSCRIPTEN
-    int windowWidth = EM_ASM_INT ({
+    float windowWidth = EM_ASM_DOUBLE ({
         return window.innerWidth;
     });
-    int windowHeight = EM_ASM_INT ({
+    float windowHeight = EM_ASM_DOUBLE ({
         return window.innerHeight;
     });
 
     setWindowSizesToAspectRatio(windowWidth, windowHeight);
 #else
     const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-    viewport_width =  { static_cast<int>(mode->width * 0.4f) };
-    viewport_height = { static_cast<int>(viewport_width / (static_cast<float>(PPU::SCR_WIDTH) / PPU::SCR_HEIGHT)) };
+    viewport_width =  { static_cast<int>(static_cast<float>(mode->width) * 0.4f) };
+    viewport_height = { static_cast<int>(static_cast<float>(viewport_width) / (static_cast<float>(PPU::SCR_WIDTH) / PPU::SCR_HEIGHT)) };
 
     glfwSetWindowSize(window, viewport_width, viewport_height + menuBarHeight);
     glfwSetWindowAspectRatio(window, viewport_width, viewport_height);
 
-    uint16_t maxHeight{ static_cast<uint16_t>(mode->height - mode->height / 15.0) };
+    const uint16_t maxHeight { static_cast<uint16_t>(mode->height - mode->height / 15.0) };
     glfwSetWindowSizeLimits(window, PPU::SCR_WIDTH * 2, PPU::SCR_HEIGHT * 2, maxHeight * (PPU::SCR_WIDTH / PPU::SCR_HEIGHT), maxHeight);
     glViewport(0, 0, viewport_width, viewport_height);
 #endif
@@ -892,12 +890,12 @@ void setImGUI()
     ImGui::CreateContext();
 
     ImGuiIO& io = ImGui::GetIO();
-    io.IniFilename = NULL;
+    io.IniFilename = nullptr;
 
     const int resolutionX = getScreenWidth();
-    scaleFactor = (resolutionX / 1920.0f);
+    scaleFactor = (static_cast<float>(resolutionX) / 1920.0f);
 
-    io.Fonts->AddFontFromMemoryTTF((void*)resources::robotoMonoFont, sizeof(resources::robotoMonoFont), scaleFactor * 17.0f);
+    io.Fonts->AddFontFromMemoryTTF((void*)(resources::robotoMonoFont), sizeof(resources::robotoMonoFont), scaleFactor * 17.0f);
     ImGui::GetStyle().ScaleAllSizes(scaleFactor);
 
 #ifdef __linux__
@@ -921,11 +919,9 @@ void mainLoop()
     fpsTimer += deltaTime;
     timer += std::clamp(deltaTime, 0.0, MAX_DELTA_TIME);
 
-    bool newFrame = appConfig::vsync || timer >= GBCore::FRAME_RATE;
-
-    if (newFrame)
+    if (appConfig::vsync || timer >= GBCore::FRAME_RATE)
     {
-        auto execStart = glfwGetTime();
+        const auto execStart = glfwGetTime();
 
         glfwPollEvents();
         gbCore.update(appConfig::vsync ? GBCore::calculateCycles(timer) : GBCore::CYCLES_PER_FRAME);

@@ -25,14 +25,12 @@ void GBCore::loadBootROM()
 {
 	cpu.disableBootROM();
 
-	if (appConfig::runBootROM)
-	{
+	if (appConfig::runBootROM) {
 		const std::filesystem::path romPath = FileUtils::nativePath(System::Current() == GBSystem::DMG ? appConfig::dmgRomPath : appConfig::cgbRomPath);
-		std::ifstream ifs(romPath, std::ios::binary | std::ios::ate);
 
-		if (ifs)
+		if (std::ifstream ifs { romPath, std::ios::binary | std::ios::ate })
 		{
-			std::ifstream::pos_type pos = ifs.tellg();
+			const std::ifstream::pos_type pos = ifs.tellg();
 
 			if (System::Current() == GBSystem::DMG)
 			{
@@ -115,7 +113,7 @@ inline std::filesystem::path replaceExtension(std::filesystem::path path, const 
 
 FileLoadResult GBCore::loadFile(std::ifstream& st)
 {
-	FileLoadResult result;
+	FileLoadResult result { FileLoadResult::Success };
 	bool success { true };
 
 	autoSave();
@@ -153,9 +151,7 @@ FileLoadResult GBCore::loadFile(std::ifstream& st)
 				return false;
 			};
 
-			if (loadRomAndBattery(gbRomPath)) ;
-			else if (loadRomAndBattery(gbcRomPath)) ;
-
+			if (loadRomAndBattery(gbRomPath) || loadRomAndBattery(gbcRomPath)) { }
 			else if (cartridge.ROMLoaded && cartridge.hasBattery)
 			{
 				currentSave = 0;
@@ -195,23 +191,22 @@ FileLoadResult GBCore::loadFile(std::ifstream& st)
 		saveFolderPath = FileUtils::executableFolderPath / "saves" / (gbCore.gameTitle + " (" + std::to_string(cartridge.checksum) + ")");
 		emulationPaused = false;
 		appConfig::updateConfigFile();
-		return FileLoadResult::Success;
 	}
 
 	return result;
 }
 
-void GBCore::autoSave()
+void GBCore::autoSave() const
 {
 	if (!cartridge.ROMLoaded || currentSave == 0) return;
 	saveState(getSaveFilePath(currentSave));
 }
 
-void GBCore::batteryAutoSave()
+void GBCore::batteryAutoSave() const
 {
 	if (cartridge.hasBattery && appConfig::batterySaves)
 	{
-		auto batterySavePath = replaceExtension(romFilePath, ".sav");
+		const auto batterySavePath = replaceExtension(romFilePath, ".sav");
 
 		if (appConfig::backupSaves && std::filesystem::exists(batterySavePath))
 		{
@@ -224,7 +219,7 @@ void GBCore::batteryAutoSave()
 	}
 }
 
-void GBCore::backupSave(int num)
+void GBCore::backupSave(int num) const
 {
 	if (!appConfig::backupSaves)
 		return;
@@ -281,7 +276,7 @@ void GBCore::saveState(int num)
 		updateSelectedSaveInfo(num);
 }
 
-void GBCore::saveState(std::ofstream& st)
+void GBCore::saveState(std::ofstream& st) const
 {
 	if (!std::filesystem::exists(saveFolderPath))
 		std::filesystem::create_directories(saveFolderPath);

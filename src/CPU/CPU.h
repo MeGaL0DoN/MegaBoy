@@ -24,7 +24,7 @@ public:
 	void requestInterrupt(Interrupt interrupt);
 	void updateTimer();
 
-	CPU(GBCore& gbCore);
+	explicit CPU(GBCore& gbCore);
 	~CPU();
 
 	friend InstructionsEngine;
@@ -33,7 +33,7 @@ public:
 
 	void reset();
 
-	constexpr bool isExecutingBootROM() { return executingBootROM; }
+	constexpr bool isExecutingBootROM() const { return executingBootROM; }
 
 	constexpr void enableBootROM()
 	{
@@ -45,10 +45,10 @@ public:
 		executingBootROM = false;
 	}
 
-	void saveState(std::ofstream& st);
+	void saveState(std::ofstream& st) const;
 	void loadState(std::ifstream& st);
 
-	constexpr bool doubleSpeed() { return s.GBCdoubleSpeed; }
+	constexpr bool doubleSpeed() const { return s.GBCdoubleSpeed; }
 private:
 	GBCore& gbCore;
 
@@ -145,9 +145,9 @@ private:
 	cpuState s{};
 	registerCollection registers{};
 
-	uint8_t opcode;
-	uint8_t cycles;
-	bool executingBootROM;
+	uint8_t opcode { 0 };
+	uint8_t cycles { 0 };
+	bool executingBootROM { false };
 
 	std::unique_ptr<InstructionsEngine> instructions;
 };

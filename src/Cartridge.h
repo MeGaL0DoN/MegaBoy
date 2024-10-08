@@ -11,9 +11,9 @@ class Cartridge
 {
 public:
 	constexpr const std::vector<uint8_t>& getRom() const { return rom; }
-	inline MBCBase* getMapper() { return mapper.get(); }
+	inline MBCBase* getMapper() const { return mapper.get(); }
 
-	Cartridge(GBCore& gbCore);
+	explicit Cartridge(GBCore& gbCore);
 
 	uint32_t checksum { 0 };
 	bool ROMLoaded { false };

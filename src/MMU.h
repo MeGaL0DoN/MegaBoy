@@ -17,7 +17,7 @@ enum class GHDMAStatus
 class MMU
 {
 public:
-	MMU(GBCore& gbCore);
+	explicit MMU(GBCore& gbCore);
 	void updateFunctionPointers();
 
 	inline void write8(uint16_t addr, uint8_t val) { (this->*write_func)(addr, val); }
@@ -34,7 +34,7 @@ public:
 		updateFunctionPointers();
 	}
 
-	void saveState(std::ofstream& st);
+	void saveState(std::ofstream& st) const;
 	void loadState(std::ifstream& st);
 
 	struct DMAstate

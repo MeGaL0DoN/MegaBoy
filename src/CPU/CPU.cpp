@@ -9,7 +9,7 @@ CPU::CPU(GBCore& gbCore) : gbCore(gbCore), instructions(std::make_unique<Instruc
 	reset();
 }
 
-CPU::~CPU() {}
+CPU::~CPU() = default;
 
 void CPU::reset()
 {
@@ -20,7 +20,7 @@ void CPU::reset()
 	cycles = 0;
 }
 
-void CPU::saveState(std::ofstream& st)
+void CPU::saveState(std::ofstream& st) const
 {
 	ST_WRITE(s);
 	ST_WRITE(registers.AF.val);
@@ -672,8 +672,8 @@ void CPU::executeMain()
 
 void CPU::executePrefixed()
 {
-	uint8_t regInd = opcode & 0x07;
-	uint8_t bit = (opcode >> 3) & 0x07;
+	const uint8_t regInd = opcode & 0x07;
+	const uint8_t bit = (opcode >> 3) & 0x07;
 
 	switch (opcode)
 	{

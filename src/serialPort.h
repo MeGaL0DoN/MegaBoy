@@ -7,13 +7,13 @@ class serialPort
 public:
 	friend class MMU;
 
-	serialPort(CPU& cpu) : cpu(cpu) { reset(); }
+	explicit serialPort(CPU& cpu) : cpu(cpu) { reset(); }
 	void writeSerialControl(uint8_t val);
 	void execute();
 
 	constexpr void reset() { s = {}; }
 
-	void saveState(std::ofstream& st);
+	void saveState(std::ofstream& st) const;
 	void loadState(std::ifstream& st);
 
 private:

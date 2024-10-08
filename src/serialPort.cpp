@@ -34,7 +34,7 @@ void serialPort::execute()
     }
 }
 
-void serialPort::saveState(std::ofstream& st)
+void serialPort::saveState(std::ofstream& st) const
 {
     ST_WRITE(s);
 }

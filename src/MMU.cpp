@@ -20,16 +20,16 @@ void MMU::updateFunctionPointers()
 	}
 }
 
-void MMU::saveState(std::ofstream& st)
+void MMU::saveState(std::ofstream& st) const
 {
 	ST_WRITE(s);
 
 	if (System::Current() == GBSystem::GBC)
 		ST_WRITE(gbc);
 
-	uint16_t WRAMSize = System::Current() == GBSystem::GBC ? 0x8000 : 0x2000;
+	const uint16_t WRAMSize = System::Current() == GBSystem::GBC ? 0x8000 : 0x2000;
 
-	st.write(reinterpret_cast<char*>(WRAM_BANKS.data()), WRAMSize);
+	st.write(reinterpret_cast<const char*>(WRAM_BANKS.data()), WRAMSize);
 	ST_WRITE_ARR(HRAM);
 }
 
@@ -242,15 +242,15 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 		case 0xFF47:
 			gbCore.ppu->regs.BGP = val;
-			gbCore.ppu->updatePalette(val, gbCore.ppu->BGpalette);
+			PPU::updatePalette(val, gbCore.ppu->BGpalette);
 			break;
 		case 0xFF48:
 			gbCore.ppu->regs.OBP0 = val;
-			gbCore.ppu->updatePalette(val, gbCore.ppu->OBP0palette);
+			PPU::updatePalette(val, gbCore.ppu->OBP0palette);
 			break;
 		case 0xFF49:
 			gbCore.ppu->regs.OBP1 = val;
-			gbCore.ppu->updatePalette(val, gbCore.ppu->OBP1palette);
+			PPU::updatePalette(val, gbCore.ppu->OBP1palette);
 			break;
 		case 0xFF4A:
 			gbCore.ppu->regs.WY = val;
@@ -279,7 +279,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 		case 0xFF69:
 			if constexpr (sys == GBSystem::GBC)
-				gbCore.ppu->writePaletteRAM(gbCore.ppu->BGpaletteRAM, gbCore.ppu->gbcRegs.BCPS, val);
+				PPU::writePaletteRAM(gbCore.ppu->BGpaletteRAM, gbCore.ppu->gbcRegs.BCPS, val);
 			break;
 		case 0xFF6A:
 			if constexpr (sys == GBSystem::GBC)
@@ -287,7 +287,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 		case 0xFF6B:
 			if constexpr (sys == GBSystem::GBC)
-				gbCore.ppu->writePaletteRAM(gbCore.ppu->OBPpaletteRAM, gbCore.ppu->gbcRegs.OCPS, val);
+				PPU::writePaletteRAM(gbCore.ppu->OBPpaletteRAM, gbCore.ppu->gbcRegs.OCPS, val);
 			break;
 		case 0xFF70:
 			if constexpr (sys == GBSystem::GBC)

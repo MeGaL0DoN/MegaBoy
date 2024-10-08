@@ -10,13 +10,13 @@ class MMU;
 class inputManager
 {
 public:
-	inputManager(CPU& cpu) : cpu(cpu)
+	explicit inputManager(CPU& cpu) : cpu(cpu)
 	{}
 	           
 	void update(int scancode, int action);
 	void reset();
 
-	inline uint8_t readJoypadReg()
+	inline uint8_t readJoypadReg() const
 	{
 		if (!readButtons && !readDpad)
 			return 0xCF;
@@ -43,7 +43,7 @@ public:
 		readDpad = !getBit(val, 4);
 	}
 
-	inline void saveState(std::ofstream& st) { ST_WRITE(readButtons), ST_WRITE(readDpad); }
+	inline void saveState(std::ofstream& st) const { ST_WRITE(readButtons), ST_WRITE(readDpad); }
 	inline void loadState(std::ifstream& st) { ST_READ(readButtons), ST_READ(readDpad); }
 
 private:
