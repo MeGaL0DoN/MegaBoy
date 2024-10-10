@@ -199,8 +199,10 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			gbCore.cpu.s.IF = val | 0xE0;
 			break;
 		case 0xFF40:
+			if (getBit(gbCore.ppu->regs.LCDC, 7) != getBit(val, 7))
+				gbCore.ppu->setLCDEnable(getBit(val, 7));
+
 			gbCore.ppu->regs.LCDC = val;
-			if (!getBit(val, 7)) gbCore.ppu->disableLCD();
 			break;
 		case 0xFF41:
 		{

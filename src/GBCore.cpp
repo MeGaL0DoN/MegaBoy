@@ -283,7 +283,7 @@ void GBCore::saveState(std::ofstream& st) const
 
 	st << SAVE_STATE_SIGNATURE;
 
-	auto romFilePathStr = FileUtils::pathToUTF8(romFilePath);
+	const auto romFilePathStr = FileUtils::pathToUTF8(romFilePath);
 
 	uint16_t filePathLen { static_cast<uint16_t>(romFilePathStr.length()) };
 	ST_WRITE(filePathLen);
@@ -291,7 +291,7 @@ void GBCore::saveState(std::ofstream& st) const
 
 	ST_WRITE(cartridge.checksum);
 
-	auto system = System::Current();
+	const auto system = System::Current();
 	ST_WRITE(system);
 
 	mmu.saveState(st);
@@ -320,7 +320,7 @@ bool GBCore::loadState(std::ifstream& st)
 	{
 		bool romExists{ true };
 		
-		auto nativeRomPath = std::filesystem::path(FileUtils::nativePath(romPath));
+		const auto nativeRomPath = std::filesystem::path { FileUtils::nativePath(romPath) };
 		std::ifstream romStream(nativeRomPath, std::ios::in | std::ios::binary);
 
 		if (romStream)

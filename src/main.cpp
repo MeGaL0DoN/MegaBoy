@@ -675,10 +675,7 @@ void handleVisibilityChange(bool hidden)
         setEmulationPaused(true);
     }
     else
-    {
         setEmulationPaused(pausedPreEvent);
-        lastFrameTime = glfwGetTime(); // resetting delta time
-    }
 }
 
 void window_iconify_callback(GLFWwindow* _window, int iconified)

@@ -32,24 +32,26 @@ struct sweepWave : public squareWave
 	void executeSweep()
 	{
 		if (sweepTimer > 0)
+		{
 			sweepTimer--;
 
-		if (sweepTimer == 0)
-		{
-			uint8_t sweepPeriod = (NR10 >> 4) & 0b111;
-			sweepTimer = sweepPeriod == 0 ? 8 : sweepPeriod;
-
-			if (sweepEnabled && sweepPeriod > 0)
+			if (sweepTimer == 0)
 			{
-				uint16_t newFrequency = calculateFrequency();
+				uint8_t sweepPeriod = (NR10 >> 4) & 0b111;
+				sweepTimer = sweepPeriod == 0 ? 8 : sweepPeriod;
 
-				if (newFrequency < 2048 && (NR10 & 0b111) > 0)
+				if (sweepEnabled && sweepPeriod > 0)
 				{
-					shadowFrequency = newFrequency;
-					NRx3 = shadowFrequency & 0xFF;
-					NRx4 = (NRx4 & 0b11111000) | (newFrequency >> 8); //|= ((newFrequency & 0x700) >> 8); //
+					uint16_t newFrequency = calculateFrequency();
 
-					calculateFrequency();
+					if (newFrequency < 2048 && (NR10 & 0b111) > 0)
+					{
+						shadowFrequency = newFrequency;
+						NRx3 = newFrequency & 0xFF;
+						NRx4 = (NRx4 & 0b11111000) | (newFrequency >> 8); //|= ((newFrequency & 0x700) >> 8); //
+
+						calculateFrequency();
+					}
 				}
 			}
 		}

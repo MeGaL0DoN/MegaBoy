@@ -27,18 +27,23 @@ void PPUCore<sys>::reset()
 	regs = {};
 	gbcRegs = {};
 
-	disableLCD(PPUMode::VBlank);
+	clearBuffer();
+	SetPPUMode(PPUMode::VBlank);
 	s.LY = 144;
 }
 
 template <GBSystem sys>
-void PPUCore<sys>::disableLCD(PPUMode mode)
+void PPUCore<sys>::setLCDEnable(bool val)
 {
-	s.LY = 0;
-	s.WLY = 0;
-	s.videoCycles = 0;
-	clearBuffer();
-	SetPPUMode(mode);
+	if (val)
+		s.lcdWasEnabled = true;
+	else
+	{
+		s.LY = 0;
+		s.WLY = 0;
+		clearBuffer();
+		SetPPUMode(PPUMode::HBlank);
+	}
 }
 
 template <GBSystem sys>
@@ -240,7 +245,15 @@ void PPUCore<sys>::handleHBlank()
 		{
 			SetPPUMode(PPUMode::VBlank);
 			cpu.requestInterrupt(Interrupt::VBlank);
-			invokeDrawCallback();
+
+			// First frame after enabling LCD is blank.
+			if (s.lcdWasEnabled)
+			{
+				s.lcdWasEnabled = false;
+				clearBuffer();
+			}
+			else 
+				invokeDrawCallback();
 		}
 		else
 			SetPPUMode(PPUMode::OAMSearch);

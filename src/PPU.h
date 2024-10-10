@@ -135,6 +135,7 @@ struct ppuState
 {
 	bool lycFlag{ false };
 	bool blockStat{ false };
+	bool lcdWasEnabled { false };
 
 	uint8_t LY{ 0 };
 	uint8_t WLY{ 0 };
@@ -274,5 +275,5 @@ protected:
 		gbcRegs.VBK = 0xFE | val;
 	}
 
-	virtual void disableLCD(PPUMode mode = PPUMode::HBlank) = 0;
+	virtual void setLCDEnable(bool val) = 0;
 };

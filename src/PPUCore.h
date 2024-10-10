@@ -35,7 +35,7 @@ private:
 
 	inline void clearBuffer()
 	{
-		PixelOps::clearBuffer(framebuffer.data(), SCR_WIDTH, SCR_HEIGHT, System::Current() == GBSystem::DMG ? PPU::ColorPalette[0] : color { 255, 255, 255 });
+		PixelOps::clearBuffer(framebuffer.data(), SCR_WIDTH, SCR_HEIGHT, sys == GBSystem::DMG ? PPU::ColorPalette[0] : color { 255, 255, 255 });
 		invokeDrawCallback();
 	}
 
@@ -46,7 +46,7 @@ private:
 	void updateInterrupts();
 
 	void SetPPUMode(PPUMode ppuState);
-	void disableLCD(PPUMode mode) override;
+	void setLCDEnable(bool val) override;
 
 	void handleOAMSearch();
 	void handleHBlank();
