@@ -53,7 +53,7 @@ private:
 	GBCore& gbCore;
 
 	uint8_t handleInterrupts();
-	uint8_t handleHaltedState();
+	bool handleHaltedState();
 	bool handleGHDMA();
 
 	void executeMain();

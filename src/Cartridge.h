@@ -15,7 +15,7 @@ public:
 
 	explicit Cartridge(GBCore& gbCore);
 
-	uint32_t checksum { 0 };
+	uint8_t checksum { 0 };
 	bool ROMLoaded { false };
 	bool readSuccessfully { false };
 
@@ -28,14 +28,15 @@ public:
 	RTCTimer timer{};
 
 	bool loadROM(std::ifstream& ifs);
-
 private:
-	void calculateChecksum()
+	bool verifyChecksum(const std::vector<uint8_t>& buffer)
 	{
 		checksum = 0;
 
-		for (uint8_t i : rom)
-			checksum += i;
+		for (size_t i = 0x134; i <= 0x14C; i++)
+			checksum = checksum - buffer[i] - 1;
+
+		return checksum == buffer[0x14D];
 	}
 
 	bool proccessCartridgeHeader(const std::vector<uint8_t>& buffer);

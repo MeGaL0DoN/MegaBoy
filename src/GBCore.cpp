@@ -310,7 +310,7 @@ bool GBCore::loadState(std::ifstream& st)
 	std::string romPath(filePathLen, 0);
 	st.read(romPath.data(), filePathLen);
 
-	uint32_t checkSum;
+	uint8_t checkSum;
 	ST_READ(checkSum);
 
 	GBSystem system;

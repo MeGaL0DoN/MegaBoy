@@ -82,8 +82,11 @@ uint8_t& CPU::getRegister(uint8_t ind)
 
 constexpr uint16_t STOP_PERIOD_CYCLES = 32768;
 
-uint8_t CPU::handleHaltedState()
+bool CPU::handleHaltedState()
 {
+	if (!s.halted) [[likely]]
+		return false;
+
 	addCycle();
 	cycles += handleInterrupts();
 
@@ -98,12 +101,12 @@ uint8_t CPU::handleHaltedState()
 		}
 	}
 
-	return cycles;
+	return true;
 }
 
 bool CPU::handleGHDMA()
 {
-	if (gbCore.mmu.gbc.hdma.status != GHDMAStatus::None)
+	if (gbCore.mmu.gbc.hdma.status != GHDMAStatus::None) [[unlikely]]
 	{
 		if (gbCore.mmu.gbc.hdma.status == GHDMAStatus::GDMA || (gbCore.ppu->getMode() == PPUMode::HBlank && gbCore.ppu->getCycles() < MMU::GHDMA_BLOCK_CYCLES))
 		{
@@ -125,8 +128,8 @@ uint8_t CPU::execute()
 		s.shouldSetIME = false;
 	}
 
-	if (s.halted) [[unlikely]]
-		return handleHaltedState();
+	if (handleHaltedState()) [[unlikely]]
+		return cycles;
 
 	if (handleGHDMA()) [[unlikely]]
 		return 1;

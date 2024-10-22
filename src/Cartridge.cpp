@@ -32,7 +32,6 @@ bool Cartridge::loadROM(std::ifstream& ifs)
 
 	ROMLoaded = true;
 	rom = std::move(fileBuffer);
-	calculateChecksum();
 
 	return true;
 }
@@ -64,7 +63,7 @@ bool Cartridge::proccessCartridgeHeader(const std::vector<uint8_t>& buffer)
 	romBanks = 1 << (buffer[0x148] + 1);
 	if (romBanks == 0 || romBanks > buffer.size() / 0x4000) return false;
 
-	ramBanks = 0;
+	if (!verifyChecksum(buffer)) return false;
 
 	switch (buffer[0x149])
 	{
@@ -79,6 +78,9 @@ bool Cartridge::proccessCartridgeHeader(const std::vector<uint8_t>& buffer)
 		break;
 	case 0x05:
 		ramBanks = 8;
+		break;
+	default:
+		ramBanks = 0;
 		break;
 	}
 
