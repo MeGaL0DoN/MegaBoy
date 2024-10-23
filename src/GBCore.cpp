@@ -25,26 +25,28 @@ void GBCore::loadBootROM()
 {
 	cpu.disableBootROM();
 
-	if (appConfig::runBootROM) {
+	if (appConfig::runBootROM) 
+	{
 		const std::filesystem::path romPath = FileUtils::nativePath(System::Current() == GBSystem::DMG ? appConfig::dmgRomPath : appConfig::cgbRomPath);
 
 		if (std::ifstream ifs { romPath, std::ios::binary | std::ios::ate })
 		{
-			const std::ifstream::pos_type pos = ifs.tellg();
+			const std::ifstream::pos_type size = ifs.tellg();
 
 			if (System::Current() == GBSystem::DMG)
 			{
-				if (pos == sizeof(mmu.base_bootROM))
+				if (size == sizeof(mmu.base_bootROM))
 				{
 					ifs.seekg(0, std::ios::beg);
-					ifs.read(reinterpret_cast<char*>(&mmu.base_bootROM[0]), pos);
+					ifs.read(reinterpret_cast<char*>(&mmu.base_bootROM[0]), size);
 				}
 				else
 					return;
 			}
 			else if (System::Current() == GBSystem::GBC)
 			{
-				uint16_t size = pos;
+				if (size != 2048 && size != 2304)
+					return;
 
 				ifs.seekg(0, std::ios::beg);
 				ifs.read(reinterpret_cast<char*>(&mmu.base_bootROM[0]), sizeof(mmu.base_bootROM));
@@ -53,8 +55,6 @@ void GBCore::loadBootROM()
 					ifs.seekg(sizeof(mmu.base_bootROM), std::ios::beg);
 				else if (size == 2304)
 					ifs.seekg(0x200, std::ios::beg);
-				else
-					return;
 
 				ifs.read(reinterpret_cast<char*>(&mmu.GBCbootROM[0]), sizeof(mmu.GBCbootROM));
 			}
@@ -74,14 +74,14 @@ void GBCore::update(uint32_t cyclesToExecute)
 	const uint64_t targetCycles = cycleCounter + cyclesToExecute;
 
 	while (cycleCounter < targetCycles)
-		cycleCounter += (cpu.execute() * (cpu.doubleSpeed() ? 2 : 4));
+		cycleCounter += cpu.execute();
 }
 
 void GBCore::stepComponents()
 {
 	cpu.updateTimer();
 
-	for (int i = 0; i < (4 >> static_cast<uint8_t>(cpu.doubleSpeed())); i++)
+	for (int i = 0; i < cpu.TcyclesPerM(); i++)
 		ppu->execute();
 
 	mmu.execute();

@@ -48,7 +48,7 @@ public:
 	void saveState(std::ofstream& st) const;
 	void loadState(std::ifstream& st);
 
-	constexpr bool doubleSpeed() const { return s.GBCdoubleSpeed; }
+	constexpr uint8_t TcyclesPerM() const { return tCyclesPerM; }
 private:
 	GBCore& gbCore;
 
@@ -147,6 +147,8 @@ private:
 
 	uint8_t opcode { 0 };
 	uint8_t cycles { 0 };
+
+	uint8_t tCyclesPerM { 0 };
 	bool executingBootROM { false };
 
 	std::unique_ptr<InstructionsEngine> instructions;

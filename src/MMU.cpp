@@ -51,7 +51,7 @@ void MMU::execute()
 	if (s.dma.transfer)
 		executeDMA();
 
-	if (s.statRegChanged)
+	if (s.statRegChanged) [[unlikely]]
 	{
 		gbCore.ppu->regs.STAT = s.newStatVal;
 		s.statRegChanged = false;
@@ -98,7 +98,7 @@ void MMU::executeDMA()
 
 void MMU::executeGHDMA()
 {
-	gbc.hdma.cycles += (gbCore.cpu.doubleSpeed() ? 2 : 4);
+	gbc.hdma.cycles += gbCore.cpu.TcyclesPerM();
 
 	if (gbc.hdma.cycles >= GHDMA_BLOCK_CYCLES)
 	{

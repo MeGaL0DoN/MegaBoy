@@ -18,6 +18,7 @@ void CPU::reset()
 
 	executingBootROM = false;
 	cycles = 0;
+	tCyclesPerM = 4;
 }
 
 void CPU::saveState(std::ofstream& st) const
@@ -36,6 +37,7 @@ void CPU::loadState(std::ifstream& st)
 	ST_READ(registers.BC.val);
 	ST_READ(registers.DE.val);
 	ST_READ(registers.HL.val);
+	tCyclesPerM = s.GBCdoubleSpeed ? 2 : 4;
 }
 
 void CPU::addCycle()
@@ -118,6 +120,8 @@ bool CPU::handleGHDMA()
 	return false;
 }
 
+#define T_CYCLES (cycles * (s.GBCdoubleSpeed ? 2 : 4))
+
 uint8_t CPU::execute()
 {
 	cycles = 0;
@@ -129,7 +133,7 @@ uint8_t CPU::execute()
 	}
 
 	if (handleHaltedState()) [[unlikely]]
-		return cycles;
+		return T_CYCLES;
 
 	if (handleGHDMA()) [[unlikely]]
 		return 1;
@@ -144,7 +148,7 @@ uint8_t CPU::execute()
 
 	executeMain();
 	cycles += handleInterrupts();
-	return cycles;
+	return T_CYCLES;
 }
 
 void CPU::executeMain()

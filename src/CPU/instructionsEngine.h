@@ -680,6 +680,7 @@ public:
 		if (System::Current() == GBSystem::GBC && cpu->s.prepareSpeedSwitch)
 		{
 			cpu->s.GBCdoubleSpeed = !cpu->s.GBCdoubleSpeed;
+			cpu->tCyclesPerM = cpu->s.GBCdoubleSpeed ? 2 : 4;
 			cpu->s.prepareSpeedSwitch = false;
 
 			cpu->s.DIV_COUNTER = 0;
