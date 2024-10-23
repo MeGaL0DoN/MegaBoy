@@ -208,29 +208,33 @@ void PPUCore<sys>::SetPPUMode(PPUMode PPUState)
 }
 
 template <GBSystem sys>
-void PPUCore<sys>::execute()
+void PPUCore<sys>::execute(uint8_t cycles)
 {
 	if (!LCDEnabled()) return;
-	s.videoCycles++;
 
-	switch (s.state)
+	for (int i = 0; i < cycles; i++)
 	{
-	case PPUMode::OAMSearch:
-		handleOAMSearch();
-		break;
-	case PPUMode::PixelTransfer:
-		handlePixelTransfer();
-		break;
-	case PPUMode::HBlank:
-		handleHBlank();
-		break;
-	case PPUMode::VBlank:
-		handleVBlank();
-		break;
-	}
+		s.videoCycles++;
 
-	checkLYC();
-	updateInterrupts();
+		switch (s.state)
+		{
+		case PPUMode::OAMSearch:
+			handleOAMSearch();
+			break;
+		case PPUMode::PixelTransfer:
+			handlePixelTransfer();
+			break;
+		case PPUMode::HBlank:
+			handleHBlank();
+			break;
+		case PPUMode::VBlank:
+			handleVBlank();
+			break;
+		}
+
+		checkLYC();
+		updateInterrupts();
+	}
 }
 
 template <GBSystem sys>

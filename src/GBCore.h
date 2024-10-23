@@ -90,7 +90,7 @@ public:
 
 	MMU mmu { *this };
 	CPU cpu { *this };
-	std::unique_ptr<PPU> ppu;
+	std::unique_ptr<PPU> ppu { nullptr };
 	APU apu{};
 	inputManager input { cpu };
 	serialPort serial { cpu };
@@ -119,8 +119,8 @@ private:
 
 	inline void upddatePPUSystem()
 	{
-		ppu = System::Current() == GBSystem::DMG ? std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::DMG>>(mmu, cpu) } : 
-												   std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::GBC>>(mmu, cpu) } ;
+		ppu = System::Current() == GBSystem::DMG ? std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::DMG>>(mmu, cpu) } :
+												   std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::GBC>>(mmu, cpu) };
 		ppu->drawCallback = this->drawCallback;
 	}
 

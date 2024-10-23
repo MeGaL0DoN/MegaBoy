@@ -210,7 +210,7 @@ public:
 
 	virtual ~PPU() = default;
 
-	virtual void execute() = 0;
+	virtual void execute(uint8_t cycles) = 0;
 	virtual void reset() = 0;
 
 	virtual void saveState(std::ofstream& st) = 0;

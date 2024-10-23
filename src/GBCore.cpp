@@ -80,10 +80,7 @@ void GBCore::update(uint32_t cyclesToExecute)
 void GBCore::stepComponents()
 {
 	cpu.updateTimer();
-
-	for (int i = 0; i < cpu.TcyclesPerM(); i++)
-		ppu->execute();
-
+	ppu->execute(cpu.TcyclesPerM());
 	mmu.execute();
 	serial.execute();
 }
