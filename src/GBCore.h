@@ -22,7 +22,8 @@ class GBCore
 {
 public:
 	static constexpr uint32_t CYCLES_PER_FRAME = 17556 * 4;
-	static constexpr double FRAME_RATE = 1.0 / 59.7;
+	static constexpr uint32_t CYCLES_PER_SECOND = 1048576 * 4;
+	static constexpr double FRAME_RATE = static_cast<double>(CYCLES_PER_FRAME) / CYCLES_PER_SECOND;
 
 	constexpr uint64_t totalCycles() const { return cycleCounter; }
 
@@ -31,7 +32,7 @@ public:
 	void update(uint32_t cyclesToExecute);
 	void stepComponents();
 
-	inline void setDrawCallback(void (*callback)(const uint8_t* buffer))
+	inline void setDrawCallback(void (*callback)(const uint8_t*))
 	{
 		this->drawCallback = callback;
 	}

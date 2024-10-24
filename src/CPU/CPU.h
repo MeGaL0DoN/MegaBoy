@@ -78,9 +78,19 @@ private:
 		write8(addr, val & 0xFF);
 		write8(addr + 1, val >> 8);
 	}
-	inline uint16_t read16(uint16_t addr)
+	inline uint16_t read16(uint16_t addr) 
 	{
-		return read8(addr + 1) << 8 | read8(addr);
+		return (read8(addr + 1) << 8) | read8(addr);
+	}
+
+	inline uint8_t fetch8()
+	{
+		return read8(s.PC++);
+	}
+	inline uint16_t fetch16()
+	{
+		uint8_t low = read8(s.PC++);
+		return (read8(s.PC++) << 8) | low;
 	}
 
 	struct cpuState

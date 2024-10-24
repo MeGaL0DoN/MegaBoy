@@ -68,10 +68,11 @@ std::string FPS_text{ "FPS: 00.00 - 0.00 ms" };
 extern GBCore gbCore;
 
 double lastFrameTime = glfwGetTime();
-double fpsTimer{};
-double timer{};
-int frameCount{};
-double frameTimes{};
+double secondsTimer{};
+double gbTimer{};
+uint32_t frameCount{};
+uint32_t cycleCount{};
+double executeTimes{};
 
 bool lockVSyncSetting { false };
 
@@ -913,50 +914,54 @@ void mainLoop()
     double currentFrameTime = glfwGetTime();
     double deltaTime = currentFrameTime - lastFrameTime;
 
-    fpsTimer += deltaTime;
-    timer += std::clamp(deltaTime, 0.0, MAX_DELTA_TIME);
+    secondsTimer += deltaTime;
+    gbTimer += std::clamp(deltaTime, 0.0, MAX_DELTA_TIME);
 
-    if (appConfig::vsync || timer >= GBCore::FRAME_RATE)
+    if (appConfig::vsync || gbTimer >= GBCore::FRAME_RATE)
     {
-        const auto execStart = glfwGetTime();
-
         glfwPollEvents();
-        gbCore.update(appConfig::vsync ? GBCore::calculateCycles(timer) : GBCore::CYCLES_PER_FRAME);
-        render();
 
-        frameTimes += (glfwGetTime() - execStart);
-        timer = appConfig::vsync ? 0 : timer - GBCore::FRAME_RATE;
+        const uint32_t cycles = appConfig::vsync ? GBCore::calculateCycles(gbTimer) : GBCore::CYCLES_PER_FRAME;
+        const auto execStart = glfwGetTime();
+        gbCore.update(cycles);
+
+        executeTimes += (glfwGetTime() - execStart);
+        cycleCount += cycles;
         frameCount++;
+        gbTimer = appConfig::vsync ? 0 : gbTimer - GBCore::FRAME_RATE;
 
+        render();
         glfwSwapBuffers(window);
     }
 
 #ifndef EMSCRIPTEN
     if (!appConfig::vsync)
     {
-        double remainder = GBCore::FRAME_RATE - timer;
+        const double remainder = GBCore::FRAME_RATE - gbTimer;
 
         if (remainder >= 0.002f)
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 #endif
 
-    if (fpsTimer >= 1.0)
+    if (secondsTimer >= 1.0)
     {
-        double fps = frameCount / fpsTimer;
-        double avgFrameTimeMs = (frameTimes / frameCount) * 1000;
+        const double totalGBFrames = static_cast<double>(cycleCount) / GBCore::CYCLES_PER_FRAME;
+        const double avgGBExecuteTime = (executeTimes / totalGBFrames) * 1000;
+        const double fps = frameCount / secondsTimer;
 
         std::ostringstream oss;
-        oss << "FPS: " << std::fixed << std::setprecision(2) << fps << " - " << avgFrameTimeMs << " ms";
+        oss << "FPS: " << std::fixed << std::setprecision(2) << fps << " - " << avgGBExecuteTime << " ms";
         FPS_text = oss.str();
 
 #ifndef  EMSCRIPTEN
         updateWindowTitle();
 #endif 
 
+        cycleCount = 0;
         frameCount = 0;
-        frameTimes = 0;
-        fpsTimer = 0;
+        executeTimes = 0;
+        secondsTimer = 0;
 
         if (!gbCore.emulationPaused && appConfig::autosaveState)
             gbCore.autoSave(); // Autosave once a second.
@@ -997,7 +1002,7 @@ int main(int argc, char* argv[])
     {
         if (appConfig::loadLastROM && !appConfig::romPath.empty())
         {
-            int saveNum = appConfig::saveStateNum;
+            const int saveNum = appConfig::saveStateNum;
 
             if (loadFile(FileUtils::nativePath(appConfig::romPath)))
             {

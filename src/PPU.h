@@ -225,8 +225,8 @@ public:
 	constexpr const uint8_t* getFrameBuffer() const { return framebuffer.data(); }
 	void (*drawCallback)(const uint8_t* framebuffer) { nullptr };
 
-	inline PPUMode getMode() const { return s.state; }
-	inline uint16_t getCycles() const { return s.videoCycles; }
+	constexpr PPUMode getMode() const { return s.state; }
+	constexpr uint16_t getCycles() const { return s.videoCycles; }
 
 	dmgRegs regs{};
 	gbcRegs gbcRegs{};

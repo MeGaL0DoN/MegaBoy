@@ -2,7 +2,6 @@
 #include "Utils/bitOps.h"
 #include <iostream>
 #include <algorithm>
-#include <optional>
 
 template class PPUCore<GBSystem::DMG>;
 template class PPUCore<GBSystem::GBC>;
@@ -579,16 +578,14 @@ void PPUCore<sys>::renderFIFOs()
 		bgFIFO.s.scanlineDiscardPixels--;
 	else
 	{
-		std::optional<FIFOEntry> objFifoEnt = objFIFO.empty() ? std::nullopt : std::make_optional(objFIFO.pop());
-
 		if constexpr (sys == GBSystem::DMG)
 			if (!DMGTileMapsEnable()) bg.color = 0;
 
 		color outputColor;
 
-		if (objFifoEnt.has_value())
+		if (!objFIFO.empty())
 		{
-			const auto obj = objFifoEnt.value();
+			const auto obj = objFIFO.pop();
 			bool objHasPriority = obj.color != 0 && OBJEnable();
 
 			if constexpr (sys == GBSystem::DMG)

@@ -138,7 +138,7 @@ uint8_t CPU::execute()
 	if (handleGHDMA()) [[unlikely]]
 		return 1;
 
-	opcode = read8(s.PC);
+	opcode = fetch8();
 
 	if (s.halt_bug) [[unlikely]]
 	{
@@ -153,18 +153,16 @@ uint8_t CPU::execute()
 
 void CPU::executeMain()
 {
-	uint8_t outRegInd = opcode & 0x07;
-	uint8_t inRegInd = (opcode >> 3) & 0x07;
+	#define outRegInd (opcode & 0x07)
+	#define inRegInd ((opcode >> 3) & 0x07)
 
 	switch (opcode)
 	{
 	// 0x00: NOP
 	case 0x00:
-		s.PC++;
-		cycles = 1;
 		break;
 	case 0x01: 
-		instructions->loadToReg(registers.BC, read16(s.PC + 1));
+		instructions->loadToReg(registers.BC, fetch16());
 		break;
 	case 0x02: 
 		instructions->loadToAddr(registers.BC, registers.A);
@@ -179,13 +177,13 @@ void CPU::executeMain()
 		instructions->DECR(registers.B.val);
 		break;
 	case 0x06: 
-		instructions->loadToReg(registers.B, read8(s.PC + 1));
+		instructions->loadToReg(registers.B, fetch8());
 		break;
 	case 0x07:
 		instructions->RLCA();
 		break;
 	case 0x08:
-		instructions->loadToAddr(read16(s.PC + 1), s.SP);
+		instructions->loadToAddr(fetch16(), s.SP);
 		break;
 	case 0x09:
 		instructions->addToHL(registers.BC);
@@ -203,7 +201,7 @@ void CPU::executeMain()
 		instructions->DECR(registers.C.val);
 		break;
 	case 0x0E:
-		instructions->loadToReg(registers.C, read8(s.PC + 1));
+		instructions->loadToReg(registers.C, fetch8());
 		break;
 	case 0x0F:
 		instructions->RRCA();
@@ -212,7 +210,7 @@ void CPU::executeMain()
 		instructions->STOP();
 		break;
 	case 0x11:
-		instructions->loadToReg(registers.DE, read16(s.PC + 1));
+		instructions->loadToReg(registers.DE, fetch16());
 		break;
 	case 0x12:  
 		instructions->loadToAddr(registers.DE, registers.A); 
@@ -227,13 +225,13 @@ void CPU::executeMain()
 		instructions->DECR(registers.D.val);
 		break;
 	case 0x16:
-		instructions->loadToReg(registers.D, read8(s.PC + 1));
+		instructions->loadToReg(registers.D, fetch8());
 		break;
 	case 0x17:
 		instructions->RLA();
 		break;
 	case 0x18:
-		instructions->JR(read8(s.PC + 1));
+		instructions->JR(fetch8());
 		break;
 	case 0x19:
 		instructions->addToHL(registers.DE);
@@ -251,16 +249,16 @@ void CPU::executeMain()
 		instructions->DECR(registers.E.val);
 		break;
 	case 0x1E:
-		instructions->loadToReg(registers.E, read8(s.PC + 1));
+		instructions->loadToReg(registers.E, fetch8());
 		break;
 	case 0x1F:
 		instructions->RRA();
 		break;
 	case 0x20:
-		instructions->JR_CON(!registers.getFlag(FlagType::Zero), read8(s.PC + 1));
+		instructions->JR_CON(!registers.getFlag(FlagType::Zero), fetch8());
 		break;
 	case 0x21:
-		instructions->loadToReg(registers.HL, read16(s.PC + 1));
+		instructions->loadToReg(registers.HL, fetch16());
 		break;
 	case 0x22:
 		instructions->LD_HLI_A();
@@ -275,13 +273,13 @@ void CPU::executeMain()
 		instructions->DECR(registers.H.val);
 		break;
 	case 0x26:
-		instructions->loadToReg(registers.H, read8(s.PC + 1));
+		instructions->loadToReg(registers.H, fetch8());
 		break;
 	case 0x27:
 		instructions->DAA();
 		break;
 	case 0x28:
-		instructions->JR_CON(registers.getFlag(FlagType::Zero), read8(s.PC + 1));
+		instructions->JR_CON(registers.getFlag(FlagType::Zero), fetch8());
 		break;
 	case 0x29:
 		instructions->addToHL(registers.HL);
@@ -299,16 +297,16 @@ void CPU::executeMain()
 		instructions->DECR(registers.L.val);
 		break;
 	case 0x2E:
-		instructions->loadToReg(registers.L, read8(s.PC + 1));
+		instructions->loadToReg(registers.L, fetch8());
 		break;
 	case 0x2F:
 		instructions->CPL();
 		break;
 	case 0x30:
-		instructions->JR_CON(!registers.getFlag(FlagType::Carry), read8(s.PC + 1));
+		instructions->JR_CON(!registers.getFlag(FlagType::Carry), fetch8());
 		break;
 	case 0x31:
-		instructions->loadToReg(s.SP, read16(s.PC + 1));
+		instructions->loadToReg(s.SP, fetch16());
 		break;
 	case 0x32:
 		instructions->LD_HLD_A();
@@ -323,13 +321,13 @@ void CPU::executeMain()
 		instructions->DECR_HL();
 		break;
 	case 0x36:
-		instructions->loadToAddr(registers.HL.val, read8(s.PC + 1));
+		instructions->loadToAddr(registers.HL.val, fetch8());
 		break;
 	case 0x37:
 		instructions->SCF();
 		break;
 	case 0x38:
-		instructions->JR_CON(registers.getFlag(FlagType::Carry), read8(s.PC + 1));
+		instructions->JR_CON(registers.getFlag(FlagType::Carry), fetch8());
 		break;
 	case 0x39:
 		instructions->addToHL(s.SP);
@@ -347,7 +345,7 @@ void CPU::executeMain()
 		instructions->DECR(registers.A.val);
 		break;
 	case 0x3E:
-		instructions->loadToReg(registers.A, read8(s.PC + 1));
+		instructions->loadToReg(registers.A, fetch8());
 		break;
 	case 0x3F:
 		instructions->CCF();
@@ -518,19 +516,19 @@ void CPU::executeMain()
 		instructions->POP(registers.BC.val);
 		break;
 	case 0xC2:
-		instructions->JP_CON(!registers.getFlag(FlagType::Zero), read16(s.PC + 1));
+		instructions->JP_CON(!registers.getFlag(FlagType::Zero), fetch16());
 		break;
 	case 0xC3:
-		instructions->JP(read16(s.PC + 1)); 
+		instructions->JP(fetch16()); 
 		break;
 	case 0xC4:
-		instructions->CALL_CON(!registers.getFlag(FlagType::Zero), read16(s.PC + 1));
+		instructions->CALL_CON(!registers.getFlag(FlagType::Zero), fetch16());
 		break;
 	case 0xC5:
 		instructions->PUSH(registers.BC.val);
 		break;
 	case 0xC6:
-		instructions->ADD(registers.A, read8(s.PC + 1));
+		instructions->ADD(registers.A, fetch8());
 		break;
 	case 0xC7:
 		instructions->RST(0x00);
@@ -542,20 +540,20 @@ void CPU::executeMain()
 		instructions->RET();
 		break;
 	case 0xCA:
-		instructions->JP_CON(registers.getFlag(FlagType::Zero), read16(s.PC + 1));
+		instructions->JP_CON(registers.getFlag(FlagType::Zero), fetch16());
 		break;
 	case 0xCB: // PREFIXED OPCODES
-		opcode = read8(++s.PC);
+		opcode = fetch8();
 		executePrefixed();
 		break;
 	case 0xCC:
-		instructions->CALL_CON(registers.getFlag(FlagType::Zero), read16(s.PC + 1));
+		instructions->CALL_CON(registers.getFlag(FlagType::Zero), fetch16());
 		break;
 	case 0xCD:
-		instructions->CALL(read16(s.PC + 1));
+		instructions->CALL(fetch16());
 		break;
 	case 0xCE:
-		instructions->ADC(registers.A, read8(s.PC + 1));
+		instructions->ADC(registers.A, fetch8());
 		break;
 	case 0xCF:
 		instructions->RST(0x08);
@@ -567,16 +565,16 @@ void CPU::executeMain()
 		instructions->POP(registers.DE.val);
 		break;
 	case 0xD2:
-		instructions->JP_CON(!registers.getFlag(FlagType::Carry), read16(s.PC + 1));
+		instructions->JP_CON(!registers.getFlag(FlagType::Carry), fetch16());
 		break;
 	case 0xD4:
-		instructions->CALL_CON(!registers.getFlag(FlagType::Carry), read16(s.PC + 1));
+		instructions->CALL_CON(!registers.getFlag(FlagType::Carry), fetch16());
 		break;
 	case 0xD5:
 		instructions->PUSH(registers.DE.val);
 		break;
 	case 0xD6:
-		instructions->SUB(registers.A, read8(s.PC + 1));
+		instructions->SUB(registers.A, fetch8());
 		break;
 	case 0xD7:
 		instructions->RST(0x10);
@@ -588,19 +586,19 @@ void CPU::executeMain()
 		instructions->RET1();
 		break;
 	case 0xDA:
-		instructions->JP_CON(registers.getFlag(FlagType::Carry), read16(s.PC + 1));
+		instructions->JP_CON(registers.getFlag(FlagType::Carry), fetch16());
 		break;
 	case 0xDC:
-		instructions->CALL_CON(registers.getFlag(FlagType::Carry), read16(s.PC + 1));
+		instructions->CALL_CON(registers.getFlag(FlagType::Carry), fetch16());
 		break;
 	case 0xDE:
-		instructions->SBC(registers.A, read8(s.PC + 1));
+		instructions->SBC(registers.A, fetch8());
 		break;
 	case 0xDF:
 		instructions->RST(0x18);
 		break;
 	case 0xE0: 
-		instructions->LD_OFFSET_A(read8(s.PC + 1));
+		instructions->LD_OFFSET_A(fetch8());
 		break;
 	case 0xE1:
 		instructions->POP(registers.HL.val);
@@ -612,28 +610,28 @@ void CPU::executeMain()
 		instructions->PUSH(registers.HL.val);
 		break;
 	case 0xE6:
-		instructions->AND(registers.A, read8(s.PC + 1));
+		instructions->AND(registers.A, fetch8());
 		break;
 	case 0xE7:
 		instructions->RST(0x20);
 		break;
 	case 0xE8:
-		instructions->addToSP(read8(s.PC + 1));
+		instructions->addToSP(fetch8());
 		break;
 	case 0xE9:
 		instructions->JP(registers.HL);
 		break;
 	case 0xEA:
-		instructions->loadToAddr(read16(s.PC + 1), registers.A);
+		instructions->loadToAddr(fetch16(), registers.A);
 		break;
 	case 0xEE:
-		instructions->XOR(registers.A, read8(s.PC + 1));
+		instructions->XOR(registers.A, fetch8());
 		break;
 	case 0xEF:
 		instructions->RST(0x28);
 		break;
 	case 0xF0: 
-		instructions->LD_A_OFFSET(read8(s.PC + 1));
+		instructions->LD_A_OFFSET(fetch8());
 		break;
 	case 0xF1:
 		instructions->POP_AF();
@@ -648,39 +646,36 @@ void CPU::executeMain()
 		instructions->PUSH(registers.AF.val);
 		break;
 	case 0xF6:
-		instructions->OR(registers.A, read8(s.PC + 1));
+		instructions->OR(registers.A, fetch8());
 		break;
 	case 0xF7:
 		instructions->RST(0x30);
 		break;
 	case 0xF8:
-		instructions->LD_HL_SP(read8(s.PC + 1));
+		instructions->LD_HL_SP(fetch8());
 		break;
 	case 0xF9:
 		instructions->LD_SP_HL();
 		break;
 	case 0xFA:
-		instructions->loadToReg(registers.A, read16(s.PC + 1));
+		instructions->loadToReg(registers.A, fetch16());
 		break;
 	case 0xFB:
 		instructions->EI();
 		break;
 	case 0xFE:
-		instructions->CP(registers.A, read8(s.PC + 1));
+		instructions->CP(registers.A, fetch8());
 		break;
 	case 0xFF:
 		instructions->RST(0x38);
 		break;
-
-	default:
-		s.PC++;
 	}
 }
 
 void CPU::executePrefixed()
 {
-	const uint8_t regInd = opcode & 0x07;
-	const uint8_t bit = (opcode >> 3) & 0x07;
+	#define regInd (opcode & 0x07)
+	#define bit ((opcode >> 3) & 0x07)
 
 	switch (opcode)
 	{
@@ -972,8 +967,5 @@ void CPU::executePrefixed()
 	case 0xFF:
 		instructions->SET(bit, regInd);
 		break;
-
-	default:
-		s.PC++;
 	}
 }
