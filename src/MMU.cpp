@@ -108,7 +108,7 @@ void MMU::executeGHDMA()
 		gbc.ghdma.transferLength -= 0x10;
 
 		for (int i = 0; i < 0x10; i++)
-			gbCore.ppu->VRAM[gbc.ghdma.currentDestAddr++] = (this->*dma_nonblocking_read)(gbc.ghdma.currentSourceAddr++);
+			gbCore.ppu->VRAM[gbc.ghdma.currentDestAddr++] = (this->*read_func)(gbc.ghdma.currentSourceAddr++);
 
 		if (gbc.ghdma.transferLength == 0)
 		{

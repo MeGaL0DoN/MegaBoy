@@ -3,7 +3,7 @@
 #include "CPU.h"
 #include "../GBCore.h"
 
-class InstructionsEngine
+class CPUInstructions
 {
 private:
 	CPU* cpu;
@@ -83,7 +83,7 @@ private:
 
 	inline void rlc_base(uint8_t& reg)
 	{
-		uint8_t carry = (reg & 0x80) >> 7;
+		uint8_t carry = reg >> 7;
 		reg <<= 1;
 
 		if (carry) reg |= 1;
@@ -132,8 +132,7 @@ private:
 	}
 
 public:
-	InstructionsEngine() = default;
-	InstructionsEngine(CPU* cp) : cpu(cp) {};
+	CPUInstructions(CPU* cp) : cpu(cp) {};
 
 	inline void INCR(Register16& reg)
 	{
@@ -280,23 +279,23 @@ public:
 		if (regInd == cpu->HL_IND) cpu->addCycle();
 	}
 
-	inline void loadToReg(Register8& reg, uint8_t val)
+	inline void LD(Register8& reg, uint8_t val)
 	{
 		reg = val;
 	}
-	inline void loadToReg(Register16& reg, uint16_t val)
+	inline void LD(Register16& reg, uint16_t val)
 	{
 		reg = val;
 	}
-	inline void loadToReg(Register8& reg, Register16 addr)
+	inline void LD(Register8& reg, Register16 addr)
 	{
 		reg = cpu->read8(addr.val);
 	}
-	inline void loadToReg(Register8& reg, uint16_t addr)
+	inline void LD(Register8& reg, uint16_t addr)
 	{
 		reg = cpu->read8(addr);
 	}
-	inline void loadToReg(uint8_t inInd, uint8_t outInd)
+	inline void LD(uint8_t inInd, uint8_t outInd)
 	{
 		uint8_t& inReg = cpu->getRegister(inInd);
 		uint8_t outReg = cpu->getRegister(outInd);
@@ -310,19 +309,20 @@ public:
 		}
 	}
 
-	inline void loadToAddr(Register16 addr, Register8 reg)
+	inline void LD_MEM(Register16 addr, Register8 reg)
 	{
 		cpu->write8(addr.val, reg.val);
 	}
-	inline void loadToAddr(uint16_t addr, uint8_t val)
+	inline void LD_MEM(uint16_t addr, uint8_t val)
 	{
 		cpu->write8(addr, val);
 	}
-	inline void loadToAddr(uint16_t addr, Register16 reg)
+	inline void LD_MEM(uint16_t addr, Register16 reg)
 	{
-		cpu->write16(addr, reg.val);
+		cpu->write8(addr, reg.val & 0xFF);
+		cpu->write8(addr + 1, reg.val >> 8);
 	}
-	inline void loadToAddr(uint16_t addr, Register8 reg)
+	inline void LD_MEM(uint16_t addr, Register8 reg)
 	{
 		cpu->write8(addr, reg.val);
 	}
@@ -333,7 +333,7 @@ public:
 	}
 	inline void LD_A_C() 
 	{
-		loadToReg(cpu->registers.A, Register16 { static_cast<uint16_t>(0xFF00 + cpu->registers.C.val) });
+		LD(cpu->registers.A, Register16 { static_cast<uint16_t>(0xFF00 + cpu->registers.C.val) });
 	}
 
 	inline void LD_SP_HL()
@@ -360,23 +360,23 @@ public:
 
 	inline void LD_HLI_A()
 	{
-		loadToAddr(cpu->registers.HL, cpu->registers.A);
+		LD_MEM(cpu->registers.HL, cpu->registers.A);
 		cpu->registers.HL.val++;
 	}
 	inline void LD_HLD_A()
 	{
-		loadToAddr(cpu->registers.HL, cpu->registers.A);
+		LD_MEM(cpu->registers.HL, cpu->registers.A);
 		cpu->registers.HL.val--;
 	}
 
 	inline void LD_A_HLI()
 	{
-		loadToReg(cpu->registers.A, cpu->registers.HL);
+		LD(cpu->registers.A, cpu->registers.HL);
 		cpu->registers.HL.val++;
 	}
 	inline void LD_A_HLD()
 	{
-		loadToReg(cpu->registers.A, cpu->registers.HL);
+		LD(cpu->registers.A, cpu->registers.HL);
 		cpu->registers.HL.val--;
 	}
 
@@ -464,14 +464,19 @@ public:
 			cpu->write8(cpu->registers.HL.val, reg);
 		}
 	}
-	inline void SRA(uint8_t regInd)
+
+	template <bool arithmetic>
+	inline void SR(uint8_t regInd) 
 	{
 		uint8_t& reg = cpu->getRegister(regInd);
 		uint8_t carry = reg & 1;
 		reg >>= 1;
 
-		if (reg & 0x40) 
-			reg |= 0x80;
+		if constexpr (arithmetic) 
+		{
+			if (reg & 0x40)
+				reg |= 0x80;
+		}
 
 		cpu->registers.resetFlags();
 		cpu->registers.setFlag(Carry, carry);
@@ -483,14 +488,9 @@ public:
 			cpu->write8(cpu->registers.HL.val, reg);
 		}
 	}
-	inline void SRL(uint8_t regInd)
-	{
-		SRA(regInd);
-		uint8_t reg = (cpu->getRegister(regInd) &= 0x7F);
 
-		if (regInd == cpu->HL_IND)
-			cpu->gbCore.mmu.write8(cpu->registers.HL.val, reg); // Already 4 cycles
-	}
+	inline void SRA(uint8_t regInd) { SR<true>(regInd); }
+	inline void SRL(uint8_t regInd) { SR<false>(regInd); }
 
 	inline void SWAP(uint8_t regInd)
 	{
@@ -568,7 +568,7 @@ public:
 	{
 		cpu->s.IME = false;
 	}
-	inline void DAA() // TO CHECK
+	inline void DAA()
 	{
 		if (cpu->registers.getFlag(Subtract)) 
 		{
@@ -632,9 +632,9 @@ public:
 			JR(val);
 	}
 
-	inline void JP(Register16 addr)
+	inline void JP(Register16 reg)
 	{
-		cpu->s.PC = addr.val;
+		cpu->s.PC = reg.val;
 	}
 	inline void JP(uint16_t addr) 
 	{
@@ -649,8 +649,8 @@ public:
 
 	inline void POP(uint16_t& val) 
 	{
-		val = cpu->read16(cpu->s.SP.val);
-		cpu->s.SP.val += 2;
+		val = static_cast<uint16_t>(cpu->read8(cpu->s.SP.val++));
+		val |= (cpu->read8(cpu->s.SP.val++) << 8);
 	}
 	inline void POP_AF()
 	{
@@ -660,9 +660,9 @@ public:
 	}
 	inline void PUSH(uint16_t val) 
 	{
-		cpu->s.SP.val -= 2;
 		cpu->addCycle();
-		cpu->write16(cpu->s.SP.val, val);
+		cpu->write8(--cpu->s.SP.val, val >> 8);
+		cpu->write8(--cpu->s.SP.val, val & 0xFF);
 	}
 
 	inline void RET()

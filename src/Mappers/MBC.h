@@ -9,7 +9,7 @@
 struct MBCstate
 {
 	bool ramEnable{ false };
-	uint8_t romBank { 2 };
+	uint8_t romBank { 1 };
 };
 
 // mbc state class template

@@ -14,7 +14,7 @@ enum class Interrupt : uint8_t
 	Joypad = 4
 };
 
-class InstructionsEngine;
+class CPUInstructions;
 class GBCore;
 
 class CPU
@@ -27,7 +27,7 @@ public:
 	explicit CPU(GBCore& gbCore);
 	~CPU();
 
-	friend InstructionsEngine;
+	friend CPUInstructions;
 	friend class MMU;
 	friend class debugUI;
 
@@ -71,16 +71,6 @@ private:
 
 	void write8(uint16_t addr, uint8_t val);
 	uint8_t read8(uint16_t addr);
-
-	inline void write16(uint16_t addr, uint16_t val)
-	{
-		write8(addr, val & 0xFF);
-		write8(addr + 1, val >> 8);
-	}
-	inline uint16_t read16(uint16_t addr) 
-	{
-		return (read8(addr + 1) << 8) | read8(addr);
-	}
 
 	inline uint8_t fetch8()
 	{
@@ -160,5 +150,5 @@ private:
 	uint8_t tCyclesPerM { 0 };
 	bool executingBootROM { false };
 
-	std::unique_ptr<InstructionsEngine> instructions;
+	std::unique_ptr<CPUInstructions> instructions;
 };

@@ -28,11 +28,11 @@ void MBC5::write(uint16_t addr, uint8_t val)
 	}
 	else if (addr <= 0x2FFF)
 	{
-		s.romBank = (s.romBank & 0xFF00) | val;
+		s.romBank = (s.romBank & 0x100) | val;
 	}
 	else if (addr <= 0x3FFF)
 	{		
-		s.romBank = setBit(s.romBank, 9, val & 1);
+		s.romBank = setBit(s.romBank, 8, val & 1);
 	}
 	else if (addr <= 0x5FFF)
 	{

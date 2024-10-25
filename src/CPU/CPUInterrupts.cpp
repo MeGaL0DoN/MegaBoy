@@ -1,6 +1,6 @@
 #include "CPU.h"
 #include "../Utils/bitOps.h"
-#include "instructionsEngine.h"
+#include "CPUInstructions.h"
 #include "../GBCore.h"
 
 bool CPU::interruptsPending()

@@ -1,10 +1,10 @@
 #include <cassert>
 #include "CPU.h"
-#include "instructionsEngine.h"
+#include "CPUInstructions.h"
 #include "../defines.h"
 #include "../GBCore.h"
 
-CPU::CPU(GBCore& gbCore) : gbCore(gbCore), instructions(std::make_unique<InstructionsEngine>(this))
+CPU::CPU(GBCore& gbCore) : gbCore(gbCore), instructions(std::make_unique<CPUInstructions>(this))
 {
 	reset();
 }
@@ -151,10 +151,10 @@ void CPU::executeMain()
 	case 0x00:
 		break;
 	case 0x01: 
-		instructions->loadToReg(registers.BC, fetch16());
+		instructions->LD(registers.BC, fetch16());
 		break;
 	case 0x02: 
-		instructions->loadToAddr(registers.BC, registers.A);
+		instructions->LD_MEM(registers.BC, registers.A);
 		break;
 	case 0x03: 
 		instructions->INCR(registers.BC);
@@ -166,19 +166,19 @@ void CPU::executeMain()
 		instructions->DECR(registers.B.val);
 		break;
 	case 0x06: 
-		instructions->loadToReg(registers.B, fetch8());
+		instructions->LD(registers.B, fetch8());
 		break;
 	case 0x07:
 		instructions->RLCA();
 		break;
 	case 0x08:
-		instructions->loadToAddr(fetch16(), s.SP);
+		instructions->LD_MEM(fetch16(), s.SP);
 		break;
 	case 0x09:
 		instructions->addToHL(registers.BC);
 		break;
 	case 0x0A:
-		instructions->loadToReg(registers.A, registers.BC); 
+		instructions->LD(registers.A, registers.BC); 
 		break;
 	case 0x0B:
 		instructions->DECR(registers.BC);
@@ -190,7 +190,7 @@ void CPU::executeMain()
 		instructions->DECR(registers.C.val);
 		break;
 	case 0x0E:
-		instructions->loadToReg(registers.C, fetch8());
+		instructions->LD(registers.C, fetch8());
 		break;
 	case 0x0F:
 		instructions->RRCA();
@@ -199,10 +199,10 @@ void CPU::executeMain()
 		instructions->STOP();
 		break;
 	case 0x11:
-		instructions->loadToReg(registers.DE, fetch16());
+		instructions->LD(registers.DE, fetch16());
 		break;
 	case 0x12:  
-		instructions->loadToAddr(registers.DE, registers.A); 
+		instructions->LD_MEM(registers.DE, registers.A); 
 		break;
 	case 0x13:
 		instructions->INCR(registers.DE);
@@ -214,7 +214,7 @@ void CPU::executeMain()
 		instructions->DECR(registers.D.val);
 		break;
 	case 0x16:
-		instructions->loadToReg(registers.D, fetch8());
+		instructions->LD(registers.D, fetch8());
 		break;
 	case 0x17:
 		instructions->RLA();
@@ -226,7 +226,7 @@ void CPU::executeMain()
 		instructions->addToHL(registers.DE);
 		break;
 	case 0x1A:
-		instructions->loadToReg(registers.A, registers.DE);
+		instructions->LD(registers.A, registers.DE);
 		break;
 	case 0x1B:
 		instructions->DECR(registers.DE);
@@ -238,7 +238,7 @@ void CPU::executeMain()
 		instructions->DECR(registers.E.val);
 		break;
 	case 0x1E:
-		instructions->loadToReg(registers.E, fetch8());
+		instructions->LD(registers.E, fetch8());
 		break;
 	case 0x1F:
 		instructions->RRA();
@@ -247,7 +247,7 @@ void CPU::executeMain()
 		instructions->JR_CON(!registers.getFlag(FlagType::Zero), fetch8());
 		break;
 	case 0x21:
-		instructions->loadToReg(registers.HL, fetch16());
+		instructions->LD(registers.HL, fetch16());
 		break;
 	case 0x22:
 		instructions->LD_HLI_A();
@@ -262,7 +262,7 @@ void CPU::executeMain()
 		instructions->DECR(registers.H.val);
 		break;
 	case 0x26:
-		instructions->loadToReg(registers.H, fetch8());
+		instructions->LD(registers.H, fetch8());
 		break;
 	case 0x27:
 		instructions->DAA();
@@ -286,7 +286,7 @@ void CPU::executeMain()
 		instructions->DECR(registers.L.val);
 		break;
 	case 0x2E:
-		instructions->loadToReg(registers.L, fetch8());
+		instructions->LD(registers.L, fetch8());
 		break;
 	case 0x2F:
 		instructions->CPL();
@@ -295,7 +295,7 @@ void CPU::executeMain()
 		instructions->JR_CON(!registers.getFlag(FlagType::Carry), fetch8());
 		break;
 	case 0x31:
-		instructions->loadToReg(s.SP, fetch16());
+		instructions->LD(s.SP, fetch16());
 		break;
 	case 0x32:
 		instructions->LD_HLD_A();
@@ -310,7 +310,7 @@ void CPU::executeMain()
 		instructions->DECR_HL();
 		break;
 	case 0x36:
-		instructions->loadToAddr(registers.HL.val, fetch8());
+		instructions->LD_MEM(registers.HL.val, fetch8());
 		break;
 	case 0x37:
 		instructions->SCF();
@@ -334,7 +334,7 @@ void CPU::executeMain()
 		instructions->DECR(registers.A.val);
 		break;
 	case 0x3E:
-		instructions->loadToReg(registers.A, fetch8());
+		instructions->LD(registers.A, fetch8());
 		break;
 	case 0x3F:
 		instructions->CCF();
@@ -403,7 +403,7 @@ void CPU::executeMain()
 	case 0x7D:
 	case 0x7E:
 	case 0x7F:
-		instructions->loadToReg(inRegInd, outRegInd);
+		instructions->LD(inRegInd, outRegInd);
 		break;
 
 	case 0x76:
@@ -611,7 +611,7 @@ void CPU::executeMain()
 		instructions->JP(registers.HL);
 		break;
 	case 0xEA:
-		instructions->loadToAddr(fetch16(), registers.A);
+		instructions->LD_MEM(fetch16(), registers.A);
 		break;
 	case 0xEE:
 		instructions->XOR(registers.A, fetch8());
@@ -647,7 +647,7 @@ void CPU::executeMain()
 		instructions->LD_SP_HL();
 		break;
 	case 0xFA:
-		instructions->loadToReg(registers.A, fetch16());
+		instructions->LD(registers.A, fetch16());
 		break;
 	case 0xFB:
 		instructions->EI();
