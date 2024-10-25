@@ -188,6 +188,12 @@ void PPUCore<sys>::SetPPUMode(PPUMode PPUState)
 	case PPUMode::HBlank:
 		s.HBLANK_CYCLES = TOTAL_SCANLINE_CYCLES - OAM_SCAN_CYCLES - s.videoCycles;
 		canAccessOAM = true; canAccessVRAM = true;
+
+		if constexpr (sys == GBSystem::GBC)
+		{
+			if (mmu.gbc.ghdma.status == GHDMAStatus::HDMA) 
+				mmu.gbc.ghdma.active = true;
+		}
 		break;
 	case PPUMode::VBlank:
 		s.VBLANK_CYCLES = DEFAULT_VBLANK_CYCLES;
@@ -239,6 +245,12 @@ void PPUCore<sys>::execute(uint8_t cycles)
 template <GBSystem sys>
 void PPUCore<sys>::handleHBlank()
 {
+	if constexpr (sys == GBSystem::GBC)
+	{
+		if (s.videoCycles == MMU::GHDMA_BLOCK_CYCLES)
+			mmu.gbc.ghdma.active = false;
+	}
+
 	if (s.videoCycles >= s.HBLANK_CYCLES)
 	{
 		s.LY++;
@@ -349,6 +361,29 @@ void PPUCore<sys>::resetPixelTransferState()
 	bgFIFO.reset();
 	objFIFO.reset();
 	s.xPosCounter = 0;
+}
+
+template <GBSystem sys>
+void PPUCore<sys>::handlePixelTransfer()
+{
+	tryStartSpriteFetcher();
+
+	if (objFIFO.s.fetcherActive)
+		executeObjFetcher();
+	else
+		executeBGFetcher();
+
+	if (!bgFIFO.s.fetchingWindow)
+	{
+		if (WindowEnable() && s.LY >= regs.WY && s.xPosCounter >= regs.WX - 7 && regs.WX != 0)
+		{
+			bgFIFO.reset();
+			bgFIFO.s.fetchingWindow = true;
+		}
+	}
+
+	if (!objFIFO.s.fetchRequested && !bgFIFO.empty())
+		renderFIFOs();
 }
 
 template <GBSystem sys>
@@ -601,32 +636,9 @@ void PPUCore<sys>::renderFIFOs()
 		PixelOps::setPixel(framebuffer.data(), SCR_WIDTH, s.xPosCounter, s.LY, outputColor);
 		s.xPosCounter++;
 
-		if (s.xPosCounter == SCR_WIDTH)
+		if (s.xPosCounter == SCR_WIDTH) [[unlikely]]
 			SetPPUMode(PPUMode::HBlank);
 	}
-}
-
-template <GBSystem sys>
-void PPUCore<sys>::handlePixelTransfer()
-{
-	tryStartSpriteFetcher();
-
-	if (objFIFO.s.fetcherActive)
-		executeObjFetcher();
-	else
-		executeBGFetcher();
-
-	if (!bgFIFO.s.fetchingWindow)
-	{
-		if (WindowEnable() && s.LY >= regs.WY && s.xPosCounter >= regs.WX - 7 && regs.WX != 0)
-		{
-			bgFIFO.reset();
-			bgFIFO.s.fetchingWindow = true;
-		}
-	}
-
-	if (!objFIFO.s.fetchRequested && !bgFIFO.empty())
-		renderFIFOs();
 }
 
 

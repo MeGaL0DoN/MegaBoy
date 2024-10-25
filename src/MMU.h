@@ -61,6 +61,7 @@ public:
 		uint16_t transferLength{ 0xFF };
 		uint8_t cycles{ 0x00 };
 		GHDMAStatus status { GHDMAStatus::None };
+		bool active { false };
 	};
 
 	struct DMGstate
@@ -72,7 +73,7 @@ public:
 
 	struct GBCState
 	{
-		GHDMAstate hdma{};
+		GHDMAstate ghdma{};
 		uint8_t wramBank{ 1 };
 
 		// undocumented CGB registers

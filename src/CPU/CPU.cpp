@@ -106,20 +106,6 @@ bool CPU::handleHaltedState()
 	return true;
 }
 
-bool CPU::handleGHDMA()
-{
-	if (gbCore.mmu.gbc.hdma.status != GHDMAStatus::None) [[unlikely]]
-	{
-		if (gbCore.mmu.gbc.hdma.status == GHDMAStatus::GDMA || (gbCore.ppu->getMode() == PPUMode::HBlank && gbCore.ppu->getCycles() < MMU::GHDMA_BLOCK_CYCLES))
-		{
-			gbCore.mmu.executeGHDMA();
-			return true;
-		}
-	}
-
-	return false;
-}
-
 #define T_CYCLES (cycles * (s.GBCdoubleSpeed ? 2 : 4))
 
 uint8_t CPU::execute()
@@ -135,8 +121,11 @@ uint8_t CPU::execute()
 	if (handleHaltedState()) [[unlikely]]
 		return T_CYCLES;
 
-	if (handleGHDMA()) [[unlikely]]
-		return 1;
+	if (gbCore.mmu.gbc.ghdma.active) [[unlikely]]
+	{
+		addCycle();
+		return T_CYCLES;
+	}
 
 	opcode = fetch8();
 

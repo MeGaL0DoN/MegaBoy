@@ -51,8 +51,8 @@ private:
 	void handleOAMSearch();
 	void handleHBlank();
 	void handleVBlank();
-
 	void handlePixelTransfer();
+
 	void resetPixelTransferState();
 
 	void tryStartSpriteFetcher();

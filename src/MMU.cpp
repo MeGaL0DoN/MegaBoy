@@ -48,7 +48,9 @@ void MMU::loadState(std::ifstream& st)
 
 void MMU::execute()
 {
-	if (s.dma.transfer)
+	if (gbc.ghdma.active) [[unlikely]]
+		executeGHDMA();
+	else if (s.dma.transfer) [[unlikely]]
 		executeDMA();
 
 	if (s.statRegChanged) [[unlikely]]
@@ -98,18 +100,21 @@ void MMU::executeDMA()
 
 void MMU::executeGHDMA()
 {
-	gbc.hdma.cycles += gbCore.cpu.TcyclesPerM();
+	gbc.ghdma.cycles += gbCore.cpu.TcyclesPerM();
 
-	if (gbc.hdma.cycles >= GHDMA_BLOCK_CYCLES)
+	if (gbc.ghdma.cycles >= GHDMA_BLOCK_CYCLES)
 	{
-		gbc.hdma.cycles -= GHDMA_BLOCK_CYCLES;
-		gbc.hdma.transferLength -= 0x10;
+		gbc.ghdma.cycles -= GHDMA_BLOCK_CYCLES;
+		gbc.ghdma.transferLength -= 0x10;
 
 		for (int i = 0; i < 0x10; i++)
-			gbCore.ppu->VRAM[gbc.hdma.currentDestAddr++] = (this->*dma_nonblocking_read)(gbc.hdma.currentSourceAddr++);
+			gbCore.ppu->VRAM[gbc.ghdma.currentDestAddr++] = (this->*dma_nonblocking_read)(gbc.ghdma.currentSourceAddr++);
 
-		if (gbc.hdma.transferLength == 0)
-			gbc.hdma.status = GHDMAStatus::None;
+		if (gbc.ghdma.transferLength == 0)
+		{
+			gbc.ghdma.status = GHDMAStatus::None;
+			gbc.ghdma.active = false;
+		}
 	}
 }
 
@@ -300,36 +305,46 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 		case 0xFF51:
 			if constexpr (sys == GBSystem::GBC)
-				gbc.hdma.sourceAddr = (gbc.hdma.sourceAddr & 0x00FF) | (val << 8);
+				gbc.ghdma.sourceAddr = (gbc.ghdma.sourceAddr & 0x00FF) | (val << 8);
 			break;
 		case 0xFF52:
 			if constexpr (sys == GBSystem::GBC)
-				gbc.hdma.sourceAddr = (gbc.hdma.sourceAddr & 0xFF00) | val;
+				gbc.ghdma.sourceAddr = (gbc.ghdma.sourceAddr & 0xFF00) | val;
 			break;
 		case 0xFF53:
 			if constexpr (sys == GBSystem::GBC)
-				gbc.hdma.destAddr = (gbc.hdma.destAddr & 0x00FF) | (val << 8);
+				gbc.ghdma.destAddr = (gbc.ghdma.destAddr & 0x00FF) | (val << 8);
 			break;
 		case 0xFF54:
 			if constexpr (sys == GBSystem::GBC)
-				gbc.hdma.destAddr = (gbc.hdma.destAddr & 0xFF00) | val;
+				gbc.ghdma.destAddr = (gbc.ghdma.destAddr & 0xFF00) | val;
 			break;
 		case 0xFF55:
 			if constexpr (sys == GBSystem::GBC)
 			{
-				if (gbc.hdma.status != GHDMAStatus::None)
+				if (gbc.ghdma.status != GHDMAStatus::None)
 				{
 					if (!getBit(val, 7))
-						gbc.hdma.status = GHDMAStatus::None;
+						gbc.ghdma.status = GHDMAStatus::None;
 				}
 				else
 				{
-					gbc.hdma.currentSourceAddr = gbc.hdma.sourceAddr & 0xFFF0;
-					gbc.hdma.currentDestAddr = gbc.hdma.destAddr & 0x1FF0; // ignore 3 upper bits too, because destination is always in VRAM
+					gbc.ghdma.currentSourceAddr = gbc.ghdma.sourceAddr & 0xFFF0;
+					gbc.ghdma.currentDestAddr = gbc.ghdma.destAddr & 0x1FF0; // ignore 3 upper bits too, because destination is always in VRAM
 
-					gbc.hdma.transferLength = ((val & 0x7F) + 1) * 0x10;
-					gbc.hdma.status = getBit(val, 7) ? GHDMAStatus::HDMA : GHDMAStatus::GDMA;
-					gbc.hdma.cycles = 0;
+					gbc.ghdma.transferLength = ((val & 0x7F) + 1) * 0x10;
+					gbc.ghdma.cycles = 0;
+
+					if (getBit(val, 7))
+					{
+						gbc.ghdma.status = GHDMAStatus::HDMA;
+						gbc.ghdma.active = false;
+					}
+					else
+					{
+						gbc.ghdma.status = GHDMAStatus::GDMA;
+						gbc.ghdma.active = true;
+					}
 				}
 			}
 			break;
@@ -550,29 +565,29 @@ uint8_t MMU::read8(uint16_t addr) const
 				return 0xFF;
 		case 0xFF51:
 			if constexpr (sys == GBSystem::GBC)
-				return gbc.hdma.sourceAddr >> 8;
+				return gbc.ghdma.sourceAddr >> 8;
 			else
 				return 0xFF;
 		case 0xFF52:
 			if constexpr (sys == GBSystem::GBC)
-				return gbc.hdma.sourceAddr & 0xFF;
+				return gbc.ghdma.sourceAddr & 0xFF;
 			else
 				return 0xFF;
 		case 0xFF53:
 			if constexpr (sys == GBSystem::GBC)
-				return gbc.hdma.destAddr >> 8;
+				return gbc.ghdma.destAddr >> 8;
 			else
 				return 0xFF;
 		case 0xFF54:
 			if constexpr (sys == GBSystem::GBC)
-				return gbc.hdma.destAddr & 0xFF;
+				return gbc.ghdma.destAddr & 0xFF;
 			else
 				return 0xFF;
 		case 0xFF55:
 			if constexpr (sys == GBSystem::GBC)
 			{
-				const uint8_t lengthVal = (gbc.hdma.transferLength - 1) / 0x10;
-				return ((gbc.hdma.status == GHDMAStatus::None) << 7) | lengthVal;
+				const uint8_t lengthVal = (gbc.ghdma.transferLength - 1) / 0x10;
+				return ((gbc.ghdma.status == GHDMAStatus::None) << 7) | lengthVal;
 			}
 			else
 				return 0xFF;
