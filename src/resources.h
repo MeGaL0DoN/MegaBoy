@@ -31,11 +31,12 @@ in vec2 TexCoord;
 
 uniform sampler2D texture1;
 uniform float alpha;
+uniform float fadeAmount;
 
 void main()
 {
-    vec4 textColor = texture(texture1, TexCoord);
-    FragColor = vec4(textColor.rgb, alpha);
+    vec4 textColor = vec4(texture(texture1, TexCoord).rgb, alpha);
+	FragColor = mix(textColor, vec4(0.0, 0.0, 0.0, textColor.a), fadeAmount);
 }
 
 )";
@@ -62,6 +63,7 @@ R"(precision highp float;
 uniform vec2 TextureSize;
 uniform sampler2D Texture;
 uniform float alpha;
+uniform float fadeAmount;
 
 in vec4 TEX0;
 out vec4 FragColor;
@@ -83,12 +85,13 @@ void main()
    float xfactor = (BRIGHTEN_LCD + sin(angle.x)) / (BRIGHTEN_LCD + 1.0);
 
    // Get colour sample
-   vec3 colour = texture(Texture, TEX0.xy).rgb;
+   vec3 color = texture(Texture, TEX0.xy).rgb;
 
    // Apply LCD grid effect
-   colour.rgb = yfactor * xfactor * colour.rgb;
+   color.rgb = yfactor * xfactor * color.rgb;
 
-   FragColor = vec4(colour.rgb, alpha);
+   vec4 textColor = vec4(color.rgb, alpha);
+   FragColor = mix(textColor, vec4(0.0, 0.0, 0.0, textColor.a), fadeAmount);
 } 
 )";
 
@@ -150,6 +153,8 @@ uniform vec2 OutputSize;
 uniform vec2 TextureSize;
 uniform vec2 InputSize;
 uniform float alpha;
+uniform float fadeAmount;
+
 uniform sampler2D Texture;
 
 out vec4 FragColor;
@@ -411,8 +416,8 @@ vec4 scale(sampler2D image, vec2 coord)
 
 void main()
 {
-	vec4 textColor = scale(Source, vTexCoord);
-    FragColor = vec4(textColor.rgb, alpha);
+	vec4 textColor = vec4(scale(Source, vTexCoord).rgb, alpha);
+    FragColor = mix(textColor, vec4(0.0, 0.0, 0.0, textColor.a), fadeAmount);
 } 
 )";
 

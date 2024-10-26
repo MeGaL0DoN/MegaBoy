@@ -61,11 +61,15 @@ constexpr const char* openFilterItem = ".gb,.gbc,.sav,.mbs,.bin";
 #endif
 
 const char* popupTitle = "";
-bool showPopUp{false};
+bool showPopUp { false };
 
 std::string FPS_text{ "FPS: 00.00 - 0.00 ms" };
 
 extern GBCore gbCore;
+
+constexpr float FADE_DURATION = 0.9f;
+bool fadeEffectActive { false };
+float fadeTime { 0.0f };
 
 double lastFrameTime = glfwGetTime();
 double secondsTimer{};
@@ -154,6 +158,9 @@ inline bool loadFile(const std::filesystem::path& path)
 
 void updateSelectedFilter()
 {
+    if (fadeEffectActive)
+        currentShader->setFloat("fadeAmount", 0.0f);
+
     currentShader = appConfig::filter == 1 ? &lcdShader : appConfig::filter == 2 ? &scalingShader : &regularShader;
 
     if (currentShader->compiled())
@@ -176,6 +183,16 @@ void updateSelectedFilter()
             break;
         }
     }
+}
+
+void resetFade() 
+{
+    if (!fadeEffectActive)
+        return;
+
+    currentShader->setFloat("fadeAmount", 0.0f);
+    fadeTime = 0.0f; 
+    fadeEffectActive = false; 
 }
 
 void drawCallback(const uint8_t* framebuffer)
@@ -592,10 +609,24 @@ void renderImGUI()
     updateImGUIViewports();
 }
 
-void renderGameBoy()
+void renderGameBoy(double deltaTime)
 {
     OpenGL::bindTexture(gbFramebufferTextures[0]);
     currentShader->setFloat("alpha", 1.0f);
+
+    if (fadeEffectActive)
+    {
+        fadeTime += static_cast<float>(deltaTime);
+        const float fadeAmount = fadeTime / FADE_DURATION;
+
+        if (fadeAmount >= 0.95f)
+        {
+            resetFade();
+            loadFile(currentFilePath);
+        }
+        else 
+            currentShader->setFloat("fadeAmount", fadeAmount);
+    }
 
     if (appConfig::blending)
     {
@@ -607,10 +638,10 @@ void renderGameBoy()
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
 }
 
-void render()
+void render(double deltaTime)
 {
     glClear(GL_COLOR_BUFFER_BIT);
-    renderGameBoy();
+    renderGameBoy(deltaTime);
     renderImGUI();
 }
 
@@ -618,45 +649,51 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
 {
     (void)_window; (void)scancode;
 
-    if (action == 1)
+    if (gbCore.cartridge.ROMLoaded)
     {
-        if (key == GLFW_KEY_TAB)
+        if (action == GLFW_PRESS)
         {
-            setEmulationPaused(!gbCore.emulationPaused);
-            return;
-        }
+            if (key == GLFW_KEY_TAB)
+            {
+                resetFade();
+                setEmulationPaused(!gbCore.emulationPaused);
+                return;
+            }
 
-        // number keys 1 though 9
-        if (key >= 49 && key <= 57)
-        {
-            if (!gbCore.cartridge.ROMLoaded) return;
+            // number keys 1 though 9
+            if (key >= 49 && key <= 57)
+            {
+                if (mods & GLFW_MOD_ALT)
+                    gbCore.saveState(key - 48);
 
-            if (mods & GLFW_MOD_ALT)
-                gbCore.saveState(key - 48);
+                else if (mods & GLFW_MOD_SHIFT)
+                    gbCore.loadState(key - 48);
 
-            else if (mods & GLFW_MOD_SHIFT)
-                gbCore.loadState(key - 48);
+                return;
+            }
 
-            return;
-        }
-
-        if (key == GLFW_KEY_Q)
-        {
-            if (gbCore.cartridge.ROMLoaded)
+            if (key == GLFW_KEY_Q)
+            {
                 gbCore.saveState(gbCore.getSaveFolderPath() / "quicksave.mbs");
-
-            return;
-        }
-        if (key == GLFW_KEY_GRAVE_ACCENT)
-        {
-            if (gbCore.cartridge.ROMLoaded)
+                return;
+            }
+            if (key == GLFW_KEY_GRAVE_ACCENT)
+            {
                 loadFile(gbCore.getSaveFolderPath() / "quicksave.mbs");
-
-            return;
+                return;
+            }
         }
+
+        if (key == GLFW_KEY_R)
+        {
+            if (action == GLFW_PRESS)
+                fadeEffectActive = true;
+            else if (action == GLFW_RELEASE)
+                resetFade();
+        }
+
+        gbCore.input.update(key, action);
     }
-    
-    gbCore.input.update(key, action);
 }
 
 void drop_callback(GLFWwindow* _window, int count, const char** paths)
@@ -746,7 +783,7 @@ void window_refresh_callback(GLFWwindow* _window)
 {
     if (!fileDialogOpen)
     {
-        render();
+        render(0);
         glfwSwapBuffers(_window);
     }
 }
@@ -930,7 +967,7 @@ void mainLoop()
         frameCount++;
         gbTimer = appConfig::vsync ? 0 : gbTimer - GBCore::FRAME_RATE;
 
-        render();
+        render(deltaTime);
         glfwSwapBuffers(window);
     }
 
@@ -969,8 +1006,11 @@ void mainLoop()
 
     lastFrameTime = currentFrameTime;
 
-    if (gbCore.emulationPaused || !gbCore.cartridge.ROMLoaded)
-        glfwWaitEvents();
+    if ((gbCore.emulationPaused && !fadeEffectActive) || !gbCore.cartridge.ROMLoaded)
+    {
+        glfwWaitEvents(); // To reduce CPU usage when paused.
+        lastFrameTime = glfwGetTime();
+    }
 }
 
 int main(int argc, char* argv[])
