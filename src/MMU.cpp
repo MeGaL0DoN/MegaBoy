@@ -282,19 +282,19 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 		case 0xFF68:
 			if constexpr (sys == GBSystem::GBC)
-				gbCore.ppu->gbcRegs.BCPS.write(val);
+				gbCore.ppu->gbcRegs.BCPS.writeReg(val);
 			break;
 		case 0xFF69:
 			if constexpr (sys == GBSystem::GBC)
-				PPU::writePaletteRAM(gbCore.ppu->BGpaletteRAM, gbCore.ppu->gbcRegs.BCPS, val);
+				gbCore.ppu->gbcRegs.BCPS.writePaletteRAM(val);
 			break;
 		case 0xFF6A:
 			if constexpr (sys == GBSystem::GBC)
-				gbCore.ppu->gbcRegs.OCPS.write(val);
+				gbCore.ppu->gbcRegs.OCPS.writeReg(val);
 			break;
 		case 0xFF6B:
 			if constexpr (sys == GBSystem::GBC)
-				PPU::writePaletteRAM(gbCore.ppu->OBPpaletteRAM, gbCore.ppu->gbcRegs.OCPS, val);
+				gbCore.ppu->gbcRegs.OCPS.writePaletteRAM(val);
 			break;
 		case 0xFF70:
 			if constexpr (sys == GBSystem::GBC)
@@ -540,22 +540,22 @@ uint8_t MMU::read8(uint16_t addr) const
 				return 0xFF;
 		case 0xFF68:
 			if constexpr (sys == GBSystem::GBC)
-				return gbCore.ppu->gbcRegs.BCPS.read();
+				return gbCore.ppu->gbcRegs.BCPS.readReg();
 			else
 				return 0xFF;
 		case 0xFF69:
 			if constexpr (sys == GBSystem::GBC)
-				return gbCore.ppu->BGpaletteRAM[gbCore.ppu->gbcRegs.BCPS.value];
+				return gbCore.ppu->gbcRegs.BCPS.readPaletteRAM();
 			else
 				return 0xFF;
 		case 0xFF6A:
 			if constexpr (sys == GBSystem::GBC)
-				return gbCore.ppu->gbcRegs.OCPS.read();
+				return gbCore.ppu->gbcRegs.OCPS.readReg();
 			else
 				return 0xFF;
 		case 0xFF6B:
 			if constexpr (sys == GBSystem::GBC)
-				return gbCore.ppu->OBPpaletteRAM[gbCore.ppu->gbcRegs.OCPS.value];
+				return gbCore.ppu->gbcRegs.OCPS.readPaletteRAM();
 			else
 				return 0xFF;
 		case 0xFF70:

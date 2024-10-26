@@ -147,31 +147,54 @@ struct ppuState
 	uint16_t videoCycles{ 0 };
 };
 
-struct addrPaletteReg
+struct ppuGBCPaletteData
 {
-	uint8_t value : 6 { 0x00 };
+	std::array<uint8_t, 64> paletteRAM{};
+	uint8_t regValue{ 0x00 };
 	bool autoIncrement{ false };
 
-	uint8_t read() const
+	inline uint8_t readReg() const
 	{
-		return (static_cast<uint8_t>(autoIncrement) << 7 | value) | 0x40;
+		return (static_cast<uint8_t>(autoIncrement) << 7 | regValue) | 0x40;
 	}
-
-	void write(uint8_t val)
+	inline void writeReg(uint8_t val)
 	{
 		autoIncrement = getBit(val, 7);
-		value = val & 0x3F;
+		regValue = val & 0x3F;
+	}
+
+	inline uint8_t readPaletteRAM() const
+	{
+		return paletteRAM[regValue];
+	}
+	inline void writePaletteRAM(uint8_t val)
+	{
+		paletteRAM[regValue] = val;
+		if (autoIncrement) regValue++;
+	}
+
+	inline void loadState(std::ifstream& st)
+	{
+		ST_READ_ARR(paletteRAM);
+		ST_READ(regValue);
+		ST_READ(autoIncrement);
+	}
+	inline void saveState(std::ofstream& st) const
+	{
+		ST_WRITE_ARR(paletteRAM);
+		ST_WRITE(regValue);
+		ST_WRITE(autoIncrement);
 	}
 };
 
-struct gbcRegs
+struct ppuGBCRegs
 {
 	uint8_t VBK{ 0xFE };
-	addrPaletteReg BCPS{};
-	addrPaletteReg OCPS{};
+	ppuGBCPaletteData BCPS{};
+	ppuGBCPaletteData OCPS{};
 };
 
-struct dmgRegs
+struct ppuDMGRegs
 {
 	uint8_t LCDC{ 0x91 };
 	uint8_t STAT{ 0x85 };
@@ -225,12 +248,8 @@ public:
 	constexpr const uint8_t* getFrameBuffer() const { return framebuffer.data(); }
 	void (*drawCallback)(const uint8_t* framebuffer) { nullptr };
 
-	constexpr PPUMode getMode() const { return s.state; }
-	constexpr uint16_t getCycles() const { return s.videoCycles; }
-
-	dmgRegs regs{};
-	gbcRegs gbcRegs{};
-
+	ppuDMGRegs regs{};
+	ppuGBCRegs gbcRegs{};
 protected:
 	std::array<uint8_t, FRAMEBUFFER_SIZE> framebuffer{};
 
@@ -244,9 +263,6 @@ protected:
 	std::array<uint8_t, 4> OBP0palette{};
 	std::array<uint8_t, 4> OBP1palette{};
 
-	std::array<uint8_t, 64> BGpaletteRAM{};
-	std::array<uint8_t, 64> OBPpaletteRAM{};
-
 	uint8_t objCount{ 0 };
 	std::array<OAMobject, 10> selectedObjects{};
 
@@ -256,12 +272,6 @@ protected:
 
 	bool canAccessOAM{};
 	bool canAccessVRAM{};
-
-	inline static void writePaletteRAM(std::array<uint8_t, 64>& ram, addrPaletteReg& addr, uint8_t val)
-	{
-		ram[addr.value] = val;
-		if (addr.autoIncrement) addr.value++;
-	}
 
 	inline static void updatePalette(uint8_t val, std::array<uint8_t, 4>& palette)
 	{

@@ -87,9 +87,9 @@ private:
 			const uint8_t* paletteRamPtr;
 
 			if constexpr (obj)
-				paletteRamPtr = OBPpaletteRAM.data();
+				paletteRamPtr = gbcRegs.OCPS.paletteRAM.data();
 			else
-				paletteRamPtr = BGpaletteRAM.data();
+				paletteRamPtr = gbcRegs.BCPS.paletteRAM.data();
 
 			const uint8_t paletteRAMInd = palette * 8 + colorID * 2;
 			return color::fromRGB5(paletteRamPtr[paletteRAMInd + 1] << 8 | paletteRamPtr[paletteRAMInd]);

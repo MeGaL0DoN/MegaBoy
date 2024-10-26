@@ -16,15 +16,13 @@ void PPUCore<sys>::reset()
 	if constexpr (sys == GBSystem::GBC)
 	{
 		std::memset(VRAM_BANK1.data(), 0, sizeof(VRAM_BANK1));
-		std::memset(OBPpaletteRAM.data(), 255, sizeof(OBPpaletteRAM));
-		std::memset(BGpaletteRAM.data(), 255, sizeof(BGpaletteRAM));
+		gbcRegs = {};
 	}
 	else if constexpr (sys == GBSystem::DMG)
 		updatePalette(regs.BGP, BGpalette);
 
 	s = {};
 	regs = {};
-	gbcRegs = {};
 
 	clearBuffer();
 	SetPPUMode(PPUMode::VBlank);
@@ -55,8 +53,6 @@ void PPUCore<sys>::saveState(std::ofstream& st)
 	{
 		ST_WRITE(gbcRegs);
 		ST_WRITE_ARR(VRAM_BANK1);
-		ST_WRITE_ARR(BGpaletteRAM);
-		ST_WRITE_ARR(OBPpaletteRAM);
 	}
 
 	ST_WRITE_ARR(VRAM_BANK0);
@@ -84,8 +80,6 @@ void PPUCore<sys>::loadState(std::ifstream& st)
 	{
 		ST_READ(gbcRegs);
 		ST_READ_ARR(VRAM_BANK1);
-		ST_READ_ARR(BGpaletteRAM);
-		ST_READ_ARR(OBPpaletteRAM);
 	}
 	else if constexpr (sys == GBSystem::DMG)
 	{
