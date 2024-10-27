@@ -33,6 +33,10 @@ inline std::string to_string(bool val)
 
 void appConfig::loadConfigFile()
 {
+#ifdef EMSCRIPTEN
+	return; // currently not saving settings persistently on the web
+#endif
+
 	const auto dataFolderPath { FileUtils::executableFolderPath / "data" };
 
 	if (!std::filesystem::exists(dataFolderPath))
@@ -53,6 +57,14 @@ void appConfig::loadConfigFile()
 
 	to_int(palette, "graphics", "palette");
 	to_int(filter, "graphics", "filter");
+
+	for (int i = 0; i < 4; i++)
+	{
+		const std::string section = "Color " + std::to_string(i);
+
+		if (config["customPalette"].has(section))
+			PPU::CUSTOM_PALETTE[i] = color::fromHex(config["customPalette"][section]);
+	}
 
 	to_bool(enableAudio, "audio", "enable");
 
@@ -82,6 +94,12 @@ void appConfig::updateConfigFile()
 	config["graphics"]["vsync"] = to_string(vsync);
 	config["graphics"]["palette"] = std::to_string(palette);
 	config["graphics"]["filter"] = std::to_string(filter);
+
+	if (PPU::CUSTOM_PALETTE != PPU::DEFAULT_CUSTOM_PALETTE) 
+	{
+		for (int i = 0; i < 4; i++)
+			config["customPalette"]["Color " + std::to_string(i)] = PPU::CUSTOM_PALETTE[i].toHex();
+	}
 
 	config["audio"]["enable"] = to_string(enableAudio);
 

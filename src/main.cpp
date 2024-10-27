@@ -209,7 +209,8 @@ void refreshGBTextures()
 
 void updateSelectedPalette()
 {
-    const auto& newColors = appConfig::palette == 0 ? PPU::BGB_GREEN_PALETTE : appConfig::palette == 1 ? PPU::GRAY_PALETTE : PPU::CLASSIC_PALETTE;
+    const auto& newColors = appConfig::palette == 0 ? PPU::BGB_GREEN_PALETTE : appConfig::palette == 1 ? PPU::GRAY_PALETTE :
+                            appConfig::palette == 2 ? PPU::CLASSIC_PALETTE : PPU::CUSTOM_PALETTE;
 
     if (gbCore.emulationPaused && System::Current() == GBSystem::DMG)
     {
@@ -217,7 +218,7 @@ void updateSelectedPalette()
         refreshGBTextures();
     }
 
-    PPU::ColorPalette = newColors;
+    PPU::ColorPalette = newColors.data();
 }
 
 void setOpenGL()
@@ -490,12 +491,46 @@ void renderImGUI()
             }
 
             ImGui::SeparatorText("DMG Palette");
-            constexpr const char* palettes[] = { "BGB Green", "Grayscale", "Classic" };
+            constexpr std::array<const char*, 4> palettes = { "BGB Green", "Grayscale", "Classic", "Custom"};
 
-            if (ImGui::ListBox("##3", &appConfig::palette, palettes, 3))
+            static bool customPaletteOpen{ false };
+            static std::array<std::array<float, 3>, 4> colors { };
+
+            if (ImGui::ListBox("##3", &appConfig::palette, palettes.data(), palettes.size()))
             {
+                if (appConfig::palette == 3)
+                {   
+                    for (int i = 0; i < 4; i++)
+                        colors[i] = { PPU::CUSTOM_PALETTE[i].R / 255.0f, PPU::CUSTOM_PALETTE[i].G / 255.0f, PPU::CUSTOM_PALETTE[i].B / 255.0f };
+
+                    customPaletteOpen = true;
+                    ImGui::SetNextWindowSize(ImVec2(ImGui::CalcTextSize("Custom Palette").x * 2, -1.f));
+                }
+
                 updateSelectedPalette();
                 appConfig::updateConfigFile();
+            }
+
+            if (customPaletteOpen) 
+            {
+                ImGui::Begin("Custom Palette", &customPaletteOpen, ImGuiWindowFlags_NoResize);
+
+                for (int i = 0; i < 4; i++)
+                {
+                    if (ImGui::ColorEdit3(("Color " + std::to_string(i)).c_str(), colors[i].data(), ImGuiColorEditFlags_NoInputs))
+                    {
+                        PPU::CUSTOM_PALETTE[i] = 
+                        {
+                            static_cast<uint8_t>(colors[i][0] * 255),
+                            static_cast<uint8_t>(colors[i][1] * 255),
+                            static_cast<uint8_t>(colors[i][2] * 255)
+                        };
+
+                        appConfig::updateConfigFile();
+                    }
+                }
+
+                ImGui::End();
             }
 
             ImGui::EndMenu();

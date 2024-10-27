@@ -32,7 +32,7 @@ void PPUCore<sys>::reset()
 template <GBSystem sys>
 void PPUCore<sys>::setLCDEnable(bool val)
 {
-	if (getBit(regs.LCDC, 7) == val)
+	if (static_cast<bool>(getBit(regs.LCDC, 7)) == val)
 		return;
 
 	if (val)
@@ -126,7 +126,7 @@ void PPUCore<sys>::refreshDMGScreenColors(const std::array<color, 4>& newColorPa
 		for (uint8_t y = 0; y < SCR_HEIGHT; y++)
 		{
 			color pixel = getPixel(x, y);
-			uint8_t pixelInd { static_cast<uint8_t>(std::find(PPU::ColorPalette.begin(), PPU::ColorPalette.end(), pixel) - PPU::ColorPalette.begin()) };
+			uint8_t pixelInd { static_cast<uint8_t>(std::find(PPU::ColorPalette, PPU::ColorPalette + 4, pixel) - PPU::ColorPalette) };
 			setPixel(x, y, newColorPalette[pixelInd]);
 		}
 	}

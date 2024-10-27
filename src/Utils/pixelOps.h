@@ -1,5 +1,7 @@
 #pragma once
 #include <cstdint>
+#include <sstream>
+#include <iomanip>
 
 namespace PixelOps
 {
@@ -8,7 +10,7 @@ namespace PixelOps
 	public:
 		uint8_t R, G, B;
 
-		bool operator ==(color other)
+		bool operator ==(color other) const
 		{
 			return R == other.R && G == other.G && B == other.B;
 		}
@@ -21,6 +23,32 @@ namespace PixelOps
 				componentFromRGB5((rgb5 >> 5) & 0x1F),
 				componentFromRGB5((rgb5 >> 10) & 0x1F)
 			};
+		}
+
+		static color fromHex(std::string hexStr)
+		{
+			if (hexStr[0] == '#')
+				hexStr = hexStr.substr(1);
+
+			uint32_t hexVal;
+			std::stringstream ss;
+			ss << std::hex << hexStr;
+			ss >> hexVal;
+
+			return color
+			{
+				static_cast<uint8_t>((hexVal >> 16) & 0xFF),
+				static_cast<uint8_t>((hexVal >> 8) & 0xFF),
+				static_cast<uint8_t>(hexVal & 0xFF)
+			};
+		}
+
+		std::string toHex() const 
+		{
+			std::stringstream ss;
+			ss << "#" << std::hex << std::uppercase << std::setfill('0') << std::setw(2)
+								  << static_cast<int>(R) << std::setw(2) << static_cast<int>(G) << std::setw(2) << static_cast<int>(B);
+			return ss.str();
 		}
 	private:
 		constexpr static uint8_t componentFromRGB5(uint8_t rgb5)
