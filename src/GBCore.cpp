@@ -10,15 +10,15 @@ GBCore gbCore{};
 
 void GBCore::reset()
 {
-	emulationPaused = false;
-	cycleCounter = 0;
-
 	input.reset();
 	serial.reset();
 	cpu.reset();
 	ppu->reset();
 	mmu.reset();
 	apu.reset();
+
+	emulationPaused = false;
+	cycleCounter = 0;
 }
 
 void GBCore::loadBootROM()
@@ -59,8 +59,8 @@ void GBCore::loadBootROM()
 				ifs.read(reinterpret_cast<char*>(&mmu.GBCbootROM[0]), sizeof(mmu.GBCbootROM));
 			}
 
-			// LCD disabled on boot ROM start
-			ppu->regs.LCDC = resetBit(ppu->regs.LCDC, 7);
+			// LCD is disabled on boot ROM start
+			ppu->setLCDEnable(false);
 			cpu.enableBootROM();
 		}
 	}

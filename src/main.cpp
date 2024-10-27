@@ -648,52 +648,50 @@ void render(double deltaTime)
 void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mods)
 {
     (void)_window; (void)scancode;
+    if (!gbCore.cartridge.ROMLoaded) return;
 
-    if (gbCore.cartridge.ROMLoaded)
+    if (action == GLFW_PRESS)
+    {
+        if (key == GLFW_KEY_TAB)
+        {
+            resetFade();
+            setEmulationPaused(!gbCore.emulationPaused);
+            return;
+        }
+
+        // number keys 1 though 9
+        if (key >= 49 && key <= 57)
+        {
+            if (mods & GLFW_MOD_ALT)
+                gbCore.saveState(key - 48);
+
+            else if (mods & GLFW_MOD_SHIFT)
+                gbCore.loadState(key - 48);
+
+            return;
+        }
+
+        if (key == GLFW_KEY_Q)
+        {
+            gbCore.saveState(gbCore.getSaveFolderPath() / "quicksave.mbs");
+            return;
+        }
+        if (key == GLFW_KEY_GRAVE_ACCENT)
+        {
+            loadFile(gbCore.getSaveFolderPath() / "quicksave.mbs");
+            return;
+        }
+    }
+
+    if (key == GLFW_KEY_R)
     {
         if (action == GLFW_PRESS)
-        {
-            if (key == GLFW_KEY_TAB)
-            {
-                resetFade();
-                setEmulationPaused(!gbCore.emulationPaused);
-                return;
-            }
-
-            // number keys 1 though 9
-            if (key >= 49 && key <= 57)
-            {
-                if (mods & GLFW_MOD_ALT)
-                    gbCore.saveState(key - 48);
-
-                else if (mods & GLFW_MOD_SHIFT)
-                    gbCore.loadState(key - 48);
-
-                return;
-            }
-
-            if (key == GLFW_KEY_Q)
-            {
-                gbCore.saveState(gbCore.getSaveFolderPath() / "quicksave.mbs");
-                return;
-            }
-            if (key == GLFW_KEY_GRAVE_ACCENT)
-            {
-                loadFile(gbCore.getSaveFolderPath() / "quicksave.mbs");
-                return;
-            }
-        }
-
-        if (key == GLFW_KEY_R)
-        {
-            if (action == GLFW_PRESS)
-                fadeEffectActive = true;
-            else if (action == GLFW_RELEASE)
-                resetFade();
-        }
-
-        gbCore.input.update(key, action);
+            fadeEffectActive = true;
+        else if (action == GLFW_RELEASE)
+            resetFade();
     }
+
+    gbCore.input.update(key, action);
 }
 
 void drop_callback(GLFWwindow* _window, int count, const char** paths)

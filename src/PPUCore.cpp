@@ -32,14 +32,21 @@ void PPUCore<sys>::reset()
 template <GBSystem sys>
 void PPUCore<sys>::setLCDEnable(bool val)
 {
+	if (getBit(regs.LCDC, 7) == val)
+		return;
+
 	if (val)
+	{
 		s.lcdWasEnabled = true;
+		regs.LCDC = setBit(regs.LCDC, 7);
+	}
 	else
 	{
 		s.LY = 0;
 		s.WLY = 0;
 		clearBuffer();
 		SetPPUMode(PPUMode::HBlank);
+		regs.LCDC = resetBit(regs.LCDC, 7);
 	}
 }
 

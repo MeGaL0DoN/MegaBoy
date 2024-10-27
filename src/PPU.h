@@ -170,7 +170,7 @@ struct ppuGBCPaletteData
 	inline void writePaletteRAM(uint8_t val)
 	{
 		paletteRAM[regValue] = val;
-		if (autoIncrement) regValue++;
+		regValue = autoIncrement ? ((regValue + 1) & 0x3F) : regValue;
 	}
 
 	inline void loadState(std::ifstream& st)
@@ -236,6 +236,8 @@ public:
 	virtual void execute(uint8_t cycles) = 0;
 	virtual void reset() = 0;
 
+	virtual void setLCDEnable(bool val) = 0;
+
 	virtual void saveState(std::ofstream& st) = 0;
 	virtual void loadState(std::ifstream& st) = 0;
 
@@ -247,9 +249,6 @@ public:
 
 	constexpr const uint8_t* getFrameBuffer() const { return framebuffer.data(); }
 	void (*drawCallback)(const uint8_t* framebuffer) { nullptr };
-
-	ppuDMGRegs regs{};
-	ppuGBCRegs gbcRegs{};
 protected:
 	std::array<uint8_t, FRAMEBUFFER_SIZE> framebuffer{};
 
@@ -265,6 +264,9 @@ protected:
 
 	uint8_t objCount{ 0 };
 	std::array<OAMobject, 10> selectedObjects{};
+
+	ppuDMGRegs regs{};
+	ppuGBCRegs gbcRegs{};
 
 	ppuState s{};
 	BGPixelFIFO bgFIFO{};
@@ -284,6 +286,4 @@ protected:
 		VRAM = val & 0x1 ? VRAM_BANK1.data() : VRAM_BANK0.data();
 		gbcRegs.VBK = 0xFE | val;
 	}
-
-	virtual void setLCDEnable(bool val) = 0;
 };
