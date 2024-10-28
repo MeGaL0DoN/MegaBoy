@@ -21,6 +21,7 @@ namespace appConfig
 
 	inline bool blending { false };
 	inline bool vsync { true };
+	inline bool integerScaling { true };
 
 	inline bool enableAudio { true };
 

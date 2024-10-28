@@ -1,3 +1,7 @@
+#ifdef _WIN32
+#define NOMINMAX
+#endif
+
 #include <ImGUI/imgui.h>
 #include <ImGUI/imgui_impl_glfw.h>
 #include <ImGUI/imgui_impl_opengl3.h>
@@ -18,6 +22,7 @@
 #include <iostream>
 #include <filesystem>
 #include <optional>
+#include <algorithm>
 
 #include "GBCore.h"
 #include "gbSystem.h"
@@ -30,18 +35,20 @@
 
 GLFWwindow* window;
 
-int menuBarHeight;
-int viewport_width, viewport_height;
-float scaleFactor;
+int menuBarHeight{};
+int window_width{}, window_height{};
+int viewport_width{}, viewport_height{};
+int viewport_xOffset{}, viewport_yOffset{};
+float scaleFactor{};
 
 Shader regularShader;
 Shader scalingShader;
 Shader lcdShader;
 std::array<uint32_t, 2> gbFramebufferTextures;
 
-Shader* currentShader;
+Shader* currentShader{ };
 
-bool fileDialogOpen;
+bool fileDialogOpen { false };
 
 #ifndef EMSCRIPTEN
 #ifdef _WIN32
@@ -251,7 +258,7 @@ void setOpenGL()
 
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), nullptr);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), reinterpret_cast<void*>(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
     glEnable(GL_BLEND);
@@ -266,6 +273,28 @@ void setOpenGL()
     updateSelectedPalette(); 
 
     gbCore.setDrawCallback(drawCallback);
+}
+
+void rescaleViewport()
+{
+    viewport_width = window_width;
+    viewport_height = window_height - menuBarHeight;
+
+    if (appConfig::integerScaling)
+    {
+        const int scaleFactor = std::min(viewport_height / PPU::SCR_HEIGHT, viewport_width / PPU::SCR_WIDTH);
+        viewport_width = PPU::SCR_WIDTH * scaleFactor;
+        viewport_height = PPU::SCR_HEIGHT * scaleFactor;
+        viewport_xOffset = (window_width - viewport_width) / 2;
+        viewport_yOffset = (window_height - menuBarHeight - viewport_height) / 2;
+    }
+    else
+    {
+        viewport_xOffset = 0;
+        viewport_yOffset = 0;
+    }
+
+    glViewport(viewport_xOffset, viewport_yOffset, viewport_width, viewport_height);
 }
 
 inline void updateImGUIViewports()
@@ -481,6 +510,12 @@ void renderImGUI()
             if (ImGui::Checkbox("Screen Ghosting (Blending)", &appConfig::blending))
                 appConfig::updateConfigFile();
 
+            if (ImGui::Checkbox("Integer Scaling", &appConfig::integerScaling))
+            {
+                appConfig::updateConfigFile();
+                rescaleViewport();
+            }
+
             ImGui::SeparatorText("Filter");
             constexpr const char* filters[] = { "None", "LCD", "Upscaling" };
 
@@ -506,6 +541,8 @@ void renderImGUI()
                     customPaletteOpen = true;
                     ImGui::SetNextWindowSize(ImVec2(ImGui::CalcTextSize("Custom Palette").x * 2, -1.f));
                 }
+                else
+                    customPaletteOpen = false;
 
                 updateSelectedPalette();
                 appConfig::updateConfigFile();
@@ -799,16 +836,18 @@ EM_BOOL visibilityChangeCallback(int eventType, const EmscriptenVisibilityChange
     return EM_TRUE;
 }
 #else
-void framebuffer_size_callback(GLFWwindow* _window, int width, int height)
+
+void framebuffer_size_callback(GLFWwindow* _window, int width, int height) 
 {
     (void)_window;
-    viewport_width = width; viewport_height = height - menuBarHeight;
-    glViewport(0, 0, viewport_width, viewport_height);
+    window_width = width;
+    window_height = height;
+    rescaleViewport();
 }
 void window_pos_callback(GLFWwindow* _window, int xpos, int ypos)
 {
-	(void)_window; (void)xpos; (void)ypos;
-    glViewport(0, 0, viewport_width, viewport_height);
+   (void)_window; (void)xpos; (void)ypos;
+   glViewport(viewport_xOffset, viewport_yOffset, viewport_width, viewport_height);
 }
 #endif
 
@@ -895,7 +934,7 @@ bool setGLFW()
     glfwSetWindowPosCallback(window, window_pos_callback);
     glfwSetWindowIconifyCallback(window, window_iconify_callback);
 
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+    if (!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress)))
     {
         std::cout << "Failed to initialize GLAD" << std::endl;
         return false;
@@ -917,27 +956,25 @@ void setWindowSize()
     ImGui::Render();
     updateImGUIViewports();
 
-#ifdef EMSCRIPTEN
-    float windowWidth = EM_ASM_DOUBLE ({
-        return window.innerWidth;
-    });
-    float windowHeight = EM_ASM_DOUBLE ({
-        return window.innerHeight;
-    });
-
-    setWindowSizesToAspectRatio(windowWidth, windowHeight);
-#else
+//#ifdef EMSCRIPTEN
+//    float windowWidth = EM_ASM_DOUBLE({
+//        return window.innerWidth;
+//        });
+//    float windowHeight = EM_ASM_DOUBLE({
+//        return window.innerHeight;
+//        });
+//
+//    setWindowSizesToAspectRatio(windowWidth, windowHeight);
+//#else
     const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-    viewport_width =  { static_cast<int>(static_cast<float>(mode->width) * 0.4f) };
-    viewport_height = { static_cast<int>(static_cast<float>(viewport_width) / (static_cast<float>(PPU::SCR_WIDTH) / PPU::SCR_HEIGHT)) };
+    
+    const int maxViewportHeight = static_cast<int>(static_cast<float>(mode->height) * 0.70f);
+    const int scaleFactor = std::min(maxViewportHeight / PPU::SCR_HEIGHT, mode->width / PPU::SCR_WIDTH);
 
-    glfwSetWindowSize(window, viewport_width, viewport_height + menuBarHeight);
-    glfwSetWindowAspectRatio(window, viewport_width, viewport_height);
-
-    const uint16_t maxHeight { static_cast<uint16_t>(mode->height - mode->height / 15.0) };
-    glfwSetWindowSizeLimits(window, PPU::SCR_WIDTH * 2, PPU::SCR_HEIGHT * 2, maxHeight * (PPU::SCR_WIDTH / PPU::SCR_HEIGHT), maxHeight);
-    glViewport(0, 0, viewport_width, viewport_height);
-#endif
+    glfwSetWindowSize(window, scaleFactor * PPU::SCR_WIDTH, (scaleFactor * PPU::SCR_HEIGHT) + menuBarHeight);
+    glfwSetWindowAspectRatio(window, window_width, window_height + 1);
+    glfwSetWindowSizeLimits(window, PPU::SCR_WIDTH, PPU::SCR_HEIGHT + menuBarHeight, GLFW_DONT_CARE, GLFW_DONT_CARE);
+//#endif
 }
 
 int getScreenWidth()
@@ -951,6 +988,17 @@ int getScreenWidth()
 #endif
     return screenWidth;
 }
+int getScreenHeight()
+{
+    #ifdef EMSCRIPTEN
+	int screenHeight = EM_ASM_INT({
+		return window.screen.height * (window.devicePixelRatio > 1.25 ? 1.25 : window.devicePixelRatio);
+		});
+    #else
+	int screenHeight = glfwGetVideoMode(glfwGetPrimaryMonitor())->height;
+	#endif
+	return screenHeight;
+}
 
 void setImGUI()
 {
@@ -960,10 +1008,8 @@ void setImGUI()
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = nullptr;
 
-    const int resolutionX = getScreenWidth();
-    scaleFactor = (static_cast<float>(resolutionX) / 1920.0f);
-
-    io.Fonts->AddFontFromMemoryTTF((void*)(resources::robotoMonoFont), sizeof(resources::robotoMonoFont), scaleFactor * 17.0f);
+    scaleFactor = (static_cast<float>(getScreenWidth()) / 1920.0f + static_cast<float>(getScreenHeight()) / 1080.0f) / 2.0f;
+    io.Fonts->AddFontFromMemoryCompressedTTF(resources::robotoMonoFont, sizeof(resources::robotoMonoFont), scaleFactor * 17.0f);
     ImGui::GetStyle().ScaleAllSizes(scaleFactor);
 
 #ifdef __linux__

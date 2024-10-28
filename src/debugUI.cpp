@@ -1,5 +1,6 @@
 #include "debugUI.h"
 
+#include <algorithm>
 #include <cmath>
 #include <ImGUI/imgui.h>
 
@@ -66,34 +67,28 @@ inline void displayMemHeader()
     ImGui::Spacing();
 }
 
+// Maintains integer scale.
 inline void displayImage(uint32_t texture, uint16_t width = PPU::TILEMAP_WIDTH, uint16_t height = PPU::TILEMAP_HEIGHT)
 {
     const ImVec2 contentSize = ImGui::GetContentRegionAvail();
     const ImVec2 contentPos = ImGui::GetCursorScreenPos();
-
     const float aspectRatio = static_cast<float>(width) / height;
     const float aspectRatioContent = contentSize.x / contentSize.y;
 
-    ImVec2 imageSize, imagePos;
+    float scaleX = std::floor(contentSize.x / width);
+    float scaleY = std::floor(contentSize.y / height);
+    float scale = std::min(scaleX, scaleY);
 
-    if (aspectRatioContent > aspectRatio)
-    {
-        imageSize.x = contentSize.y * aspectRatio;
-        imageSize.y = contentSize.y;
-    }
-    else
-    {
-        imageSize.x = contentSize.x;
-        imageSize.y = contentSize.x / aspectRatio;
-    }
+    ImVec2 imageSize(width * scale,height * scale);
 
-    imagePos.x = contentPos.x + (contentSize.x - imageSize.x) * 0.5f;
-    imagePos.y = contentPos.y + (contentSize.y - imageSize.y) * 0.5f;
+    ImVec2 imagePos (
+        contentPos.x + (contentSize.x - imageSize.x) * 0.5f,
+        contentPos.y + (contentSize.y - imageSize.y) * 0.5f
+    );
 
     ImGui::SetCursorScreenPos(imagePos);
     OpenGL::bindTexture(texture);
-
-    uint64_t _texture64 { texture };
+    uint64_t _texture64{ texture };
     ImGui::Image(reinterpret_cast<void*>(_texture64), imageSize);
 }
 
@@ -146,8 +141,7 @@ void debugUI::updateWindows(float scaleFactor)
     }
     if (showCPUView)
     {
-        ImGui::SetNextWindowSizeConstraints(ImVec2(-1.f, -1.f), ImVec2(-1.f, -1.f));
-        ImGui::Begin("CPU View", &showCPUView);
+        ImGui::Begin("CPU View", &showCPUView, ImGuiWindowFlags_NoResize);
 
         std::string strBuf = "PC: " + to_hex_str(gbCore.cpu.s.PC);
 
@@ -209,7 +203,7 @@ void debugUI::updateWindows(float scaleFactor)
 
     if (showVRAMView)
     {
-        ImGui::SetNextWindowSizeConstraints(ImVec2(365.0f * scaleFactor, (365.0f * scaleFactor) + ImGui::GetFrameHeight() * 2), ImVec2(FLT_MAX, FLT_MAX));
+        ImGui::SetNextWindowSize(ImVec2(PPU::TILES_WIDTH * scaleFactor * 2.4f, PPU::TILES_HEIGHT * scaleFactor * 2.5f), ImGuiCond_Appearing);
         ImGui::Begin("VRAM View", &showVRAMView);
 
         if (ImGui::BeginTabBar("tabbar"))
@@ -286,8 +280,7 @@ void debugUI::updateWindows(float scaleFactor)
 
     if (showAudioView)
     {
-        ImGui::SetNextWindowSizeConstraints(ImVec2(-1.f, -1.f), ImVec2(INFINITY, INFINITY));
-        ImGui::Begin("Audio", &showAudioView);
+        ImGui::Begin("Audio", &showAudioView, ImGuiWindowFlags_NoResize);
 
         ImGui::SeparatorText("Channel Options");
 
