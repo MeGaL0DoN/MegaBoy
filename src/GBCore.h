@@ -29,6 +29,8 @@ public:
 
 	static constexpr uint32_t calculateCycles(double deltaTime) { return static_cast<uint32_t>((CYCLES_PER_FRAME * (deltaTime / FRAME_RATE))); }
 
+	static bool isBootROMValid(const std::filesystem::path& path);
+
 	void update(uint32_t cyclesToExecute);
 	void stepComponents();
 

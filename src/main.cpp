@@ -108,10 +108,15 @@ constexpr const char* CGB_ROM_NAME = "cgb_boot.bin";
 
 void handleBootROMLoad(std::string& destRomPath, const std::filesystem::path& filePath)
 {
-    destRomPath = filePath.string();
-    appConfig::updateConfigFile();
+    if (GBCore::isBootROMValid(filePath))
+    {
+        destRomPath = filePath.string();
+        appConfig::updateConfigFile();
+        popupTitle = "Successfully Loaded Boot ROM!";
+    }
+    else
+        popupTitle = "Invalid Boot ROM!";
 
-    popupTitle = "Successfully Loaded Boot ROM!";
     showPopUp = true;
 }
 
@@ -266,8 +271,8 @@ void setOpenGL()
 
     const std::vector<uint8_t> whiteBG(PPU::FRAMEBUFFER_SIZE, 255);
 
-    OpenGL::createTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, whiteBG.data());
-    OpenGL::createTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, whiteBG.data());
+    OpenGL::createTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, whiteBG.data(), appConfig::bilinearFiltering);
+    OpenGL::createTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, whiteBG.data(), appConfig::bilinearFiltering);
 
     updateSelectedFilter();
     updateSelectedPalette(); 
@@ -516,58 +521,84 @@ void renderImGUI()
                 rescaleViewport();
             }
 
+            if (currentShader != &scalingShader)
+            {
+                if (ImGui::Checkbox("Bilinear Filtering", &appConfig::bilinearFiltering))
+                {
+                    appConfig::updateConfigFile();
+                    OpenGL::setTextureScalingMode(gbFramebufferTextures[0], appConfig::bilinearFiltering);
+                    OpenGL::setTextureScalingMode(gbFramebufferTextures[1], appConfig::bilinearFiltering);
+                }
+            }
+
             ImGui::SeparatorText("Filter");
             constexpr const char* filters[] = { "None", "LCD", "Upscaling" };
 
-            if (ImGui::ListBox("##2", &appConfig::filter, filters, 3))
+            const int filterCount { appConfig::bilinearFiltering ? 2 : 3 }; // Upscaling filter is disabled when bilinear filtering is enabled
+
+            if (ImGui::ListBox("##2", &appConfig::filter, filters, filterCount))
             {
                 updateSelectedFilter();
                 appConfig::updateConfigFile();
             }
 
+            ImGui::Spacing();
+
+            static bool showPaletteSelection { false };
+
+            if (ImGui::ArrowButton("##3", ImGuiDir_Right))
+                showPaletteSelection = !showPaletteSelection;
+
+            ImGui::SameLine();
             ImGui::SeparatorText("DMG Palette");
-            constexpr std::array<const char*, 4> palettes = { "BGB Green", "Grayscale", "Classic", "Custom"};
 
-            static bool customPaletteOpen{ false };
-            static std::array<std::array<float, 3>, 4> colors { };
-
-            if (ImGui::ListBox("##3", &appConfig::palette, palettes.data(), palettes.size()))
+            if (showPaletteSelection)
             {
-                if (appConfig::palette == 3)
-                {   
-                    for (int i = 0; i < 4; i++)
-                        colors[i] = { PPU::CUSTOM_PALETTE[i].R / 255.0f, PPU::CUSTOM_PALETTE[i].G / 255.0f, PPU::CUSTOM_PALETTE[i].B / 255.0f };
+                constexpr std::array<const char*, 4> palettes = { "BGB Green", "Grayscale", "Classic", "Custom" };
 
-                    customPaletteOpen = true;
-                    ImGui::SetNextWindowSize(ImVec2(ImGui::CalcTextSize("Custom Palette").x * 2, -1.f));
-                }
-                else
-                    customPaletteOpen = false;
+                static bool customPaletteOpen{ false };
+                static std::array<std::array<float, 3>, 4> colors{ };
 
-                updateSelectedPalette();
-                appConfig::updateConfigFile();
-            }
+                ImGui::Spacing();
 
-            if (customPaletteOpen) 
-            {
-                ImGui::Begin("Custom Palette", &customPaletteOpen, ImGuiWindowFlags_NoResize);
-
-                for (int i = 0; i < 4; i++)
+                if (ImGui::ListBox("##4", &appConfig::palette, palettes.data(), palettes.size()))
                 {
-                    if (ImGui::ColorEdit3(("Color " + std::to_string(i)).c_str(), colors[i].data(), ImGuiColorEditFlags_NoInputs))
+                    if (appConfig::palette == 3)
                     {
-                        PPU::CUSTOM_PALETTE[i] = 
-                        {
-                            static_cast<uint8_t>(colors[i][0] * 255),
-                            static_cast<uint8_t>(colors[i][1] * 255),
-                            static_cast<uint8_t>(colors[i][2] * 255)
-                        };
+                        for (int i = 0; i < 4; i++)
+                            colors[i] = { PPU::CUSTOM_PALETTE[i].R / 255.0f, PPU::CUSTOM_PALETTE[i].G / 255.0f, PPU::CUSTOM_PALETTE[i].B / 255.0f };
 
-                        appConfig::updateConfigFile();
+                        customPaletteOpen = true;
+                        ImGui::SetNextWindowSize(ImVec2(ImGui::CalcTextSize("Custom Palette").x * 2, -1.f));
                     }
+                    else
+                        customPaletteOpen = false;
+
+                    updateSelectedPalette();
+                    appConfig::updateConfigFile();
                 }
 
-                ImGui::End();
+                if (customPaletteOpen)
+                {
+                    ImGui::Begin("Custom Palette", &customPaletteOpen, ImGuiWindowFlags_NoResize);
+
+                    for (int i = 0; i < 4; i++)
+                    {
+                        if (ImGui::ColorEdit3(("Color " + std::to_string(i)).c_str(), colors[i].data(), ImGuiColorEditFlags_NoInputs))
+                        {
+                            PPU::CUSTOM_PALETTE[i] =
+                            {
+                                static_cast<uint8_t>(colors[i][0] * 255),
+                                static_cast<uint8_t>(colors[i][1] * 255),
+                                static_cast<uint8_t>(colors[i][2] * 255)
+                            };
+
+                            appConfig::updateConfigFile();
+                        }
+                    }
+
+                    ImGui::End();
+                }
             }
 
             ImGui::EndMenu();
@@ -720,6 +751,18 @@ void render(double deltaTime)
 void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mods)
 {
     (void)_window; (void)scancode;
+
+    if (key == GLFW_KEY_PAGE_UP || key == GLFW_KEY_PAGE_DOWN)
+    {
+        if (appConfig::integerScaling && action == GLFW_PRESS)
+        {
+            const int scale = viewport_width / PPU::SCR_WIDTH;
+            const int newScale = key == GLFW_KEY_PAGE_UP ? scale + 1 : scale - 1;
+            glfwSetWindowSize(window, newScale * PPU::SCR_WIDTH, newScale * PPU::SCR_HEIGHT + menuBarHeight);
+        }
+        return;
+    }
+
     if (!gbCore.cartridge.ROMLoaded) return;
 
     if (action == GLFW_PRESS)
@@ -974,6 +1017,7 @@ void setWindowSize()
     glfwSetWindowSize(window, scaleFactor * PPU::SCR_WIDTH, (scaleFactor * PPU::SCR_HEIGHT) + menuBarHeight);
     glfwSetWindowAspectRatio(window, window_width, window_height + 1);
     glfwSetWindowSizeLimits(window, PPU::SCR_WIDTH, PPU::SCR_HEIGHT + menuBarHeight, GLFW_DONT_CARE, GLFW_DONT_CARE);
+    glfwSetWindowPos(window, (mode->width - window_width) / 2, (mode->height - window_height) / 2);
 //#endif
 }
 

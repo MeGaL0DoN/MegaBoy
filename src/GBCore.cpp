@@ -21,6 +21,28 @@ void GBCore::reset()
 	cycleCounter = 0;
 }
 
+bool GBCore::isBootROMValid(const std::filesystem::path& path)
+{
+	if (path.filename() == "dmg_boot.bin")
+	{
+		if (std::ifstream ifs{ path, std::ios::binary | std::ios::ate })
+		{
+			const std::ifstream::pos_type size = ifs.tellg();
+			return size == sizeof(mmu.base_bootROM);
+		}
+	}
+	else if (path.filename() == "cgb_boot.bin")
+	{
+		if (std::ifstream ifs{ path, std::ios::binary | std::ios::ate })
+		{
+			const std::ifstream::pos_type size = ifs.tellg();
+			return size == 2048 || size == 2304;
+		}
+	}
+
+	return false;
+}
+
 void GBCore::loadBootROM()
 {
 	cpu.disableBootROM();
