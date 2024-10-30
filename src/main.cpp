@@ -307,7 +307,14 @@ int getResolutionY()
     return screenHeight;
 }
 
-void setIntegerScale(int newScale)
+void updateGLViewport()
+{
+    viewport_xOffset = (window_width - viewport_width) / 2;
+    viewport_yOffset = (window_height - menuBarHeight - viewport_height) / 2;
+    glViewport(viewport_xOffset, viewport_yOffset, viewport_width, viewport_height);
+}
+
+void setIntegerScale(int newScale, bool desktopShrinkWindow = false)
 {
     if (newScale == 0)
         return;
@@ -319,18 +326,20 @@ void setIntegerScale(int newScale)
     if (newWindowWidth > getResolutionX() || newWindowHeight > getResolutionY())
         return;
 
-    glfwSetWindowSize(window, newWindowWidth, newWindowHeight);
+    if ((newWindowWidth > window_width || newWindowHeight > window_height) || desktopShrinkWindow)
+    {
+        glfwSetWindowSize(window, newWindowWidth, newWindowHeight);
+        currentIntegerScale = newScale;
+        return;
+    }
 #else
     if (newWindowWidth > window_width || newWindowHeight > window_height)
         return;
-
-    viewport_width = newScale * PPU::SCR_WIDTH;
-    viewport_height = newScale * PPU::SCR_HEIGHT;
-    viewport_xOffset = (window_width - viewport_width) / 2;
-    viewport_yOffset = (window_height - menuBarHeight - viewport_height) / 2;
-    glViewport(viewport_xOffset, viewport_yOffset, viewport_width, viewport_height);
 #endif
 
+    viewport_width = newWindowWidth;
+    viewport_height = newWindowHeight - menuBarHeight;
+    updateGLViewport();
     currentIntegerScale = newScale;
 }
 
@@ -356,10 +365,7 @@ void rescaleWindow()
             viewport_height = viewport_width / targetAspectRatio;
     }
 
-    viewport_xOffset = (window_width - viewport_width) / 2;
-    viewport_yOffset = (window_height - menuBarHeight - viewport_height) / 2;
-
-    glViewport(viewport_xOffset, viewport_yOffset, viewport_width, viewport_height);
+    updateGLViewport();
 
 #ifdef EMSCRIPTEN
     emscripten_set_element_css_size (
@@ -413,7 +419,7 @@ void downloadFile(const char* fileName)
     inputFile.seekg(0, std::ios::beg);
 
     std::vector<char> buffer(fileSize);
-    inputFile.read(buffer.data(), fileSize);
+    inputFile.read(buffer.data(), static_cast<std::streamsize>(fileSize));
 
     emscripten_browser_file::download(fileName, "application/octet-stream", buffer.data(), fileSize);
     std::filesystem::remove(fileName);
@@ -422,7 +428,7 @@ void downloadFile(const char* fileName)
 void handle_upload_file(std::string const &filename, std::string const &mime_type, std::string_view buffer, void*)
 {
     std::ofstream fs(filename, std::ios::out | std::ios::binary);
-    fs.write(buffer.data(), buffer.size());
+    fs.write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
     fs.close();
 
     loadFile(filename);
@@ -838,7 +844,7 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
     if (key == GLFW_KEY_PAGE_UP || key == GLFW_KEY_PAGE_DOWN)
     {
         if (appConfig::integerScaling && action == GLFW_PRESS)
-            setIntegerScale(currentIntegerScale + (key == GLFW_KEY_PAGE_UP ? 1 : -1));
+            setIntegerScale(currentIntegerScale + (key == GLFW_KEY_PAGE_UP ? 1 : -1), true);
 
         return;
     }
@@ -1083,7 +1089,6 @@ void setWindowSize()
     const int scaleFactor = std::min(maxViewportHeight / PPU::SCR_HEIGHT, mode->width / PPU::SCR_WIDTH);
 
     glfwSetWindowSize(window, scaleFactor * PPU::SCR_WIDTH, (scaleFactor * PPU::SCR_HEIGHT) + menuBarHeight);
-    glfwSetWindowAspectRatio(window, window_width, window_height + 1);
     glfwSetWindowSizeLimits(window, PPU::SCR_WIDTH, PPU::SCR_HEIGHT + menuBarHeight, GLFW_DONT_CARE, GLFW_DONT_CARE);
     glfwSetWindowPos(window, (mode->width - window_width) / 2, (mode->height - window_height) / 2);
 #endif
