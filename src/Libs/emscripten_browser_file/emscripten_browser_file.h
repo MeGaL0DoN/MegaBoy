@@ -50,6 +50,7 @@ EM_JS_INLINE(void, upload, (char const *accept_types, upload_handler callback, v
   var file_selector = document.createElement('input');
   file_selector.setAttribute('type', 'file');
   file_selector.setAttribute('onchange', 'globalThis["open_file"](event)');
+  file_selector.style.outline = 'none';
   /// The 'cancel' event is fired when the user cancels the currently open dialog.
   /// In this case, the upload handler will get the empty string_view.
   /// See https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/cancel_event
@@ -64,13 +65,19 @@ EM_JS_INLINE(void, upload, (char const *accept_types, upload_handler callback, v
   if (is_safari) {
     var dialog = document.createElement('dialog');
     dialog.setAttribute('id', 'EmJsFileDialog');
-    var desc = document.createElement('p');
-    desc.innerText = 'Please choose a file. Allowed extension(s): ' + UTF8ToString(accept_types);
-    dialog.appendChild(desc);
     /// We should recreate <dialog> every call; it is the most natural way to reset input.value.
     /// Otherwise, if the user re-selects the same file, it triggers the 'cancel' event instead of 'onchange'.
     file_selector.setAttribute('onclick', 'var dg = document.getElementById("EmJsFileDialog"); dg.close(); dg.remove()');
     dialog.appendChild(file_selector);
+
+    var cancel_button = document.createElement('button');
+    cancel_button.textContent = 'Cancel';
+    cancel_button.setAttribute('onclick', 'var dg = document.getElementById("EmJsFileDialog"); dg.close(); dg.remove()');
+
+    var lineBreak = document.createElement("br");
+    dialog.appendChild(lineBreak);
+    dialog.appendChild(cancel_button);
+
     document.body.append(dialog);
     dialog.showModal();
   } else {

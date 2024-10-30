@@ -937,6 +937,8 @@ void window_focus_callback(GLFWwindow* _window, int focused)
 
 #ifdef EMSCRIPTEN
 EM_BOOL emscripten_resize_callback(int eventType, const EmscriptenUiEvent *uiEvent, void *userData) {
+    
+    devicePixelRatio = EM_ASM_DOUBLE ({ return window.devicePixelRatio; });
     window_width = static_cast<int>(uiEvent->windowInnerWidth * devicePixelRatio);
     window_height = static_cast<int>(uiEvent->windowInnerHeight * devicePixelRatio);
 
@@ -1078,9 +1080,7 @@ void setWindowSize()
     updateImGUIViewports();
 
 #ifdef EMSCRIPTEN
-    devicePixelRatio = EM_ASM_DOUBLE ({
-        return window.devicePixelRatio;
-    });
+    devicePixelRatio = EM_ASM_DOUBLE ({ return window.devicePixelRatio; });
 
     window_width = EM_ASM_INT({ return window.innerWidth; }) * devicePixelRatio;
     window_height = EM_ASM_INT({ return window.innerHeight; }) * devicePixelRatio;
