@@ -3,8 +3,8 @@
 #include <vector>
 
 #include "PPU.h"
-#include "MMU.h"
-#include "CPU/CPU.h"
+#include "../MMU.h"
+#include "../CPU/CPU.h"
 
 template <GBSystem sys>
 class PPUCore final : public PPU

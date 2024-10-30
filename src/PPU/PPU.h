@@ -4,9 +4,9 @@
 #include <array>
 #include <fstream>
 
-#include "defines.h"
-#include "Utils/pixelOps.h"
-#include "Utils/bitOps.h"
+#include "../defines.h"
+#include "../Utils/pixelOps.h"
+#include "../Utils/bitOps.h"
 
 using color = PixelOps::color;
 

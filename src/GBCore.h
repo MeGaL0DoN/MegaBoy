@@ -4,7 +4,7 @@
 
 #include "MMU.h"
 #include "CPU/CPU.h"
-#include "PPUCore.h"
+#include "PPU/PPUCore.h"
 #include "APU/APU.h"
 #include "inputManager.h"
 #include "serialPort.h"

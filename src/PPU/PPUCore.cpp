@@ -1,5 +1,5 @@
 #include "PPUCore.h"
-#include "Utils/bitOps.h"
+#include "../Utils/bitOps.h"
 #include <iostream>
 #include <algorithm>
 

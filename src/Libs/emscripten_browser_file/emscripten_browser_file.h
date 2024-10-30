@@ -2,6 +2,7 @@
 #define EMSCRIPTEN_UPLOAD_FILE_H_INCLUDED
 
 #include <string>
+#include <string_view>
 #include <emscripten.h>
 
 #define _EM_JS_INLINE(ret, c_name, js_name, params, code)                          \
@@ -46,12 +47,36 @@ EM_JS_INLINE(void, upload, (char const *accept_types, upload_handler callback, v
     file_reader.mime_type = e.target.files[0].type;
     file_reader.readAsArrayBuffer(e.target.files[0]);
   };
-
   var file_selector = document.createElement('input');
   file_selector.setAttribute('type', 'file');
   file_selector.setAttribute('onchange', 'globalThis["open_file"](event)');
+  /// The 'cancel' event is fired when the user cancels the currently open dialog.
+  /// In this case, the upload handler will get the empty string_view.
+  /// See https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/cancel_event
+  file_selector.addEventListener('cancel', () => {
+    Module["ccall"]('upload_file_return', 'number', ['string', 'string', 'number', 'number', 'number', 'number'], ["", "", 0, 0, callback, callback_data]);
+  });
   file_selector.setAttribute('accept', UTF8ToString(accept_types));
-  file_selector.click();
+  /// file_selector.click() approach doesn't work in Safari (tested with native desktop v. 17.5 and iPhone/iPad simulators).
+  /// It seems that the Safari browser limits programmatical clicking in our case.
+  /// As a workaround, we create <dialog> where the user manually clicks on <input>.
+  var is_safari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+  if (is_safari) {
+    var dialog = document.createElement('dialog');
+    dialog.setAttribute('id', 'EmJsFileDialog');
+    var desc = document.createElement('p');
+    desc.innerText = 'Please choose a file. Allowed extension(s): ' + UTF8ToString(accept_types);
+    dialog.appendChild(desc);
+    /// We should recreate <dialog> every call; it is the most natural way to reset input.value.
+    /// Otherwise, if the user re-selects the same file, it triggers the 'cancel' event instead of 'onchange'.
+    file_selector.setAttribute('onclick', 'var dg = document.getElementById("EmJsFileDialog"); dg.close(); dg.remove()');
+    dialog.appendChild(file_selector);
+    document.body.append(dialog);
+    dialog.showModal();
+  } else {
+    /// Not a Safari browser, so file_selector.click() is ok.
+    file_selector.click();
+  }
 });
 #pragma GCC diagnostic pop
 
@@ -84,6 +109,17 @@ EMSCRIPTEN_KEEPALIVE inline int upload_file_return(char const *filename, char co
 
 EMSCRIPTEN_KEEPALIVE inline int upload_file_return(char const *filename, char const *mime_type, char *buffer, size_t buffer_size, upload_handler callback, void *callback_data) {
   /// Load a file - this function is called from javascript when the file upload is activated
+
+  /// The file was not uploaded.
+  /// We must process this case separately because std::string_view(nullptr, 0) results in UB.
+  /// <The behavior is undefined if [s, s + count) is not a valid range
+  /// (even though the constructor may not access any of the elements of this range)>
+  /// https://en.cppreference.com/w/cpp/string/basic_string_view/basic_string_view
+  if (! buffer || buffer_size == 0) {
+    callback(filename, mime_type, std::string_view(), callback_data);
+    return 1;
+  }
+  /// Ok
   callback(filename, mime_type, {buffer, buffer_size}, callback_data);
   return 1;
 }
