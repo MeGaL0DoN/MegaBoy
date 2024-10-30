@@ -21,8 +21,6 @@
 #include <thread>
 #include <iostream>
 #include <filesystem>
-#include <optional>
-#include <algorithm>
 
 #include "GBCore.h"
 #include "gbSystem.h"
@@ -40,6 +38,8 @@ int window_width{}, window_height{};
 int viewport_width{}, viewport_height{};
 int viewport_xOffset{}, viewport_yOffset{};
 float scaleFactor{};
+
+int currentIntegerScale{};
 
 #ifdef EMSCRIPTEN
 double devicePixelRatio{};
@@ -284,16 +284,66 @@ void setOpenGL()
     gbCore.setDrawCallback(drawCallback);
 }
 
-void rescaleViewport()
+int getResolutionX()
+{
+#ifdef EMSCRIPTEN
+    int screenWidth = EM_ASM_INT({
+        return window.screen.width * window.devicePixelRatio;
+    });
+#else
+    int screenWidth = glfwGetVideoMode(glfwGetPrimaryMonitor())->width;
+#endif
+    return screenWidth;
+}
+int getResolutionY()
+{
+#ifdef EMSCRIPTEN
+    int screenHeight = EM_ASM_INT({
+        return window.screen.height * window.devicePixelRatio;
+    });
+#else
+    int screenHeight = glfwGetVideoMode(glfwGetPrimaryMonitor())->height;
+#endif
+    return screenHeight;
+}
+
+void setIntegerScale(int newScale)
+{
+    if (newScale == 0)
+        return;
+
+    int newWindowWidth = newScale * PPU::SCR_WIDTH;
+    int newWindowHeight = newScale * PPU::SCR_HEIGHT + menuBarHeight;
+
+#ifndef EMSCRIPTEN
+    if (newWindowWidth > getResolutionX() || newWindowHeight > getResolutionY())
+        return;
+
+    glfwSetWindowSize(window, newWindowWidth, newWindowHeight);
+#else
+    if (newWindowWidth > window_width || newWindowHeight > window_height)
+        return;
+
+    viewport_width = newScale * PPU::SCR_WIDTH;
+    viewport_height = newScale * PPU::SCR_HEIGHT;
+    viewport_xOffset = (window_width - viewport_width) / 2;
+    viewport_yOffset = (window_height - menuBarHeight - viewport_height) / 2;
+    glViewport(viewport_xOffset, viewport_yOffset, viewport_width, viewport_height);
+#endif
+
+    currentIntegerScale = newScale;
+}
+
+void rescaleWindow()
 {
     viewport_width = window_width;
     viewport_height = window_height - menuBarHeight;
 
     if (appConfig::integerScaling)
     {
-        const int scaleFactor = std::min(viewport_height / PPU::SCR_HEIGHT, viewport_width / PPU::SCR_WIDTH);
-        viewport_width = PPU::SCR_WIDTH * scaleFactor;
-        viewport_height = PPU::SCR_HEIGHT * scaleFactor;
+        currentIntegerScale = std::min(viewport_height / PPU::SCR_HEIGHT, viewport_width / PPU::SCR_WIDTH);
+        viewport_width = PPU::SCR_WIDTH * currentIntegerScale;
+        viewport_height = PPU::SCR_HEIGHT * currentIntegerScale;
     }
     else
     {
@@ -312,7 +362,7 @@ void rescaleViewport()
     glViewport(viewport_xOffset, viewport_yOffset, viewport_width, viewport_height);
 
 #ifdef EMSCRIPTEN
-    auto canvas_css_resize_result = emscripten_set_element_css_size(
+    emscripten_set_element_css_size (
         "canvas",
         window_width / devicePixelRatio,
         window_height / devicePixelRatio
@@ -536,7 +586,22 @@ void renderImGUI()
             if (ImGui::Checkbox("Integer Scaling", &appConfig::integerScaling))
             {
                 appConfig::updateConfigFile();
-                rescaleViewport();
+                rescaleWindow();
+            }
+
+            if (appConfig::integerScaling)
+            {
+                ImGui::SameLine();
+
+                if (ImGui::ArrowButton("##left", ImGuiDir_Left))
+                    setIntegerScale(currentIntegerScale - 1);
+
+                ImGui::SameLine();
+                ImGui::Text("X%d", currentIntegerScale);
+                ImGui::SameLine();
+
+                if (ImGui::ArrowButton("##right", ImGuiDir_Right))
+                    setIntegerScale(currentIntegerScale + 1);
             }
 
             if (currentShader != &scalingShader)
@@ -773,11 +838,8 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
     if (key == GLFW_KEY_PAGE_UP || key == GLFW_KEY_PAGE_DOWN)
     {
         if (appConfig::integerScaling && action == GLFW_PRESS)
-        {
-            const int scale = viewport_width / PPU::SCR_WIDTH;
-            const int newScale = key == GLFW_KEY_PAGE_UP ? scale + 1 : scale - 1;
-            glfwSetWindowSize(window, newScale * PPU::SCR_WIDTH, newScale * PPU::SCR_HEIGHT + menuBarHeight);
-        }
+            setIntegerScale(currentIntegerScale + (key == GLFW_KEY_PAGE_UP ? 1 : -1));
+
         return;
     }
 
@@ -861,11 +923,11 @@ void window_focus_callback(GLFWwindow* _window, int focused)
 
 #ifdef EMSCRIPTEN
 EM_BOOL emscripten_resize_callback(int eventType, const EmscriptenUiEvent *uiEvent, void *userData) {
-    window_width = uiEvent->windowInnerWidth * devicePixelRatio;
-    window_height = uiEvent->windowInnerHeight * devicePixelRatio;
+    window_width = static_cast<int>(uiEvent->windowInnerWidth * devicePixelRatio);
+    window_height = static_cast<int>(uiEvent->windowInnerHeight * devicePixelRatio);
 
     glfwSetWindowSize(window, window_width, window_height);
-    rescaleViewport();
+    rescaleWindow();
     render(0);
     glfwSwapBuffers(window);
 
@@ -890,7 +952,7 @@ void framebuffer_size_callback(GLFWwindow* _window, int width, int height)
     (void)_window;
     window_width = width;
     window_height = height;
-    rescaleViewport();
+    rescaleWindow();
 }
 void window_pos_callback(GLFWwindow* _window, int xpos, int ypos)
 {
@@ -992,29 +1054,6 @@ bool setGLFW()
     return true;
 }
 
-int getResolutionX()
-{
-#ifdef EMSCRIPTEN
-    int screenWidth = EM_ASM_INT({
-        return window.screen.width * window.devicePixelRatio;
-    });
-#else
-    int screenWidth = glfwGetVideoMode(glfwGetPrimaryMonitor())->width;
-#endif
-    return screenWidth;
-}
-int getResolutionY()
-{
-#ifdef EMSCRIPTEN
-    int screenHeight = EM_ASM_INT({
-        return window.screen.height * window.devicePixelRatio;
-    });
-#else
-    int screenHeight = glfwGetVideoMode(glfwGetPrimaryMonitor())->height;
-#endif
-    return screenHeight;
-}
-
 void setWindowSize()
 {
     ImGui_ImplOpenGL3_NewFrame();
@@ -1036,7 +1075,7 @@ void setWindowSize()
     window_height = EM_ASM_INT({ return window.innerHeight; }) * devicePixelRatio;
 
     glfwSetWindowSize(window, window_width, window_height);
-    rescaleViewport();
+    rescaleWindow();
 #else
     const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
 
@@ -1064,7 +1103,7 @@ void setImGUI()
 
 #ifdef __linux__
     if (std::getenv("WAYLAND_DISPLAY") == nullptr) io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
-#else
+#elif !defined(EMSCRIPTEN)
     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
 #endif
 

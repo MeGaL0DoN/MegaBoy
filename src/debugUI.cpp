@@ -205,8 +205,8 @@ void debugUI::updateWindows(float scaleFactor)
 
     if (showVRAMView)
     {
-        static int tileViewScale = 2;
-        static int tileMapViewScale = 1;
+        static int tileViewScale { static_cast<int>(2 * scaleFactor) };
+        static int tileMapViewScale = { static_cast<int>(scaleFactor) };
 
         ImGui::Begin("VRAM View", &showVRAMView, ImGuiWindowFlags_AlwaysAutoResize);
 
