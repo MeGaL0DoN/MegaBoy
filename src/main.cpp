@@ -40,6 +40,7 @@ int viewport_xOffset{}, viewport_yOffset{};
 float scaleFactor{};
 
 int currentIntegerScale{};
+int newIntegerScale { -1 };
 
 #ifdef EMSCRIPTEN
 double devicePixelRatio{};
@@ -314,7 +315,7 @@ void updateGLViewport()
     glViewport(viewport_xOffset, viewport_yOffset, viewport_width, viewport_height);
 }
 
-void setIntegerScale(int newScale, bool desktopShrinkWindow = false)
+void setIntegerScale(int newScale)
 {
     if (newScale == 0)
         return;
@@ -326,7 +327,7 @@ void setIntegerScale(int newScale, bool desktopShrinkWindow = false)
     if (newWindowWidth > getResolutionX() || newWindowHeight > getResolutionY())
         return;
 
-    if ((newWindowWidth > window_width || newWindowHeight > window_height) || desktopShrinkWindow)
+    if (!glfwGetWindowAttrib(window, GLFW_MAXIMIZED)) // if window is maximized, then just change the viewport size, don't change the window size.
     {
         glfwSetWindowSize(window, newWindowWidth, newWindowHeight);
         currentIntegerScale = newScale;
@@ -600,14 +601,14 @@ void renderImGUI()
                 ImGui::SameLine();
 
                 if (ImGui::ArrowButton("##left", ImGuiDir_Left))
-                    setIntegerScale(currentIntegerScale - 1);
+                    newIntegerScale = currentIntegerScale - 1;
 
                 ImGui::SameLine();
                 ImGui::Text("X%d", currentIntegerScale);
                 ImGui::SameLine();
 
                 if (ImGui::ArrowButton("##right", ImGuiDir_Right))
-                    setIntegerScale(currentIntegerScale + 1);
+                    newIntegerScale = currentIntegerScale + 1;
             }
 
             if (currentShader != &scalingShader)
@@ -835,6 +836,13 @@ void render(double deltaTime)
     glClear(GL_COLOR_BUFFER_BIT);
     renderGameBoy(deltaTime);
     renderImGUI();
+    glfwSwapBuffers(window);
+
+    if (newIntegerScale != -1)
+    {
+        setIntegerScale(newIntegerScale);
+        newIntegerScale = -1;
+    }
 }
 
 void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mods)
@@ -844,7 +852,7 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
     if (key == GLFW_KEY_PAGE_UP || key == GLFW_KEY_PAGE_DOWN)
     {
         if (appConfig::integerScaling && action == GLFW_PRESS)
-            setIntegerScale(currentIntegerScale + (key == GLFW_KEY_PAGE_UP ? 1 : -1), true);
+            setIntegerScale(currentIntegerScale + (key == GLFW_KEY_PAGE_UP ? 1 : -1));
 
         return;
     }
@@ -970,10 +978,7 @@ void window_pos_callback(GLFWwindow* _window, int xpos, int ypos)
 void window_refresh_callback(GLFWwindow* _window)
 {
     if (!fileDialogOpen)
-    {
         render(0);
-        glfwSwapBuffers(_window);
-    }
 }
 
 void checkVSyncStatus()
@@ -1141,7 +1146,6 @@ void mainLoop()
         gbTimer = appConfig::vsync ? 0 : gbTimer - GBCore::FRAME_RATE;
 
         render(deltaTime);
-        glfwSwapBuffers(window);
     }
 
 #ifndef EMSCRIPTEN

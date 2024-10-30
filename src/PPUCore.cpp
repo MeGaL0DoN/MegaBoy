@@ -338,7 +338,10 @@ void PPUCore<sys>::handleVBlank()
 		switch (s.LY)
 		{
 		case 153:
-			s.VBLANK_CYCLES	= 4;
+			if constexpr (sys == GBSystem::DMG)
+				s.VBLANK_CYCLES = 4;
+			else if constexpr (sys == GBSystem::GBC)
+				s.VBLANK_CYCLES = mmu.gbcDoubleSpeed() ? 12 : 4;
 			break;
 		case 154:
 			s.VBLANK_CYCLES = 452;

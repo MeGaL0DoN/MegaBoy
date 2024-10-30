@@ -4,6 +4,11 @@
 
 MMU::MMU(GBCore& gbCore) : gbCore(gbCore) {}
 
+bool MMU::gbcDoubleSpeed() const
+{
+	return gbCore.cpu.s.GBCdoubleSpeed;
+}
+
 void MMU::updateFunctionPointers()
 {
 	if (System::Current() == GBSystem::DMG)
