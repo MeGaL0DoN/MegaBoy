@@ -41,6 +41,10 @@ int viewport_width{}, viewport_height{};
 int viewport_xOffset{}, viewport_yOffset{};
 float scaleFactor{};
 
+#ifdef EMSCRIPTEN
+double devicePixelRatio{};
+#endif
+
 Shader regularShader;
 Shader scalingShader;
 Shader lcdShader;
@@ -57,14 +61,14 @@ bool fileDialogOpen { false };
 #define STR(s) s
 #endif
 
-constexpr nfdnfilteritem_t openFilterItem[] = { {STR("Game ROM/Save"), STR("gb,gbc,sav,mbs,bin")} };
+constexpr nfdnfilteritem_t openFilterItem[] = { {STR("Game ROM/Save"), STR("gb,gbc,sav,mbs")} };
 constexpr nfdnfilteritem_t saveStateFilterItem[] = { {STR("Save State"), STR("mbs")} };
 constexpr nfdnfilteritem_t batterySaveFilterItem[] = { {STR("Battery Save"), STR("sav")} };
 constexpr nfdnfilteritem_t audioSaveFilterItem[] = { {STR("WAV File"), STR("wav")} };
 
 #undef STR
 #else
-constexpr const char* openFilterItem = ".gb,.gbc,.sav,.mbs,.bin";
+constexpr const char* openFilterItem = ".gb,.gbc,.sav,.mbs";
 #endif
 
 const char* popupTitle = "";
@@ -290,16 +294,30 @@ void rescaleViewport()
         const int scaleFactor = std::min(viewport_height / PPU::SCR_HEIGHT, viewport_width / PPU::SCR_WIDTH);
         viewport_width = PPU::SCR_WIDTH * scaleFactor;
         viewport_height = PPU::SCR_HEIGHT * scaleFactor;
-        viewport_xOffset = (window_width - viewport_width) / 2;
-        viewport_yOffset = (window_height - menuBarHeight - viewport_height) / 2;
     }
     else
     {
-        viewport_xOffset = 0;
-        viewport_yOffset = 0;
+        constexpr float targetAspectRatio = static_cast<float>(PPU::SCR_WIDTH) / PPU::SCR_HEIGHT;
+        const float windowAspectRatio = static_cast<float>(viewport_width) / static_cast<float>(viewport_height);
+
+        if (windowAspectRatio > targetAspectRatio)
+            viewport_width = viewport_height * targetAspectRatio;
+        else
+            viewport_height = viewport_width / targetAspectRatio;
     }
 
+    viewport_xOffset = (window_width - viewport_width) / 2;
+    viewport_yOffset = (window_height - menuBarHeight - viewport_height) / 2;
+
     glViewport(viewport_xOffset, viewport_yOffset, viewport_width, viewport_height);
+
+#ifdef EMSCRIPTEN
+    auto canvas_css_resize_result = emscripten_set_element_css_size(
+        "canvas",
+        window_width / devicePixelRatio,
+        window_height / devicePixelRatio
+    );
+#endif
 }
 
 inline void updateImGUIViewports()
@@ -841,27 +859,14 @@ void window_focus_callback(GLFWwindow* _window, int focused)
     handleVisibilityChange(!focused);
 }
 
-void setWindowSizesToAspectRatio(float& newWidth, float& newHeight)
-{
-    constexpr float ASPECT_RATIO = static_cast<float>(PPU::SCR_WIDTH) / PPU::SCR_HEIGHT;
-    newHeight *= 0.95f;
-
-    if (newWidth / newHeight > ASPECT_RATIO)
-        newWidth = newHeight * ASPECT_RATIO;
-    else
-        newHeight = newWidth / ASPECT_RATIO;
-
-    glfwSetWindowSize(window, static_cast<int>(newWidth), static_cast<int>(newHeight + static_cast<float>(menuBarHeight)));
-    glViewport(0, 0, static_cast<int>(newWidth), static_cast<int>(newHeight));
-}
-
 #ifdef EMSCRIPTEN
 EM_BOOL emscripten_resize_callback(int eventType, const EmscriptenUiEvent *uiEvent, void *userData) {
-    float newWidth = uiEvent->windowInnerWidth;
-    float newHeight = uiEvent->windowInnerHeight;
+    window_width = uiEvent->windowInnerWidth * devicePixelRatio;
+    window_height = uiEvent->windowInnerHeight * devicePixelRatio;
 
-    setWindowSizesToAspectRatio(newWidth, newHeight);
-    render();
+    glfwSetWindowSize(window, window_width, window_height);
+    rescaleViewport();
+    render(0);
     glfwSwapBuffers(window);
 
     return EM_TRUE;
@@ -880,7 +885,7 @@ EM_BOOL visibilityChangeCallback(int eventType, const EmscriptenVisibilityChange
 }
 #else
 
-void framebuffer_size_callback(GLFWwindow* _window, int width, int height) 
+void framebuffer_size_callback(GLFWwindow* _window, int width, int height)
 {
     (void)_window;
     window_width = width;
@@ -987,6 +992,29 @@ bool setGLFW()
     return true;
 }
 
+int getResolutionX()
+{
+#ifdef EMSCRIPTEN
+    int screenWidth = EM_ASM_INT({
+        return window.screen.width * window.devicePixelRatio;
+    });
+#else
+    int screenWidth = glfwGetVideoMode(glfwGetPrimaryMonitor())->width;
+#endif
+    return screenWidth;
+}
+int getResolutionY()
+{
+#ifdef EMSCRIPTEN
+    int screenHeight = EM_ASM_INT({
+        return window.screen.height * window.devicePixelRatio;
+    });
+#else
+    int screenHeight = glfwGetVideoMode(glfwGetPrimaryMonitor())->height;
+#endif
+    return screenHeight;
+}
+
 void setWindowSize()
 {
     ImGui_ImplOpenGL3_NewFrame();
@@ -999,18 +1027,19 @@ void setWindowSize()
     ImGui::Render();
     updateImGUIViewports();
 
-//#ifdef EMSCRIPTEN
-//    float windowWidth = EM_ASM_DOUBLE({
-//        return window.innerWidth;
-//        });
-//    float windowHeight = EM_ASM_DOUBLE({
-//        return window.innerHeight;
-//        });
-//
-//    setWindowSizesToAspectRatio(windowWidth, windowHeight);
-//#else
+#ifdef EMSCRIPTEN
+    devicePixelRatio = EM_ASM_DOUBLE ({
+        return window.devicePixelRatio;
+    });
+
+    window_width = EM_ASM_INT({ return window.innerWidth; }) * devicePixelRatio;
+    window_height = EM_ASM_INT({ return window.innerHeight; }) * devicePixelRatio;
+
+    glfwSetWindowSize(window, window_width, window_height);
+    rescaleViewport();
+#else
     const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-    
+
     const int maxViewportHeight = static_cast<int>(static_cast<float>(mode->height) * 0.70f);
     const int scaleFactor = std::min(maxViewportHeight / PPU::SCR_HEIGHT, mode->width / PPU::SCR_WIDTH);
 
@@ -1018,30 +1047,7 @@ void setWindowSize()
     glfwSetWindowAspectRatio(window, window_width, window_height + 1);
     glfwSetWindowSizeLimits(window, PPU::SCR_WIDTH, PPU::SCR_HEIGHT + menuBarHeight, GLFW_DONT_CARE, GLFW_DONT_CARE);
     glfwSetWindowPos(window, (mode->width - window_width) / 2, (mode->height - window_height) / 2);
-//#endif
-}
-
-int getScreenWidth()
-{
-#ifdef EMSCRIPTEN
-    int screenWidth = EM_ASM_INT({
-        return window.screen.width * (window.devicePixelRatio > 1.25 ? 1.25 : window.devicePixelRatio);
-        });
-#else
-    int screenWidth = glfwGetVideoMode(glfwGetPrimaryMonitor())->width;
 #endif
-    return screenWidth;
-}
-int getScreenHeight()
-{
-    #ifdef EMSCRIPTEN
-	int screenHeight = EM_ASM_INT({
-		return window.screen.height * (window.devicePixelRatio > 1.25 ? 1.25 : window.devicePixelRatio);
-		});
-    #else
-	int screenHeight = glfwGetVideoMode(glfwGetPrimaryMonitor())->height;
-	#endif
-	return screenHeight;
 }
 
 void setImGUI()
@@ -1052,7 +1058,7 @@ void setImGUI()
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = nullptr;
 
-    scaleFactor = (static_cast<float>(getScreenWidth()) / 1920.0f + static_cast<float>(getScreenHeight()) / 1080.0f) / 2.0f;
+    scaleFactor = (static_cast<float>(getResolutionX()) / 1920.0f + static_cast<float>(getResolutionY()) / 1080.0f) / 2.0f;
     io.Fonts->AddFontFromMemoryCompressedTTF(resources::robotoMonoFont, sizeof(resources::robotoMonoFont), scaleFactor * 17.0f);
     ImGui::GetStyle().ScaleAllSizes(scaleFactor);
 

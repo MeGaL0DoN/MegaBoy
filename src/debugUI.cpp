@@ -67,26 +67,28 @@ inline void displayMemHeader()
     ImGui::Spacing();
 }
 
-// Maintains integer scale.
-inline void displayImage(uint32_t texture, uint16_t width = PPU::TILEMAP_WIDTH, uint16_t height = PPU::TILEMAP_HEIGHT)
-{
-    const ImVec2 contentSize = ImGui::GetContentRegionAvail();
-    const ImVec2 contentPos = ImGui::GetCursorScreenPos();
-    const float aspectRatio = static_cast<float>(width) / height;
-    const float aspectRatioContent = contentSize.x / contentSize.y;
+inline void displayImage(uint32_t texture, uint16_t width, uint16_t height, int& scale) {
+    float windowWidth = ImGui::GetWindowWidth();
+    float textWidth = ImGui::CalcTextSize("Scale: 00").x + ImGui::GetFrameHeight() * 2 + ImGui::GetStyle().ItemSpacing.x * 2;
+    ImGui::SetCursorPosX((windowWidth - textWidth) * 0.5f);
 
-    float scaleX = std::floor(contentSize.x / width);
-    float scaleY = std::floor(contentSize.y / height);
-    float scale = std::min(scaleX, scaleY);
+    if (ImGui::ArrowButton("##left", ImGuiDir_Left))
+        scale = std::max(1, scale - 1);
 
-    ImVec2 imageSize(width * scale,height * scale);
+    ImGui::SameLine();
+    ImGui::Text("Scale: %d", scale);
+    ImGui::SameLine();
 
-    ImVec2 imagePos (
-        contentPos.x + (contentSize.x - imageSize.x) * 0.5f,
-        contentPos.y + (contentSize.y - imageSize.y) * 0.5f
-    );
+    if (ImGui::ArrowButton("##right", ImGuiDir_Right))
+        scale++;
 
-    ImGui::SetCursorScreenPos(imagePos);
+    ImVec2 imageSize {static_cast<float>(width * scale), static_cast<float>(height * scale) };
+    ImVec2 contentRegion = ImGui::GetContentRegionAvail();
+    float xPos = (contentRegion.x - imageSize.x) * 0.5f;
+
+    if (xPos > 0)
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + xPos);
+
     OpenGL::bindTexture(texture);
     uint64_t _texture64{ texture };
     ImGui::Image(reinterpret_cast<void*>(_texture64), imageSize);
@@ -203,8 +205,10 @@ void debugUI::updateWindows(float scaleFactor)
 
     if (showVRAMView)
     {
-        ImGui::SetNextWindowSize(ImVec2(PPU::TILES_WIDTH * scaleFactor * 2.4f, PPU::TILES_HEIGHT * scaleFactor * 2.5f), ImGuiCond_Appearing);
-        ImGui::Begin("VRAM View", &showVRAMView);
+        static int tileViewScale = 2;
+        static int tileMapViewScale = 1;
+
+        ImGui::Begin("VRAM View", &showVRAMView, ImGuiWindowFlags_AlwaysAutoResize);
 
         if (ImGui::BeginTabBar("tabbar"))
         {
@@ -230,7 +234,7 @@ void debugUI::updateWindows(float scaleFactor)
                     OpenGL::updateTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileDataFrameBuffer.get());
                 }
 
-                displayImage(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT);
+                displayImage(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileViewScale);
                 ImGui::EndTabItem();
             }
 
@@ -249,7 +253,7 @@ void debugUI::updateWindows(float scaleFactor)
 					OpenGL::updateTexture(backgroundTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, BGFrameBuffer.get());
 				}
 
-                displayImage(backgroundTexture);
+                displayImage(backgroundTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, tileMapViewScale);
                 ImGui::EndTabItem();
             }
 
@@ -268,7 +272,7 @@ void debugUI::updateWindows(float scaleFactor)
                     OpenGL::updateTexture(windowTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, windowFrameBuffer.get());
                 }
 
-                displayImage(windowTexture);
+                displayImage(windowTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, tileMapViewScale);
                 ImGui::EndTabItem();
             }
 

@@ -465,6 +465,15 @@ void ImGui_ImplGlfw_CursorPosCallback(GLFWwindow* window, double x, double y)
         x += window_x;
         y += window_y;
     }
+
+#ifdef EMSCRIPTEN
+    float scaleX, scaleY;
+    glfwGetWindowContentScale(window, &scaleX, &scaleY);
+
+    x *= scaleX;
+    y *= scaleY;
+#endif
+
     io.AddMousePosEvent((float)x, (float)y);
     bd->LastValidMousePos = ImVec2((float)x, (float)y);
 }
