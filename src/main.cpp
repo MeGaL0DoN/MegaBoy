@@ -155,10 +155,14 @@ inline bool loadFile(const std::filesystem::path& path)
             break;
         case FileLoadResult::Success:
         {
+            if (currentFilePath.filename() != DMG_ROM_NAME && currentFilePath.filename() != CGB_ROM_NAME)
+            {
+                debugUI::signalROMLoaded();
 #ifdef EMSCRIPTEN
-            if (path != currentFilePath && currentFilePath.filename() != DMG_ROM_NAME && currentFilePath.filename() != CGB_ROM_NAME)
-                std::filesystem::remove(currentFilePath);
+                if (path != currentFilePath)
+					std::filesystem::remove(currentFilePath);
 #endif
+            }
             updateWindowTitle();
             currentFilePath = path;
             return true;
@@ -216,6 +220,7 @@ void drawCallback(const uint8_t* framebuffer)
 {
     OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
     std::swap(gbFramebufferTextures[0], gbFramebufferTextures[1]);
+    debugUI::signalVBlank();
 }
 
 void refreshGBTextures()
@@ -936,9 +941,9 @@ void window_focus_callback(GLFWwindow* _window, int focused)
 }
 
 #ifdef EMSCRIPTEN
-EM_BOOL emscripten_resize_callback(int eventType, const EmscriptenUiEvent *uiEvent, void *userData) {
-    
-    devicePixelRatio = EM_ASM_DOUBLE ({ return window.devicePixelRatio; });
+EM_BOOL emscripten_resize_callback(int eventType, const EmscriptenUiEvent *uiEvent, void *userData)
+{
+    std::cout << "in resize callback!\n";
     window_width = static_cast<int>(uiEvent->windowInnerWidth * devicePixelRatio);
     window_height = static_cast<int>(uiEvent->windowInnerHeight * devicePixelRatio);
 
@@ -948,6 +953,77 @@ EM_BOOL emscripten_resize_callback(int eventType, const EmscriptenUiEvent *uiEve
     glfwSwapBuffers(window);
 
     return EM_TRUE;
+}
+void content_scale_callback(GLFWwindow* _window, float xScale, float yScale)
+{
+   // ImGui::get
+  //;
+
+//std::cout << "xscale: " << xScale << "yscale: " << yScale << "\n";
+
+   //  int  inner_window_width = EM_ASM_INT({ return window.innerWidth; }) * devicePixelRatio;
+   // int inner_window_height = EM_ASM_INT({ return window.innerHeight; }) * devicePixelRatio;
+   //
+   //  std::cout << "prev ratio: " << devicePixelRatio << " prev width: " << window_width << " prev height: "
+   //                  << window_height << "prev menu height: " << menuBarHeight
+   //                   << "prev inner width: " << inner_window_width << "prev inner height: " << inner_window_height << "\n";
+
+
+
+    devicePixelRatio = EM_ASM_DOUBLE ({ return window.devicePixelRatio; });
+
+    // scaleFactor = (static_cast<float>(getResolutionX()) / 1920.0f + static_cast<float>(getResolutionY()) / 1080.0f) / 2.0f;
+    //
+    // ImGui::GetIO().Fonts->Clear();
+    // ImGui::GetIO().Fonts->AddFontFromMemoryCompressedTTF(resources::robotoMonoFont, sizeof(resources::robotoMonoFont), scaleFactor * 17.0f);
+    //
+    // ImGui_ImplOpenGL3_DestroyFontsTexture();
+    // ImGui_ImplOpenGL3_CreateFontsTexture();
+    //
+    // ImGui::GetStyle() = ImGuiStyle();
+    // ImGui::StyleColorsDark();
+    // ImGui::GetStyle().ScaleAllSizes(scaleFactor);
+
+    // ImGui_ImplOpenGL3_NewFrame();
+    // ImGui_ImplGlfw_NewFrame();
+    // ImGui::NewFrame();
+    // ImGui::BeginMainMenuBar();
+    // menuBarHeight = static_cast<int>(ImGui::GetWindowSize().y);
+    // ImGui::EndMainMenuBar();
+    //
+    // ImGui::Render();
+
+
+
+    window_width = EM_ASM_INT({ return window.innerWidth; }) * devicePixelRatio;
+    window_height = EM_ASM_INT({ return window.innerHeight; }) * devicePixelRatio;
+
+    glfwSetWindowSize(_window, window_width, window_height);
+
+    rescaleWindow();
+
+   //
+
+    // int glfw_framebufwidth, glfw_framebufheight;
+    // int glfw_width, glfw_height;
+    // glfwGetFramebufferSize(window, &glfw_framebufwidth, &glfw_framebufheight);
+    // glfwGetWindowSize(window, &glfw_width, &glfw_height);
+    //
+    // std::cout << "glfw framebbufer width: " << glfw_framebufwidth << " framebuf height: " << glfw_framebufheight
+    //             << " glfw window width: " << glfw_width << "window height: " << glfw_height << "\n";
+    //
+    // glfwSetWindowSize(_window, window_width, window_height);
+    //
+    // glfwGetFramebufferSize(window, &glfw_framebufwidth, &glfw_framebufheight);
+    // glfwGetWindowSize(window, &glfw_width, &glfw_height);
+    //
+    // std::cout << "glfw framebbufer width: " << glfw_framebufwidth << " framebuf height: " << glfw_framebufheight
+    //         << " glfw window width: " << glfw_width << "window height: " << glfw_height << "\n";
+    //
+    // rescaleWindow();
+    //
+    // std::cout << "new ratio: " << devicePixelRatio << " new width: " << window_width << " new height: "
+    //                 << window_height << "new menu height: " << menuBarHeight << "\n";
 }
 const char* unloadCallback(int eventType, const void *reserved, void *userData)
 {
@@ -1049,6 +1125,7 @@ bool setGLFW()
     glfwSetKeyCallback(window, key_callback);
 
 #ifdef  EMSCRIPTEN
+    glfwSetWindowContentScaleCallback(window, content_scale_callback);
     emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, NULL, EM_TRUE, emscripten_resize_callback);
     emscripten_set_beforeunload_callback(nullptr, unloadCallback);
     emscripten_set_visibilitychange_callback(nullptr, false, visibilityChangeCallback);

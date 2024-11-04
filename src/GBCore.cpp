@@ -5,6 +5,7 @@
 #include "GBCore.h"
 #include "appConfig.h"
 #include "Utils/fileUtils.h"
+#include "debugUI.h"
 
 GBCore gbCore{};
 
@@ -18,6 +19,7 @@ void GBCore::reset()
 	apu.reset();
 
 	emulationPaused = false;
+	breakpointHit = false;
 	cycleCounter = 0;
 }
 
@@ -90,13 +92,22 @@ void GBCore::loadBootROM()
 
 void GBCore::update(uint32_t cyclesToExecute)
 {
-	if (!cartridge.ROMLoaded || emulationPaused) [[unlikely]] 
+	if (!cartridge.ROMLoaded || emulationPaused || breakpointHit) [[unlikely]] 
 		return;
 
 	const uint64_t targetCycles = cycleCounter + cyclesToExecute;
 
 	while (cycleCounter < targetCycles)
+	{
+		if (breakpoints[cpu.getPC()]) [[unlikely]]
+		{
+			breakpointHit = true;
+			debugUI::signalBreakpoint();
+			break;
+		}
+
 		cycleCounter += cpu.execute();
+	}
 }
 
 void GBCore::stepComponents()
@@ -208,7 +219,6 @@ FileLoadResult GBCore::loadFile(std::ifstream& st)
 	if (success)
 	{
 		saveFolderPath = FileUtils::executableFolderPath / "saves" / (gbCore.gameTitle + " (" + std::to_string(cartridge.checksum) + ")");
-		emulationPaused = false;
 		appConfig::updateConfigFile();
 	}
 

@@ -3,6 +3,7 @@
 #include <cstring>
 #include <iostream>
 #include <memory>
+#include <array>
 #include "registers.h"
 
 enum class Interrupt : uint8_t
@@ -24,6 +25,8 @@ public:
 	void requestInterrupt(Interrupt interrupt);
 	void updateTimer();
 
+	std::string disassemble(uint16_t addr, uint8_t(*readFunc)(uint16_t), uint8_t* instrLen);
+
 	explicit CPU(GBCore& gbCore);
 	~CPU();
 
@@ -33,7 +36,9 @@ public:
 
 	void reset();
 
+	constexpr uint16_t getPC() const { return s.PC; }
 	constexpr bool isExecutingBootROM() const { return executingBootROM; }
+	constexpr uint8_t TcyclesPerM() const { return tCyclesPerM; }
 
 	constexpr void enableBootROM()
 	{
@@ -47,8 +52,6 @@ public:
 
 	void saveState(std::ofstream& st) const;
 	void loadState(std::ifstream& st);
-
-	constexpr uint8_t TcyclesPerM() const { return tCyclesPerM; }
 private:
 	GBCore& gbCore;
 

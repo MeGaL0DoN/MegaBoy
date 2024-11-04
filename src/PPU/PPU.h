@@ -253,6 +253,15 @@ public:
 
 	constexpr const uint8_t* getFrameBuffer() const { return framebuffer.data(); }
 	void (*drawCallback)(const uint8_t* framebuffer) { nullptr };
+
+	inline uint8_t* oamFramebuffer() { return debugOAMFramebuffer.get(); }
+	inline void setOAMDebugEnable(bool val)
+	{
+		debugOAM = val;
+
+		if (val && !debugOAMFramebuffer) 
+			debugOAMFramebuffer = std::make_unique<uint8_t[]>(FRAMEBUFFER_SIZE);
+	}
 protected:
 	std::array<uint8_t, FRAMEBUFFER_SIZE> framebuffer{};
 
@@ -278,6 +287,9 @@ protected:
 
 	bool canAccessOAM{};
 	bool canAccessVRAM{};
+
+	bool debugOAM{ false };
+	std::unique_ptr<uint8_t[]> debugOAMFramebuffer{};
 
 	inline static void updatePalette(uint8_t val, std::array<uint8_t, 4>& palette)
 	{

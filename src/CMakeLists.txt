@@ -41,9 +41,10 @@ add_executable(MegaBoy
         "APU/sweepWave.h"               
         "CPU/CPU.cpp"
         "CPU/CPU.h"
+        "CPU/registers.h"
         "CPU/CPUInstructions.h"
         "CPU/CPUInterrupts.cpp"
-        "CPU/registers.h"
+        "CPU/CPUDisassembly.cpp"
         "Mappers/MBCBase.h"
         "Mappers/MBC.h"
         "Mappers/HuC1.cpp"
@@ -70,7 +71,7 @@ add_executable(MegaBoy
 include(CheckIPOSupported)
 check_ipo_supported(RESULT supported OUTPUT error)
 
-if( supported )
+if (supported)
     message(STATUS "IPO / LTO enabled")
     set_property(TARGET MegaBoy PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 else()

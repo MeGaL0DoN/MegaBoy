@@ -625,6 +625,10 @@ void PPUCore<sys>::renderFIFOs()
 		if (!objFIFO.empty())
 		{
 			const auto obj = objFIFO.pop();
+
+			if (debugOAM) [[unlikely]]
+				PixelOps::setPixel(debugOAMFramebuffer.get(), SCR_WIDTH, s.xPosCounter, s.LY, getColor<true>(obj.color, obj.palette));
+
 			bool objHasPriority = obj.color != 0 && OBJEnable();
 
 			if constexpr (sys == GBSystem::DMG)

@@ -21,6 +21,8 @@ enum class FileLoadResult
 class GBCore
 {
 public:
+	friend class debugUI;
+
 	static constexpr uint32_t CYCLES_PER_FRAME = 17556 * 4;
 	static constexpr uint32_t CYCLES_PER_SECOND = 1048576 * 4;
 	static constexpr double FRAME_RATE = static_cast<double>(CYCLES_PER_FRAME) / CYCLES_PER_SECOND;
@@ -107,7 +109,10 @@ private:
 	std::filesystem::path filePath;
 	std::filesystem::path romFilePath;
 
-	int currentSave { 0 };
+	int currentSave{ 0 };
+
+	std::array<bool, 0x10000> breakpoints{};
+	bool breakpointHit{ false };
 
 	inline std::filesystem::path getSaveFilePath(int saveNum) const
 	{

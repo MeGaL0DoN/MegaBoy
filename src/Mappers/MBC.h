@@ -53,7 +53,6 @@ public:
 		s = {};
 		if (resetBattery) resetBatteryState();
 	}
-
 protected:
 	Cartridge& cartridge;
 
