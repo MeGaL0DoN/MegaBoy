@@ -632,9 +632,12 @@ public:
 			JR(val);
 	}
 
-	inline void JP(Register16 reg)
+	inline void JP_HL()
 	{
-		cpu->s.PC = reg.val;
+		cpu->s.PC = cpu->registers.HL.val;
+
+		if (cpu->retEvent != nullptr)
+			cpu->retEvent(); // In case game uses pop hl + jp hl instead of ret.
 	}
 	inline void JP(uint16_t addr) 
 	{
@@ -669,16 +672,14 @@ public:
 	{
 		POP(cpu->s.PC);
 		cpu->addCycle();
+
+		if (cpu->retEvent != nullptr)
+			cpu->retEvent();
 	}
 	inline void RET_CON(bool cond) 
 	{
 		cpu->addCycle();
-
-		if (cond)
-		{
-			POP(cpu->s.PC);
-			cpu->addCycle();
-		}
+		if (cond) RET();
 	}
 	inline void RET1()
 	{

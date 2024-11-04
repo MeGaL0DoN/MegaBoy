@@ -155,51 +155,58 @@ void debugUI::signalROMLoaded()
 void debugUI::extendBreakpointDisasmWindow()
 {
     shouldScrollToPC = true;
-
     uint16_t addr = gbCore.cpu.s.PC;
-	uint8_t instrLen;
+    uint8_t instrLen;
     std::string disasm = disassemble(addr, &instrLen);
 
-    auto addDissasembly = [&addr, &instrLen, &disasm]()
-	{
-        std::array<uint8_t, 3> data{ 0, 0, 0 };
+    auto createEntry = [&addr, &instrLen, &disasm]()
+    {
+        std::array<uint8_t, 3> data{};
 
         for (int i = 0; i < instrLen; i++)
             data[i] = gbCore.mmu.read8(addr + i);
 
-        breakpointDisassembly.push_back(instructionHistoryEntry{ addr, instrLen, data, disasm });
-	};
-
-    auto currentInstr = std::find_if(breakpointDisassembly.begin(), breakpointDisassembly.end(), [instrLen, addr](const instructionHistoryEntry& instr) 
+        return instructionHistoryEntry{ addr, instrLen, data, disasm };
+    };
+    auto isModified = [](const instructionHistoryEntry& entry) // Handle self-modifying code
     {
-        if (instr.addr != addr || instr.length != instrLen) return false;
-
-        for (int i = 0; i < instrLen; i++)
+        for (int i = 0; i < entry.length; i++)
         {
-            if (instr.data[i] != gbCore.mmu.read8(instr.addr + i))
-                return false;
+            if (entry.data[i] != gbCore.mmu.read8(entry.addr + i))
+                return true;
         }
-        return true;
-    });
+        return false;
+    };
 
-    if (currentInstr != breakpointDisassembly.end())
+    auto currentInstr = std::lower_bound(breakpointDisassembly.begin(), breakpointDisassembly.end(), addr);
+    bool exists = currentInstr != breakpointDisassembly.end() && currentInstr->addr == addr;
+
+    if (exists)
     {
-        breakpointDisasmLine = std::distance(breakpointDisassembly.begin(), currentInstr);
+        if (currentInstr->length != instrLen || isModified(*currentInstr))
+            *currentInstr = createEntry(); 
+    }
+    else
+        currentInstr = breakpointDisassembly.insert(currentInstr, createEntry());
 
-        if (breakpointDisasmLine == breakpointDisassembly.size() - 1)
+    breakpointDisasmLine = currentInstr - breakpointDisassembly.begin();
+    addr += instrLen;
+
+    auto nextInstr = std::next(currentInstr);
+    bool nextExists = (nextInstr != breakpointDisassembly.end() && nextInstr->addr == addr);
+
+    if (nextExists)
+    {
+        if (isModified(*nextInstr))
         {
-            addr += instrLen;
             disasm = disassemble(addr, &instrLen);
-            addDissasembly();
+            *nextInstr = createEntry(); 
         }
     }
     else
     {
-        addDissasembly();
-        addr += instrLen;
         disasm = disassemble(addr, &instrLen);
-        addDissasembly();
-        breakpointDisasmLine = breakpointDisassembly.size() - 2;
+        breakpointDisassembly.insert(nextInstr, createEntry());
     }
 }
 
@@ -212,18 +219,22 @@ void debugUI::removeTempBreakpoint()
 
         tempBreakpointAddr = -1;
     }
+    if (stepOutStartSPVal != -1)
+    {
+        stepOutStartSPVal = -1;
+        gbCore.cpu.setRetOpcodeEvent(nullptr);
+    }
 }
 
 void debugUI::signalBreakpoint()
 {
-    if (tempBreakpointAddr != -1)
-        removeTempBreakpoint();
-    else
+    if (tempBreakpointAddr == -1 || gbCore.cpu.s.PC != tempBreakpointAddr)
     {
         showBreakpointHitWindow = true;
         breakpointDisassembly.clear();
     }
 
+    removeTempBreakpoint();
     extendBreakpointDisasmWindow();
 }
 
@@ -520,7 +531,7 @@ void debugUI::updateWindows(float scaleFactor)
 
             if (ImGui::Button("Continue"))
             {
-                if (tempBreakpointAddr == -1)
+                if (tempBreakpointAddr == -1 && stepOutStartSPVal == -1)
                 {
                     gbCore.cycleCounter += gbCore.cpu.execute();
                     gbCore.breakpointHit = false;
@@ -541,7 +552,7 @@ void debugUI::updateWindows(float scaleFactor)
 
             ImGui::SameLine();
 
-            bool stepsDisabled = tempBreakpointAddr != -1;
+            bool stepsDisabled = tempBreakpointAddr != -1 || stepOutStartSPVal != -1;
 
             if (stepsDisabled)
                 ImGui::BeginDisabled();
@@ -573,7 +584,20 @@ void debugUI::updateWindows(float scaleFactor)
 
             if (ImGui::Button("Step Out"))
             {
+                stepOutStartSPVal = gbCore.cpu.s.SP.val;
+                gbCore.breakpointHit = false;
+                gbCore.cycleCounter += gbCore.cpu.execute();
 
+                gbCore.cpu.setRetOpcodeEvent([]()
+				{
+                    if (gbCore.cpu.s.SP.val > stepOutStartSPVal)
+                    {
+                        tempBreakpointAddr = gbCore.cpu.s.PC;
+                        gbCore.breakpoints[tempBreakpointAddr] = true;
+                        gbCore.cpu.setRetOpcodeEvent(nullptr);
+                        stepOutStartSPVal = -1;
+                    }
+				});
             }
 
             ImGui::SameLine();
@@ -606,8 +630,20 @@ void debugUI::updateWindows(float scaleFactor)
             {
                 if (shouldScrollToPC)
                 {
+                    const float currentScrollY = ImGui::GetScrollY();
+                    const float windowHeight = ImGui::GetWindowHeight();
                     const float itemHeight = ImGui::GetTextLineHeightWithSpacing();
-                    ImGui::SetScrollY(itemHeight * breakpointDisasmLine);
+                    const float targetY = itemHeight * breakpointDisasmLine;
+
+                    const float visibleStart = currentScrollY + itemHeight;
+                    const float visibleEnd = currentScrollY + windowHeight - (2 * itemHeight);
+
+                    if (targetY < visibleStart || targetY > visibleEnd)
+                    {
+                        const float centerOffset = (windowHeight - itemHeight) * 0.5f;
+                        const float scrollTarget = std::max(0.0f, targetY - centerOffset);
+                        ImGui::SetScrollY(scrollTarget);
+                    }
                     shouldScrollToPC = false;
                 }
 
@@ -618,7 +654,7 @@ void debugUI::updateWindows(float scaleFactor)
 				{
 					for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++)
 					{
-                        if (i == breakpointDisasmLine)
+                        if (breakpointDisassembly[i].addr == gbCore.cpu.s.PC)
                             ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "%s", breakpointDisassembly[i].disasm.c_str());
 						else
 							ImGui::Text("%s", breakpointDisassembly[i].disasm.c_str());

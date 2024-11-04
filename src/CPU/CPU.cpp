@@ -608,7 +608,7 @@ void CPU::executeMain()
 		instructions->addToSP(fetch8());
 		break;
 	case 0xE9:
-		instructions->JP(registers.HL);
+		instructions->JP_HL();
 		break;
 	case 0xEA:
 		instructions->LD_MEM(fetch16(), registers.A);

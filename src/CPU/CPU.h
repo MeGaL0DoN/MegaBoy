@@ -37,6 +37,9 @@ public:
 	void reset();
 
 	constexpr uint16_t getPC() const { return s.PC; }
+
+	void setRetOpcodeEvent(void(*event)()) { retEvent = event; }
+
 	constexpr bool isExecutingBootROM() const { return executingBootROM; }
 	constexpr uint8_t TcyclesPerM() const { return tCyclesPerM; }
 
@@ -154,4 +157,6 @@ private:
 	bool executingBootROM { false };
 
 	std::unique_ptr<CPUInstructions> instructions;
+
+	void(*retEvent)();
 };

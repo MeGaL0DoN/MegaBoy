@@ -34,6 +34,11 @@ private:
 		uint8_t length;
 		std::array<uint8_t, 3> data;
 		std::string disasm;
+
+		bool operator < (uint16_t addr) const
+		{
+			return this->addr < addr;
+		}
 	};
 
 	static inline bool showMemoryView { false };
@@ -65,6 +70,7 @@ private:
 	static inline bool showBreakpointHitWindow { false };
 	static inline bool shouldScrollToPC{ false };
 	static inline int32_t tempBreakpointAddr { -1 };
+	static inline int32_t stepOutStartSPVal { -1 };
 
 	static inline void removeTempBreakpoint();
 
