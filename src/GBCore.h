@@ -102,6 +102,7 @@ public:
 	Cartridge cartridge { *this };
 private:
 	void (*drawCallback)(const uint8_t* framebuffer) { nullptr };
+	bool oamDebugEnable { false };
 
 	uint64_t cycleCounter { 0 };
 
@@ -114,6 +115,12 @@ private:
 	std::array<bool, 0x10000> breakpoints{};
 	bool breakpointHit{ false };
 
+	inline void setOAMDebugEnable(bool val)
+	{
+		oamDebugEnable = val;
+		if (ppu) ppu->setOAMDebugEnable(val);
+	}
+
 	inline std::filesystem::path getSaveFilePath(int saveNum) const
 	{
 		return saveFolderPath / ("save" + std::to_string(saveNum) + ".mbs");
@@ -125,10 +132,12 @@ private:
 		appConfig::updateConfigFile();
 	}
 
-	inline void upddatePPUSystem()
+	inline void updatePPUSystem()
 	{
 		ppu = System::Current() == GBSystem::DMG ? std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::DMG>>(mmu, cpu) } :
 												   std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::GBC>>(mmu, cpu) };
+
+		ppu->setOAMDebugEnable(oamDebugEnable);
 		ppu->drawCallback = this->drawCallback;
 	}
 
@@ -136,7 +145,7 @@ private:
 	{
 		if (cartridge.loadROM(st))
 		{
-			upddatePPUSystem();
+			updatePPUSystem();
 			reset();
 			romFilePath = filePath;
 			currentSave = 0;

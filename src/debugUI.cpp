@@ -23,9 +23,7 @@ void debugUI::updateMenu()
         if (ImGui::MenuItem("VRAM View"))
         {
             showVRAMView = !showVRAMView;
-
-            if (gbCore.cartridge.ROMLoaded)
-                gbCore.ppu->setOAMDebugEnable(showVRAMView);
+            gbCore.setOAMDebugEnable(showVRAMView);
         }
         if (ImGui::MenuItem("Audio View"))
         {
