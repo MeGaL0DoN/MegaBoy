@@ -39,6 +39,7 @@ public:
 	constexpr uint16_t getPC() const { return s.PC; }
 
 	void setRetOpcodeEvent(void(*event)()) { retEvent = event; }
+	void setHaltExitEvent(void(*event)()) { haltExitEvent = event; }
 
 	constexpr bool isExecutingBootROM() const { return executingBootROM; }
 	constexpr uint8_t TcyclesPerM() const { return tCyclesPerM; }
@@ -86,6 +87,17 @@ private:
 	{
 		uint8_t low = read8(s.PC++);
 		return (read8(s.PC++) << 8) | low;
+	}
+
+	inline void exitHalt()
+	{
+		if (s.halted)
+		{
+			s.halted = false;
+
+			if (haltExitEvent != nullptr)
+				haltExitEvent();
+		}
 	}
 
 	struct cpuState
@@ -159,4 +171,5 @@ private:
 	std::unique_ptr<CPUInstructions> instructions;
 
 	void(*retEvent)();
+	void(*haltExitEvent)();
 };

@@ -74,6 +74,12 @@ private:
 	static inline int32_t tempBreakpointAddr { -1 };
 	static inline int32_t stepOutStartSPVal { -1 };
 
+	static inline void setTempBreakpoint(uint16_t addr)
+	{
+		tempBreakpointAddr = addr;
+		gbCore.breakpoints[addr] = true;
+	}
+
 	static inline void disassembleRom();
 	static inline void removeTempBreakpoint();
 	static inline void extendBreakpointDisasmWindow();

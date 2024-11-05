@@ -97,9 +97,9 @@ bool CPU::handleHaltedState()
 		s.stopCycleCounter += cycles;
 		if (s.stopCycleCounter >= STOP_PERIOD_CYCLES)
 		{
-			s.halted = false;
 			s.stopState = false;
 			s.stopCycleCounter = 0;
+			exitHalt();
 		}
 	}
 

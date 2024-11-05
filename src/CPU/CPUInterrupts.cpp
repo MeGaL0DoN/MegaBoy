@@ -16,7 +16,7 @@ uint8_t CPU::handleInterrupts()
 		addCycles(2); // PUSH adds 3, need 5 in total.
 
 		s.IME = false;
-		s.halted = false;
+		exitHalt();
 		uint8_t interrupt = s.IE & s.IF;
 
 		if (interrupt) [[likely]]
@@ -33,7 +33,7 @@ uint8_t CPU::handleInterrupts()
 	else if (interruptsPending()) [[unlikely]]
 	{
 		// halt bug
-		s.halted = false;
+		exitHalt();
 	}
 
 	return 0;

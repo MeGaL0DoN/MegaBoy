@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <array>
 #include <fstream>
+#include <memory>
 
 #include "../defines.h"
 #include "../Utils/pixelOps.h"

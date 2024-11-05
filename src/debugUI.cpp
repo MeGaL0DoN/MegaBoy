@@ -1,4 +1,5 @@
 #include "debugUI.h"
+#include "Utils/bitOps.h"
 
 #include <algorithm>
 #include <cmath>
@@ -333,15 +334,16 @@ void debugUI::updateWindows(float scaleFactor)
         ImGui::Begin("CPU View", &showCPUView, ImGuiWindowFlags_NoResize);
 
         ImGui::Text("PC: %04X", gbCore.cpu.s.PC);
-        ImGui::Text("SP: %04X", gbCore.cpu.s.SP.val);
-        ImGui::Text("IE: %02X", gbCore.cpu.s.IE);
         ImGui::SameLine();
-        ImGui::Text("IF: %02X", gbCore.cpu.s.IF);
+        ImGui::Text("| SP: %04X", gbCore.cpu.s.SP.val);
         ImGui::Text("DIV: %02X", gbCore.cpu.s.DIV_reg);
         ImGui::SameLine();
-        ImGui::Text("TIMA: %02X", gbCore.cpu.s.TIMA_reg);
+        ImGui::Spacing();
+        ImGui::SameLine();
+        ImGui::Text("| TIMA: %02X", gbCore.cpu.s.TIMA_reg);
         ImGui::Text("Cycles: %llu", gbCore.totalCycles());
         ImGui::Text("Frequency: %.3f MHz", gbCore.cpu.s.GBCdoubleSpeed ? 2.097 : 1.048);
+        ImGui::Text("Halted: %s", gbCore.cpu.s.halted ? "True" : "False");
 
         ImGui::SeparatorText("Registers");
 
@@ -359,25 +361,65 @@ void debugUI::updateWindows(float scaleFactor)
         ImGui::Text("L: %02X", gbCore.cpu.registers.L.val);
 
         ImGui::SeparatorText("Flags");
+        ImGui::BeginDisabled();
 
         bool zero = gbCore.cpu.registers.getFlag(FlagType::Zero);
         bool carry = gbCore.cpu.registers.getFlag(FlagType::Carry);
         bool halfCarry = gbCore.cpu.registers.getFlag(FlagType::HalfCarry);
         bool negative = gbCore.cpu.registers.getFlag(FlagType::Subtract);
 
+        ImGui::Checkbox("Z", &zero);
+        ImGui::SameLine();
+        ImGui::Spacing();
+        ImGui::SameLine();
+        ImGui::Checkbox("C", &carry);
+        ImGui::Checkbox("H", &halfCarry);
+        ImGui::SameLine();
+        ImGui::Spacing();
+        ImGui::SameLine();
+        ImGui::Checkbox("N", &negative);
+
+        ImGui::EndDisabled();
+
+        ImGui::SeparatorText("Interrupts");
         ImGui::BeginDisabled();
-        ImGui::Checkbox("Zero", &zero);
-        ImGui::Checkbox("Carry", &carry);
-        ImGui::Checkbox("Half Carry", &halfCarry);
-        ImGui::Checkbox("Negative", &negative);
+
+        bool ime = gbCore.cpu.s.IME;
+        bool vBlank = getBit(gbCore.cpu.s.IE, 0);
+        bool lcdStat = getBit(gbCore.cpu.s.IE, 1);
+        bool timer = getBit(gbCore.cpu.s.IE, 2);
+        bool serial = getBit(gbCore.cpu.s.IE, 3);
+        bool joypad = getBit(gbCore.cpu.s.IE, 4);
+
+        ImGui::Checkbox("Master Enable", &ime);
+
+        ImGui::Checkbox("VBlank", &vBlank);
+        ImGui::SameLine();
+        ImGui::Checkbox("LCD Stat", &lcdStat);
+        ImGui::Checkbox("Timer", &timer);
+        ImGui::SameLine();
+        ImGui::Spacing();
+        ImGui::SameLine();
+        ImGui::Checkbox("Serial", &serial);
+        ImGui::Checkbox("Joypad", &joypad);
+
         ImGui::EndDisabled();
 
         ImGui::End();
     }
     if (showDisassembly)
     {
-        ImGui::SetNextWindowSize(ImVec2(-1.f, 450 * scaleFactor), ImGuiCond_Appearing);
+        ImGui::SetNextWindowSize(ImVec2(280 * (static_cast<int>(showBreakpointHitWindow) + 1) * scaleFactor, 450 * scaleFactor), ImGuiCond_Appearing);
         ImGui::Begin("Disassembly", &showDisassembly);
+
+        static bool firstTimeBreakpointWindow { true };
+
+        if (showBreakpointHitWindow && firstTimeBreakpointWindow)
+        {
+            ImVec2 windowSize = ImGui::GetWindowSize();
+            ImGui::SetWindowSize(ImVec2(windowSize.x * 2, windowSize.y));
+            firstTimeBreakpointWindow = false;
+        }
 
         if (showBreakpointHitWindow)
             ImGui::Columns(2);
@@ -556,17 +598,30 @@ void debugUI::updateWindows(float scaleFactor)
 
             if (ImGui::Button("Continue"))
             {
-                if (tempBreakpointAddr == -1 && stepOutStartSPVal == -1)
+                if (gbCore.cpu.s.halted)
                 {
-                    gbCore.cycleCounter += gbCore.cpu.execute();
                     gbCore.breakpointHit = false;
-                    showBreakpointHitWindow = false;
+
+                    gbCore.cpu.setHaltExitEvent([]()
+                    {
+                        setTempBreakpoint(gbCore.cpu.s.PC);
+                        gbCore.cpu.setHaltExitEvent(nullptr);
+                    });
                 }
                 else
                 {
-                    gbCore.breakpointHit = true;
-                    removeTempBreakpoint();
-                    extendBreakpointDisasmWindow();
+                    if (tempBreakpointAddr == -1 && stepOutStartSPVal == -1)
+                    {
+                        gbCore.cycleCounter += gbCore.cpu.execute();
+                        gbCore.breakpointHit = false;
+                        showBreakpointHitWindow = false;
+                    }
+                    else
+                    {
+                        gbCore.breakpointHit = true;
+                        removeTempBreakpoint();
+                        extendBreakpointDisasmWindow();
+                    }
                 }
             }
 
@@ -577,7 +632,7 @@ void debugUI::updateWindows(float scaleFactor)
 
             ImGui::SameLine();
 
-            bool stepsDisabled = tempBreakpointAddr != -1 || stepOutStartSPVal != -1;
+            bool stepsDisabled = tempBreakpointAddr != -1 || stepOutStartSPVal != -1 || gbCore.cpu.s.halted;
 
             if (stepsDisabled)
                 ImGui::BeginDisabled();
@@ -595,8 +650,7 @@ void debugUI::updateWindows(float scaleFactor)
                 if (breakpointDisassembly[breakpointDisasmLine].disasm.find("CALL") != std::string::npos)
                 {
                     gbCore.breakpointHit = false;
-                    tempBreakpointAddr = gbCore.cpu.s.PC + 3;
-                    gbCore.breakpoints[tempBreakpointAddr] = true;
+                    setTempBreakpoint(gbCore.cpu.s.PC + 3);
                 }
                 else
                 {
@@ -617,8 +671,7 @@ void debugUI::updateWindows(float scaleFactor)
 				{
                     if (gbCore.cpu.s.SP.val > stepOutStartSPVal)
                     {
-                        tempBreakpointAddr = gbCore.cpu.s.PC;
-                        gbCore.breakpoints[tempBreakpointAddr] = true;
+                        setTempBreakpoint(gbCore.cpu.s.PC);
                         gbCore.cpu.setRetOpcodeEvent(nullptr);
                         stepOutStartSPVal = -1;
                     }
@@ -632,15 +685,17 @@ void debugUI::updateWindows(float scaleFactor)
             if (ImGui::Button("Step To"))
             {
                 gbCore.cycleCounter += gbCore.cpu.execute();
-                gbCore.breakpoints[stepToAddr] = true;
+                setTempBreakpoint(stepToAddr);
 				gbCore.breakpointHit = false;
-                tempBreakpointAddr = stepToAddr;
             }
 
             ImGui::SameLine();
+            ImGui::PushItemWidth(95 * scaleFactor);
 
             if (ImGui::InputInt("##stepTo", &stepToAddr, 0, 0, ImGuiInputTextFlags_CharsHexadecimal))
 				stepToAddr = std::clamp(stepToAddr, 0, 0xFFFF);
+
+            ImGui::PopItemWidth();
 
             if (stepsDisabled)
 				ImGui::EndDisabled();
@@ -693,9 +748,9 @@ void debugUI::updateWindows(float scaleFactor)
     }
     if (showVRAMView)
     {
-        static int tileViewScale { static_cast<int>(2 * scaleFactor) };
-        static int tileMapViewScale = { static_cast<int>(scaleFactor) };
-        static int oamViewScale = { static_cast<int>(2 * scaleFactor) };
+        static int tileViewScale { std::max(1,static_cast<int>(2 * scaleFactor)) };
+        static int tileMapViewScale { std::max(1, static_cast<int>(scaleFactor)) };
+        static int oamViewScale { std::max(1, static_cast<int>(2 * scaleFactor)) };
 
         ImGui::Begin("VRAM View", &showVRAMView, ImGuiWindowFlags_AlwaysAutoResize);
 
