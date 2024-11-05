@@ -1,8 +1,6 @@
 #include "inputManager.h"
 #include "Utils/bitOps.h"
 
-#include <map>
-
 #define INT8(val) static_cast<uint8_t>(val)
 
 // GLFW to gameboy key mappings
@@ -53,4 +51,31 @@ void inputManager::update(int key, int action)
 {
 	updateKeyGroup(key, action, dpadState, dpadKeyConfig, readDpad);
 	updateKeyGroup(key, action, buttonState, buttonKeyConfig, readButtons);
+}
+
+uint8_t inputManager::readJoypadReg() const
+{
+	if (!readButtons && !readDpad)
+		return 0xCF;
+
+	uint8_t keyState{ 0xF0 };
+
+	if (readDpad)
+	{
+		keyState = resetBit(keyState, 4);
+		keyState |= dpadState;
+	}
+	if (readButtons)
+	{
+		keyState = resetBit(keyState, 5);
+		keyState |= buttonState;
+	}
+
+	return keyState;
+}
+
+void inputManager::setJoypadReg(uint8_t val)
+{
+	readButtons = !getBit(val, 5);
+	readDpad = !getBit(val, 4);
 }

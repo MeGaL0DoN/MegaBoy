@@ -18,7 +18,6 @@ public:
 	static void signalVBlank();
 	static void signalROMLoaded();
 	static void signalBreakpoint();
-
 private:
 	enum class VRAMTab 
 	{
@@ -27,7 +26,6 @@ private:
 		WindowMap,
 		OAM
 	};
-
 	struct instructionHistoryEntry
 	{
 		uint16_t addr;
@@ -60,21 +58,24 @@ private:
 
 	static inline int vramTileBank{ 0 };
 
-	static inline std::vector<uint16_t> breakpoints{};
-	static inline int romDisassemblyView { false };
-	static inline int dissasmRomBank { 0 };
-	static inline std::vector<std::string> romDisassembly;
+	static inline int romMemoryView{ false };
+	static inline int romDisassemblyView{ false };
 
+	static inline int dissasmRomBank{ 0 };
+	static inline int memoryRomBank{ 0 };
+
+	static inline std::vector<uint16_t> breakpoints{};
+	static inline std::vector<std::string> romDisassembly;
 	static inline std::vector<instructionHistoryEntry> breakpointDisassembly;
+
 	static inline int breakpointDisasmLine { 0 };
 	static inline bool showBreakpointHitWindow { false };
 	static inline bool shouldScrollToPC{ false };
 	static inline int32_t tempBreakpointAddr { -1 };
 	static inline int32_t stepOutStartSPVal { -1 };
 
-	static inline void removeTempBreakpoint();
-
 	static inline void disassembleRom();
+	static inline void removeTempBreakpoint();
 	static inline void extendBreakpointDisasmWindow();
 
 	static inline void clearBuffer(uint8_t* buffer, uint16_t width, uint16_t height) { PixelOps::clearBuffer(buffer, width, height, PPU::ColorPalette[0]); }

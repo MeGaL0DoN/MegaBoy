@@ -1,6 +1,7 @@
 #pragma once
-#include <map>
+
 #include <fstream>
+#include <map>
 
 #include "CPU/CPU.h"
 #include "defines.h"
@@ -16,36 +17,11 @@ public:
 	void update(int scancode, int action);
 	void reset();
 
-	inline uint8_t readJoypadReg() const
-	{
-		if (!readButtons && !readDpad)
-			return 0xCF;
-
-		uint8_t keyState{ 0xF0 };
-
-		if (readDpad)
-		{
-			keyState = resetBit(keyState, 4);
-			keyState |= dpadState;
-		}
-		if (readButtons)
-		{
-			keyState = resetBit(keyState, 5);
-			keyState |= buttonState;
-		}
-
-		return keyState;
-	}
-
-	inline void setJoypadReg(uint8_t val)
-	{
-		readButtons = !getBit(val, 5);
-		readDpad = !getBit(val, 4);
-	}
+	uint8_t readJoypadReg() const;
+	void setJoypadReg(uint8_t val);
 
 	inline void saveState(std::ofstream& st) const { ST_WRITE(readButtons), ST_WRITE(readDpad); }
 	inline void loadState(std::ifstream& st) { ST_READ(readButtons), ST_READ(readDpad); }
-
 private:
 	CPU& cpu;
 

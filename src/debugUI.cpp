@@ -23,6 +23,9 @@ void debugUI::updateMenu()
         if (ImGui::MenuItem("VRAM View"))
         {
             showVRAMView = !showVRAMView;
+
+            if (gbCore.cartridge.ROMLoaded)
+                gbCore.ppu->setOAMDebugEnable(showVRAMView);
         }
         if (ImGui::MenuItem("Audio View"))
         {
@@ -64,25 +67,14 @@ void debugUI::disassembleRom()
 
     while (addr <= endAddr)
     {
-        std::string disasm = to_hex_str(addr).append(": ").append(gbCore.cpu.disassemble(addr, [](uint16_t a) 
+        std::string disasm = to_hex_str(addr).append(": ").append(gbCore.cpu.disassemble(addr, [](uint16_t addr) 
         {
-            return gbCore.cartridge.getRom()[(dissasmRomBank * 0x4000) + (a - (dissasmRomBank == 0 ? 0 : 0x4000))];
+            return gbCore.cartridge.getRom()[(dissasmRomBank * 0x4000) + (addr - (dissasmRomBank == 0 ? 0 : 0x4000))];
         }, &instrLen));
 
         romDisassembly.push_back(disasm);
         addr += instrLen;
     }
-}
-
-
-inline void displayMemHeader()
-{
-    constexpr const char* header = "Offset 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F  ";
-    ImGui::Text(header);
-
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
 }
 
 void debugUI::signalVBlank()
@@ -148,6 +140,7 @@ void debugUI::signalROMLoaded()
 {
     romDisassembly.clear();
     dissasmRomBank = 0;
+    memoryRomBank = 0;
     removeTempBreakpoint();
     showBreakpointHitWindow = false;
 }
@@ -242,102 +235,130 @@ void debugUI::updateWindows(float scaleFactor)
 {
     if (showMemoryView)
     {
-        ImGui::SetNextWindowSizeConstraints(ImVec2(-1.f, ImGui::GetFontSize() * 19.2f), ImVec2(INFINITY, INFINITY));
+        ImGui::SetNextWindowSize(ImVec2(-1.f, scaleFactor * 327), ImGuiCond_Appearing);
         ImGui::Begin("Memory View", &showMemoryView);
 
-        displayMemHeader();
+        ImGui::RadioButton("Memory Space", &romMemoryView, 0);
+        ImGui::SameLine();
+        ImGui::RadioButton("ROM Banks", &romMemoryView, 1);
+        ImGui::Spacing();
+
+        if (romMemoryView)
+        {
+            std::string romBankText = "ROM Bank (Total: " + std::to_string(gbCore.cartridge.romBanks) + ")";
+            ImGui::Text(romBankText.c_str());
+            ImGui::SameLine();
+
+            ImGui::PushItemWidth(150 * scaleFactor);
+
+            if (ImGui::InputInt("##rombank", &memoryRomBank, 1, 1, ImGuiInputTextFlags_CharsDecimal))
+            {
+                if (gbCore.cartridge.ROMLoaded)
+                    memoryRomBank = std::clamp(memoryRomBank, 0, static_cast<int>(gbCore.cartridge.romBanks - 1));
+                else
+                    memoryRomBank = 0;
+            }
+
+            ImGui::PopItemWidth();
+            ImGui::Spacing();
+        }
+
+        constexpr const char* header = "Offset 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F                    ";
+        ImGui::Text(header);
+
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
 
         ImGui::BeginChild("content");
         ImGuiListClipper clipper;
-        clipper.Begin(4096);
 
-        while (clipper.Step())
+        auto printMem = [&clipper](uint16_t viewStartAddr, uint8_t(*readFunc)(uint16_t))
         {
-            for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++)
+            std::string memoryData(72, '\0');
+
+            auto drawList = ImGui::GetWindowDrawList();
+            const float charWidth = ImGui::CalcTextSize("0").x;
+            const float vertLineX = ImGui::GetCursorScreenPos().x + (charWidth * 53.1); 
+
+            while (clipper.Step())
             {
-                std::string memoryData(55, '\0');
-                memoryData = "0x" + to_hex_str(static_cast<uint16_t>(i * 16)) + " ";
+                const float startY = ImGui::GetCursorScreenPos().y;
 
-                if (gbCore.cartridge.ROMLoaded)
+                for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++)
                 {
-                    for (int j = 0; j < 16; j++)
-                        memoryData += to_hex_str(gbCore.mmu.read8(static_cast<uint16_t>(i * 16 + j))) + " ";
+                    memoryData = "0x" + to_hex_str(static_cast<uint16_t>(viewStartAddr + i * 16)) + " ";
+
+                    if (gbCore.cartridge.ROMLoaded)
+                    {
+                        std::array<uint8_t, 16> data;
+
+                        for (int j = 0; j < 16; j++)
+                        {
+                            data[j] = readFunc(static_cast<uint16_t>(i * 16 + j));
+                            memoryData += to_hex_str(data[j]) + " ";
+                        }
+
+                        memoryData += " ";
+
+                        for (int j = 0; j < 16; j++)
+                            memoryData += (data[j] >= 32 && data[j] <= 126) ? static_cast<char>(data[j]) : '.';
+                    }
+                    else
+                        memoryData += "ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff  ................";
+
+                    ImGui::Text("%s", memoryData.c_str());
                 }
-                else
-                    memoryData += "ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff";
 
-                ImGui::Text("%s", memoryData.c_str());
+                const float endY = ImGui::GetCursorScreenPos().y;
+                const float contentHeight = endY - startY;
+                drawList->AddLine(ImVec2(vertLineX, startY), ImVec2(vertLineX, endY), ImGui::GetColorU32(ImGuiCol_Separator), 1.0f);
             }
-        }
-        ImGui::EndChild();
+        };
 
+        if (romMemoryView)
+        {
+            clipper.Begin(1024);
+            printMem(memoryRomBank == 0 ? 0 : 0x4000, [](uint16_t addr) { return gbCore.cartridge.getRom()[(memoryRomBank * 0x4000) + addr]; });
+        }
+        else
+        {
+            clipper.Begin(4096);
+            printMem(0, [](uint16_t addr) { return gbCore.mmu.read8(addr); });
+        }
+
+        ImGui::EndChild();
         ImGui::End();
     }
     if (showCPUView)
     {
         ImGui::Begin("CPU View", &showCPUView, ImGuiWindowFlags_NoResize);
 
-        std::string strBuf = "PC: " + to_hex_str(gbCore.cpu.s.PC);
-        ImGui::Text("%s", strBuf.c_str());
-
-        strBuf = "SP: " + to_hex_str(gbCore.cpu.s.SP.val);
-        ImGui::Text("%s", strBuf.c_str());
-
-        strBuf = "IE: " + to_hex_str(gbCore.cpu.s.IE);
-        ImGui::Text("%s", strBuf.c_str());
-
+        ImGui::Text("PC: %04X", gbCore.cpu.s.PC);
+        ImGui::Text("SP: %04X", gbCore.cpu.s.SP.val);
+        ImGui::Text("IE: %02X", gbCore.cpu.s.IE);
         ImGui::SameLine();
-
-        strBuf = "IF: " + to_hex_str(gbCore.cpu.s.IF);
-        ImGui::Text("%s", strBuf.c_str());
-
-        strBuf = "DIV: " + to_hex_str(gbCore.cpu.s.DIV_reg);
-        ImGui::Text("%s", strBuf.c_str());
-
+        ImGui::Text("IF: %02X", gbCore.cpu.s.IF);
+        ImGui::Text("DIV: %02X", gbCore.cpu.s.DIV_reg);
         ImGui::SameLine();
-
-        strBuf = "TIMA: " + to_hex_str(gbCore.cpu.s.TIMA_reg);
-        ImGui::Text("%s", strBuf.c_str());
-
-        strBuf = "Cycles: " + std::to_string(gbCore.totalCycles());
-        ImGui::Text("%s", strBuf.c_str());
-
-        strBuf = gbCore.cpu.s.GBCdoubleSpeed ? "Frequency: 2.097 MHz" : "Frequency: 1.048 MHz";
-        ImGui::Text("%s", strBuf.c_str());
+        ImGui::Text("TIMA: %02X", gbCore.cpu.s.TIMA_reg);
+        ImGui::Text("Cycles: %llu", gbCore.totalCycles());
+        ImGui::Text("Frequency: %.3f MHz", gbCore.cpu.s.GBCdoubleSpeed ? 2.097 : 1.048);
 
         ImGui::SeparatorText("Registers");
 
-        strBuf = "A: " + to_hex_str(gbCore.cpu.registers.A.val);
-        ImGui::Text("%s", strBuf.c_str());
-
+        ImGui::Text("A: %02X", gbCore.cpu.registers.A.val);
         ImGui::SameLine();
-
-        strBuf = "F: " + to_hex_str(gbCore.cpu.registers.F.val);
-        ImGui::Text("%s", strBuf.c_str());
-
-        strBuf = "B: " + to_hex_str(gbCore.cpu.registers.B.val);
-        ImGui::Text("%s", strBuf.c_str());
-
+        ImGui::Text("F: %02X", gbCore.cpu.registers.F.val);
+        ImGui::Text("B: %02X", gbCore.cpu.registers.B.val);
         ImGui::SameLine();
-
-        strBuf = "C: " + to_hex_str(gbCore.cpu.registers.C.val);
-        ImGui::Text("%s", strBuf.c_str());
-
-        strBuf = "D: " + to_hex_str(gbCore.cpu.registers.D.val);
-        ImGui::Text("%s", strBuf.c_str());
-
+        ImGui::Text("C: %02X", gbCore.cpu.registers.C.val);
+        ImGui::Text("D: %02X", gbCore.cpu.registers.D.val);
         ImGui::SameLine();
-
-        strBuf = "E: " + to_hex_str(gbCore.cpu.registers.E.val);
-        ImGui::Text("%s", strBuf.c_str());
-
-        strBuf = "H: " + to_hex_str(gbCore.cpu.registers.H.val);
-        ImGui::Text("%s", strBuf.c_str());
-
+        ImGui::Text("E: %02X", gbCore.cpu.registers.E.val);
+        ImGui::Text("H: %02X", gbCore.cpu.registers.H.val);
         ImGui::SameLine();
-
-        strBuf = "L: " + to_hex_str(gbCore.cpu.registers.L.val);
-        ImGui::Text("%s", strBuf.c_str());
+        ImGui::Text("L: %02X", gbCore.cpu.registers.L.val);
 
         ImGui::SeparatorText("Flags");
 
@@ -347,19 +368,17 @@ void debugUI::updateWindows(float scaleFactor)
         bool negative = gbCore.cpu.registers.getFlag(FlagType::Subtract);
 
         ImGui::BeginDisabled();
-
         ImGui::Checkbox("Zero", &zero);
         ImGui::Checkbox("Carry", &carry);
         ImGui::Checkbox("Half Carry", &halfCarry);
         ImGui::Checkbox("Negative", &negative);
-
         ImGui::EndDisabled();
 
         ImGui::End();
     }
-
     if (showDisassembly)
     {
+        ImGui::SetNextWindowSize(ImVec2(-1.f, 450 * scaleFactor), ImGuiCond_Appearing);
         ImGui::Begin("Disassembly", &showDisassembly);
 
         if (showBreakpointHitWindow)
@@ -376,8 +395,12 @@ void debugUI::updateWindows(float scaleFactor)
             static int breakpointAddr{};
             ImGui::SeparatorText("Breakpoint Address");
 
+            ImGui::PushItemWidth(200 * scaleFactor);
+
             if (ImGui::InputInt("##addr", &breakpointAddr, 0, 0, ImGuiInputTextFlags_CharsHexadecimal))
                 breakpointAddr = std::clamp(breakpointAddr, 0, 0xFFFF);
+
+            ImGui::PopItemWidth();
 
             ImGui::SameLine();
 
@@ -449,6 +472,8 @@ void debugUI::updateWindows(float scaleFactor)
             std::string romBankText = "ROM Bank (Total: " + std::to_string(gbCore.cartridge.romBanks) + ")";
             ImGui::SeparatorText(romBankText.c_str());
 
+            ImGui::PushItemWidth(200 * scaleFactor);
+
             if (ImGui::InputInt("##rombank", &dissasmRomBank, 1, 1, ImGuiInputTextFlags_CharsDecimal))
             {
                 if (gbCore.cartridge.ROMLoaded)
@@ -459,6 +484,8 @@ void debugUI::updateWindows(float scaleFactor)
                 else
                     dissasmRomBank = 0;
             }
+
+            ImGui::PopItemWidth();
 
             if (romDisassembly.empty() && gbCore.cartridge.ROMLoaded)
                 disassembleRom();
@@ -570,8 +597,8 @@ void debugUI::updateWindows(float scaleFactor)
                 if (breakpointDisassembly[breakpointDisasmLine].disasm.find("CALL") != std::string::npos)
                 {
                     gbCore.breakpointHit = false;
-                    gbCore.breakpoints[gbCore.cpu.s.PC + 3] = true;
                     tempBreakpointAddr = gbCore.cpu.s.PC + 3;
+                    gbCore.breakpoints[tempBreakpointAddr] = true;
                 }
                 else
                 {
@@ -729,7 +756,6 @@ void debugUI::updateWindows(float scaleFactor)
             }
             if (ImGui::BeginTabItem("OAM"))
 			{
-                gbCore.ppu->setOAMDebugEnable(true);
                 currentTab = VRAMTab::OAM;
 
 				if (!oamTexture)
@@ -738,13 +764,9 @@ void debugUI::updateWindows(float scaleFactor)
 				displayImage(oamTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, oamViewScale);
 				ImGui::EndTabItem();
 			}
-            else
-                gbCore.ppu->setOAMDebugEnable(false);
 
             ImGui::EndTabBar();
         }
-        else
-            gbCore.ppu->setOAMDebugEnable(false);
 
         ImGui::End();
     }

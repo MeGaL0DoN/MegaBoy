@@ -970,7 +970,7 @@ void content_scale_callback(GLFWwindow* _window, float xScale, float yScale)
 
 
 
-    devicePixelRatio = EM_ASM_DOUBLE ({ return window.devicePixelRatio; });
+    //devicePixelRatio = EM_ASM_DOUBLE ({ return window.devicePixelRatio; });
 
     // scaleFactor = (static_cast<float>(getResolutionX()) / 1920.0f + static_cast<float>(getResolutionY()) / 1080.0f) / 2.0f;
     //
@@ -995,12 +995,12 @@ void content_scale_callback(GLFWwindow* _window, float xScale, float yScale)
 
 
 
-    window_width = EM_ASM_INT({ return window.innerWidth; }) * devicePixelRatio;
-    window_height = EM_ASM_INT({ return window.innerHeight; }) * devicePixelRatio;
-
-    glfwSetWindowSize(_window, window_width, window_height);
-
-    rescaleWindow();
+    // window_width = EM_ASM_INT({ return window.innerWidth; }) * devicePixelRatio;
+    // window_height = EM_ASM_INT({ return window.innerHeight; }) * devicePixelRatio;
+    //
+    // glfwSetWindowSize(_window, window_width, window_height);
+    //
+    // rescaleWindow();
 
    //
 
