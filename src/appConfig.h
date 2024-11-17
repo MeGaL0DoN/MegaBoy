@@ -6,7 +6,6 @@
 namespace appConfig
 {
 	inline bool runBootROM { true };
-	inline bool pauseOnFocus { false };
 	inline bool loadLastROM { true };
 	inline int systemPreference { 0 };
 
@@ -24,7 +23,7 @@ namespace appConfig
 	inline bool integerScaling { true };
 	inline bool bilinearFiltering { false };
 
-	inline bool enableAudio { true };
+	inline bool enableAudio { false }; // TODO: set to true by default later.
 
 	inline int filter { 1 };
 	inline int palette { 0 };
@@ -32,8 +31,8 @@ namespace appConfig
 	inline std::string romPath{};
 	inline int saveStateNum{ 0 };
 
-	inline std::string dmgRomPath{};
-	inline std::string cgbRomPath{};
+	inline std::string dmgBootRomPath{};
+	inline std::string cgbBootRomPath{};
 
 	void loadConfigFile();
 	void updateConfigFile();

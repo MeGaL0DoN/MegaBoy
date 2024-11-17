@@ -1,15 +1,15 @@
 #pragma once
 #include <filesystem>
-#include <mini/ini.h>
 
 #include "MMU.h"
 #include "CPU/CPU.h"
 #include "PPU/PPUCore.h"
 #include "APU/APU.h"
-#include "inputManager.h"
+#include "gbInputManager.h"
 #include "serialPort.h"
 #include "Cartridge.h"
 #include "appConfig.h"
+#include "Utils/fileUtils.h"
 
 enum class FileLoadResult
 {
@@ -22,6 +22,9 @@ class GBCore
 {
 public:
 	friend class debugUI;
+
+	static constexpr const char* DMG_BOOTROM_NAME = "dmg_boot.bin";
+	static constexpr const char* CGB_BOOTROM_NAME = "cgb_boot.bin";
 
 	static constexpr uint32_t CYCLES_PER_FRAME = 17556 * 4;
 	static constexpr uint32_t CYCLES_PER_SECOND = 1048576 * 4;
@@ -52,8 +55,11 @@ public:
 	void saveState(int num);
 
 	constexpr int getSaveNum() const { return currentSave; }
-	constexpr const std::filesystem::path& getSaveFolderPath() { return saveFolderPath; }
+	constexpr const std::filesystem::path& getSaveStateFolderPath() { return saveStateFolderPath; }
 	constexpr const std::filesystem::path& getROMPath() { return romFilePath; }
+
+	inline void setBatterySaveFolder(const std::filesystem::path& path) { customBatterySavePath = path; }
+	inline std::filesystem::path getBatterySaveFolder() const { return customBatterySavePath; }
 
 	inline void saveState(const std::filesystem::path& _filePath) const
 	{
@@ -69,26 +75,27 @@ public:
 		std::ofstream st(_filePath, std::ios::out | std::ios::binary);
 		cartridge.getMapper()->saveBattery(st);
 	}
-	inline void loadBattery()
-	{
-		if (!cartridge.ROMLoaded || !cartridge.hasBattery) return;
-		saveCurrentROM();
-		restartROM(false);
-	}
 
-	inline void saveCurrentROM() const
+	inline void saveAndBackup() const
 	{
 		autoSave();
-		backupSave(currentSave);
-		batteryAutoSave();
+		backupState(currentSave);
+		backupBattery();
 	}
 
 	void autoSave() const;
-	void batteryAutoSave() const;
-	void backupSave(int num) const;
 
-	void reset();
+	void backupState(int num) const;
+	void backupBattery() const;
+
+	void reset(bool resetBattery);
 	void restartROM(bool resetBattery = true);
+
+	inline void resetToBattery()
+	{
+		if (!cartridge.ROMLoaded || !cartridge.hasBattery) return;
+		restartROM(false);
+	}
 
 	bool emulationPaused { false };
 ;	std::string gameTitle { };
@@ -97,7 +104,7 @@ public:
 	CPU cpu { *this };
 	std::unique_ptr<PPU> ppu { nullptr };
 	APU apu{};
-	inputManager input { cpu };
+	gbInputManager input { cpu };
 	serialPort serial { cpu };
 	Cartridge cartridge { *this };
 private:
@@ -106,9 +113,11 @@ private:
 
 	uint64_t cycleCounter { 0 };
 
-	std::filesystem::path saveFolderPath;
+	std::filesystem::path saveStateFolderPath;
 	std::filesystem::path filePath;
 	std::filesystem::path romFilePath;
+
+	std::filesystem::path customBatterySavePath;
 
 	int currentSave{ 0 };
 
@@ -121,9 +130,15 @@ private:
 		if (ppu) ppu->setOAMDebugEnable(val);
 	}
 
-	inline std::filesystem::path getSaveFilePath(int saveNum) const
+	inline std::filesystem::path getBatteryFilePath(const std::filesystem::path& romPath) const
 	{
-		return saveFolderPath / ("save" + std::to_string(saveNum) + ".mbs");
+		return customBatterySavePath.empty() ? FileUtils::replaceExtension(romPath, ".sav") 
+											 : customBatterySavePath / romPath.filename().replace_extension(".sav");
+	}
+
+	inline std::filesystem::path getSaveStateFilePath(int saveNum) const
+	{
+		return saveStateFolderPath / ("save" + std::to_string(saveNum) + ".mbs");
 	}
 
 	inline void updateSelectedSaveInfo(int saveStateNum)
@@ -146,7 +161,7 @@ private:
 		if (cartridge.loadROM(st))
 		{
 			updatePPUSystem();
-			reset();
+			reset(true);
 			romFilePath = filePath;
 			currentSave = 0;
 			return true;

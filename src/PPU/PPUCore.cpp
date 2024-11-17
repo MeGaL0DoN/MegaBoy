@@ -210,7 +210,6 @@ void PPUCore<sys>::SetPPUMode(PPUMode PPUState)
 	}
 
 	s.state = PPUState;
-	s.videoCycles = 0;
 }
 
 template <GBSystem sys>
@@ -254,6 +253,7 @@ void PPUCore<sys>::handleHBlank()
 
 	if (s.videoCycles >= s.HBLANK_CYCLES)
 	{
+		s.videoCycles -= s.HBLANK_CYCLES;
 		s.LY++;
 		if (bgFIFO.s.fetchingWindow) s.WLY++;
 
@@ -268,7 +268,7 @@ void PPUCore<sys>::handleHBlank()
 				s.lcdWasEnabled = false;
 				clearBuffer();
 			}
-			else 
+			else
 				invokeDrawCallback();
 		}
 		else
@@ -281,6 +281,7 @@ void PPUCore<sys>::handleOAMSearch()
 {
 	if (s.videoCycles >= OAM_SCAN_CYCLES)
 	{
+		s.videoCycles -= OAM_SCAN_CYCLES;
 		objCount = 0;
 
 		const bool doubleObj = DoubleOBJSize();
@@ -332,16 +333,13 @@ void PPUCore<sys>::handleVBlank()
 {
 	if (s.videoCycles >= s.VBLANK_CYCLES)
 	{
-		s.LY++;
 		s.videoCycles -= s.VBLANK_CYCLES;
+		s.LY++;
 
 		switch (s.LY)
 		{
 		case 153:
-			if constexpr (sys == GBSystem::DMG)
-				s.VBLANK_CYCLES = 4;
-			else if constexpr (sys == GBSystem::GBC)
-				s.VBLANK_CYCLES = mmu.gbcDoubleSpeed() ? 12 : 4;
+			s.VBLANK_CYCLES = 4;
 			break;
 		case 154:
 			s.VBLANK_CYCLES = 452;
@@ -454,18 +452,18 @@ void PPUCore<sys>::executeBGFetcher()
 		}
 		break;
 	case FetcherState::FetchTileDataHigh:
-		if (bgFIFO.s.newScanline)
-		{
-			bgFIFO.s.fetchX--;
-			bgFIFO.s.newScanline = false;
-			bgFIFO.s.state = FetcherState::FetchTileNo;
-			break;
-		}
-
 		bgFIFO.s.cycles++;
 
 		if ((bgFIFO.s.cycles & 0x1) == 0)
 		{
+			if (bgFIFO.s.newScanline)
+			{
+				bgFIFO.s.fetchX--;
+				bgFIFO.s.newScanline = false;
+				bgFIFO.s.state = FetcherState::FetchTileNo;
+				break;
+			}
+
 			if constexpr (sys == GBSystem::GBC)
 			{
 				const uint8_t* bank = getBit(bgFIFO.s.cgbAttributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data();
@@ -645,7 +643,10 @@ void PPUCore<sys>::renderFIFOs()
 		s.xPosCounter++;
 
 		if (s.xPosCounter == SCR_WIDTH) [[unlikely]]
+		{
 			SetPPUMode(PPUMode::HBlank);
+			s.videoCycles = 0;
+		}
 	}
 }
 

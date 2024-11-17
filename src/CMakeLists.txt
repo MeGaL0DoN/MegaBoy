@@ -16,10 +16,11 @@ add_executable(MegaBoy
         main.cpp
         appConfig.cpp
         appConfig.h
-        MMU.cpp
-        MMU.h
+        keyBindManager.h
         resources.h
         defines.h
+        MMU.cpp
+        MMU.h
         serialPort.cpp
         serialPort.h
         Cartridge.cpp
@@ -28,8 +29,8 @@ add_executable(MegaBoy
         GBCore.h
         gbSystem.cpp
         gbSystem.h
-        inputManager.cpp
-        inputManager.h
+        gbInputManager.cpp
+        gbInputManager.h
         debugUI.cpp
         debugUI.h
         "PPU/PPU.h"
@@ -42,6 +43,7 @@ add_executable(MegaBoy
         "CPU/CPU.cpp"
         "CPU/CPU.h"
         "CPU/registers.h"
+        "CPU/regDefines.h"
         "CPU/CPUInstructions.h"
         "CPU/CPUInterrupts.cpp"
         "CPU/CPUDisassembly.cpp"
@@ -81,6 +83,8 @@ endif()
 if (EMSCRIPTEN)
     target_link_options(MegaBoy PRIVATE -sUSE_GLFW=3 -sMIN_WEBGL_VERSION=2 -sMAX_WEBGL_VERSION=2
     -sALLOW_MEMORY_GROWTH=1 -sEXPORTED_FUNCTIONS=[_main,_malloc,_free] -sEXPORTED_RUNTIME_METHODS=[ccall])
+
+    target_link_libraries(MegaBoy idbfs.js)
 else ()
     if (MSVC)
         set_target_properties(

@@ -3,12 +3,12 @@
 #include <mini/ini.h>
 #include "Utils/fileUtils.h"
 #include "GBCore.h"
-
-using namespace appConfig;
+#include "keyBindManager.h"
 
 extern GBCore gbCore;
 
-mINI::INIFile file { mINI::mINIFilePath(FileUtils::executableFolderPath / "data" / "config.ini") };
+const auto mINIFilePath = FileUtils::executableFolderPath / "data" / "config.ini";
+mINI::INIFile file { mINI::mINIFilePath(mINIFilePath) };
 mINI::INIStructure config;
 
 inline void to_bool(bool& val, const char* section, const char* valName)
@@ -33,24 +33,18 @@ inline std::string to_string(bool val)
 
 void appConfig::loadConfigFile()
 {
-#ifdef EMSCRIPTEN
-	return; // currently not saving settings persistently on the web
-#endif
-
-	const auto dataFolderPath { FileUtils::executableFolderPath / "data" };
-
-	if (!std::filesystem::exists(dataFolderPath))
-		std::filesystem::create_directory(dataFolderPath);
+	if (!std::filesystem::exists(mINIFilePath))
+		return;
 
 	file.read(config);
-	
-	to_bool(runBootROM, "options", "runBootROM");
 
 	to_bool(batterySaves, "options", "batterySaves");
-	to_bool(pauseOnFocus, "options", "pauseOnFocus");
 	to_bool(autosaveState, "options", "autosaveState");
-	to_bool(backupSaves, "options", "backupSaves");
 	to_bool(loadLastROM, "options", "loadLastROM");
+	to_int(systemPreference, "options", "preferredSystem");
+
+	for (int i = 0; i < KeyBindManager::TOTAL_KEYS; i++)
+		to_int(KeyBindManager::keyBinds[i], "keyBinds", KeyBindManager::getMegaBoyKeyName(static_cast<MegaBoyKey>(i)));
 
 	to_bool(blending, "graphics", "blending");
 	to_bool(vsync, "graphics", "vsync");
@@ -70,27 +64,34 @@ void appConfig::loadConfigFile()
 
 	to_bool(enableAudio, "audio", "enable");
 
-	to_int(systemPreference, "system", "preferredSystem");
+#ifndef EMSCRIPTEN
+	to_bool(backupSaves, "options", "backupSaves");
+	to_bool(runBootROM, "options", "runBootROM");
 
 	romPath = config["gameState"]["romPath"];
 	to_int(saveStateNum, "gameState", "saveStateNum");
 
-	dmgRomPath = config["bootRoms"]["dmgRomPath"];
-	cgbRomPath = config["bootRoms"]["cgbRomPath"];
+	dmgBootRomPath = config["bootRoms"]["dmgBootRomPath"];
+	cgbBootRomPath = config["bootRoms"]["cgbBootRomPath"];
+#endif
 }
 
 void appConfig::updateConfigFile()
 {
-#ifdef EMSCRIPTEN
-	return; // currently not saving settings persistently on the web
+#ifndef EMSCRIPTEN
+	const auto dataFolderPath { FileUtils::executableFolderPath / "data" };
+
+	if (!std::filesystem::exists(dataFolderPath))
+		std::filesystem::create_directory(dataFolderPath);
 #endif
 
-	config["options"]["runBootROM"] = to_string(runBootROM);
 	config["options"]["batterySaves"] = to_string(batterySaves);
-	config["options"]["pauseOnFocus"] = to_string(pauseOnFocus);
 	config["options"]["autosaveState"] = to_string(autosaveState);
-	config["options"]["backupSaves"] = to_string(backupSaves);
 	config["options"]["loadLastROM"] = to_string(loadLastROM);
+	config["options"]["preferredSystem"] = std::to_string(systemPreference);
+
+	for (int i = 0; i < KeyBindManager::TOTAL_KEYS; i++)
+		config["keyBinds"][KeyBindManager::getMegaBoyKeyName(static_cast<MegaBoyKey>(i))] = std::to_string(KeyBindManager::keyBinds[i]);
 
 	config["graphics"]["blending"] = to_string(blending);
 	config["graphics"]["vsync"] = to_string(vsync);
@@ -107,7 +108,9 @@ void appConfig::updateConfigFile()
 
 	config["audio"]["enable"] = to_string(enableAudio);
 
-	config["system"]["preferredSystem"] = std::to_string(systemPreference);
+#ifndef EMSCRIPTEN
+	config["options"]["backupSaves"] = to_string(backupSaves);
+	config["options"]["runBootROM"] = to_string(runBootROM);
 
 	if (gbCore.cartridge.ROMLoaded)
 	{
@@ -117,11 +120,12 @@ void appConfig::updateConfigFile()
 	else
 		config.remove("gameState");
 
-	if (!dmgRomPath.empty())
-		config["bootRoms"]["dmgRomPath"] = FileUtils::pathToUTF8(dmgRomPath);
+	if (!dmgBootRomPath.empty())
+		config["bootRoms"]["dmgBootRomPath"] = FileUtils::pathToUTF8(dmgBootRomPath);
 
-	if (!cgbRomPath.empty())
-		config["bootRoms"]["cgbRomPath"] = FileUtils::pathToUTF8(cgbRomPath);
+	if (!cgbBootRomPath.empty())
+		config["bootRoms"]["cgbBootRomPath"] = FileUtils::pathToUTF8(cgbBootRomPath);
+#endif
 
-	file.generate(config, true);
+	(void)file.generate(config, true);
 }

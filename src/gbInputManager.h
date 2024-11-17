@@ -2,16 +2,14 @@
 
 #include <fstream>
 #include <map>
-
-#include "CPU/CPU.h"
 #include "defines.h"
 
-class MMU;
+class CPU;
 
-class inputManager
+class gbInputManager
 {
 public:
-	explicit inputManager(CPU& cpu) : cpu(cpu)
+	explicit gbInputManager(CPU& cpu) : cpu(cpu)
 	{}
 	           
 	void update(int scancode, int action);
@@ -30,6 +28,4 @@ private:
 
 	uint8_t dpadState { 0xF };
 	uint8_t buttonState { 0xF };
-
-	void updateKeyGroup(int scancode, int action, uint8_t& keyState, const std::map<int, uint8_t>& keyConfig, bool groupEnabled);
 };

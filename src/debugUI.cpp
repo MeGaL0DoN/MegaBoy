@@ -1,5 +1,6 @@
 #include "debugUI.h"
 #include "Utils/bitOps.h"
+#include "CPU/regDefines.h"
 
 #include <algorithm>
 #include <cmath>
@@ -244,8 +245,8 @@ void debugUI::updateWindows(float scaleFactor)
 
         if (romMemoryView)
         {
-            std::string romBankText = "ROM Bank (Total: " + std::to_string(gbCore.cartridge.romBanks) + ")";
-            ImGui::Text(romBankText.c_str());
+            const std::string romBankText = "ROM Bank (Total: " + std::to_string(gbCore.cartridge.romBanks) + ")";
+            ImGui::Text("%s", romBankText.c_str());
             ImGui::SameLine();
 
             ImGui::PushItemWidth(150 * scaleFactor);
@@ -278,7 +279,7 @@ void debugUI::updateWindows(float scaleFactor)
 
             auto drawList = ImGui::GetWindowDrawList();
             const float charWidth = ImGui::CalcTextSize("0").x;
-            const float vertLineX = ImGui::GetCursorScreenPos().x + (charWidth * 53.1); 
+            const float vertLineX = ImGui::GetCursorScreenPos().x + (charWidth * 53.1f);
 
             while (clipper.Step())
             {
@@ -290,7 +291,7 @@ void debugUI::updateWindows(float scaleFactor)
 
                     if (gbCore.cartridge.ROMLoaded)
                     {
-                        std::array<uint8_t, 16> data;
+                        std::array<uint8_t, 16> data{};
 
                         for (int j = 0; j < 16; j++)
                         {
@@ -310,7 +311,6 @@ void debugUI::updateWindows(float scaleFactor)
                 }
 
                 const float endY = ImGui::GetCursorScreenPos().y;
-                const float contentHeight = endY - startY;
                 drawList->AddLine(ImVec2(vertLineX, startY), ImVec2(vertLineX, endY), ImGui::GetColorU32(ImGuiCol_Separator), 1.0f);
             }
         };
@@ -363,10 +363,10 @@ void debugUI::updateWindows(float scaleFactor)
         ImGui::SeparatorText("Flags");
         ImGui::BeginDisabled();
 
-        bool zero = gbCore.cpu.registers.getFlag(FlagType::Zero);
-        bool carry = gbCore.cpu.registers.getFlag(FlagType::Carry);
-        bool halfCarry = gbCore.cpu.registers.getFlag(FlagType::HalfCarry);
-        bool negative = gbCore.cpu.registers.getFlag(FlagType::Subtract);
+        bool zero = gbCore.cpu.getFlag(FlagType::Zero);
+        bool carry = gbCore.cpu.getFlag(FlagType::Carry);
+        bool halfCarry = gbCore.cpu.getFlag(FlagType::HalfCarry);
+        bool negative = gbCore.cpu.getFlag(FlagType::Subtract);
 
         ImGui::Checkbox("Z", &zero);
         ImGui::SameLine();
@@ -395,7 +395,7 @@ void debugUI::updateWindows(float scaleFactor)
 
         ImGui::Checkbox("VBlank", &vBlank);
         ImGui::SameLine();
-        ImGui::Checkbox("LCD Stat", &lcdStat);
+        ImGui::Checkbox("LCD STAT", &lcdStat);
         ImGui::Checkbox("Timer", &timer);
         ImGui::SameLine();
         ImGui::Spacing();
@@ -538,7 +538,7 @@ void debugUI::updateWindows(float scaleFactor)
 
             if (romDisassemblyView)
             {
-                clipper.Begin(romDisassembly.size());
+                clipper.Begin(static_cast<int>(romDisassembly.size()));
 
                 while (clipper.Step())
                 {
@@ -728,7 +728,7 @@ void debugUI::updateWindows(float scaleFactor)
                 }
 
                 ImGuiListClipper clipper;
-				clipper.Begin(breakpointDisassembly.size());
+				clipper.Begin(static_cast<int>(breakpointDisassembly.size()));
 
 				while (clipper.Step())
 				{

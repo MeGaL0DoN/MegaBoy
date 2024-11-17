@@ -1,6 +1,7 @@
 #pragma once
 
 #ifdef _WIN32
+#define NOMINMAX
 #include "Windows.h"
 #elif defined(__linux__) || defined(__unix__) || defined(__APPLE__)
 #include <unistd.h>
@@ -58,6 +59,13 @@ namespace FileUtils
         #endif
     }
 
+    inline std::filesystem::path replaceExtension(std::filesystem::path path, const char* newExt)
+    {
+        path.replace_extension(newExt);
+        return path;
+    }
+
+#ifndef EMSCRIPTEN
     inline std::filesystem::path getExecutablePath() 
     {
         #ifdef _WIN32
@@ -79,4 +87,7 @@ namespace FileUtils
     }
 
     inline std::filesystem::path executableFolderPath { getExecutablePath() };
+#else
+    inline std::filesystem::path executableFolderPath { };
+#endif
 }

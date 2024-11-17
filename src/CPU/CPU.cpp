@@ -1,8 +1,5 @@
-#include <cassert>
-#include "CPU.h"
 #include "CPUInstructions.h"
 #include "../defines.h"
-#include "../GBCore.h"
 
 CPU::CPU(GBCore& gbCore) : gbCore(gbCore), instructions(std::make_unique<CPUInstructions>(this))
 {
@@ -59,7 +56,6 @@ uint8_t CPU::read8(uint16_t addr)
 	return val;
 }
 
-uint8_t HL_ref;
 uint8_t& CPU::getRegister(uint8_t ind)
 {
 	switch (ind)
@@ -72,14 +68,13 @@ uint8_t& CPU::getRegister(uint8_t ind)
 		case 5: return registers.L.val;
 		case 6: 
 		{
-			HL_ref = gbCore.mmu.read8(registers.HL.val);
-			return HL_ref;
+			HL_val = gbCore.mmu.read8(registers.HL.val);
+			return HL_val;
 		}
 		case 7: return registers.A.val;
 	}
 
-	assert(false);
-	return (uint8_t&)s;
+	UNREACHABLE();
 }
 
 constexpr uint16_t STOP_PERIOD_CYCLES = 32768;
@@ -97,7 +92,6 @@ bool CPU::handleHaltedState()
 		s.stopCycleCounter += cycles;
 		if (s.stopCycleCounter >= STOP_PERIOD_CYCLES)
 		{
-			s.stopState = false;
 			s.stopCycleCounter = 0;
 			exitHalt();
 		}
@@ -244,7 +238,7 @@ void CPU::executeMain()
 		instructions->RRA();
 		break;
 	case 0x20:
-		instructions->JR_CON(!registers.getFlag(FlagType::Zero), fetch8());
+		instructions->JR_CON(!getFlag(Zero), fetch8());
 		break;
 	case 0x21:
 		instructions->LD(registers.HL, fetch16());
@@ -268,7 +262,7 @@ void CPU::executeMain()
 		instructions->DAA();
 		break;
 	case 0x28:
-		instructions->JR_CON(registers.getFlag(FlagType::Zero), fetch8());
+		instructions->JR_CON(getFlag(Zero), fetch8());
 		break;
 	case 0x29:
 		instructions->addToHL(registers.HL);
@@ -292,7 +286,7 @@ void CPU::executeMain()
 		instructions->CPL();
 		break;
 	case 0x30:
-		instructions->JR_CON(!registers.getFlag(FlagType::Carry), fetch8());
+		instructions->JR_CON(!getFlag(Carry), fetch8());
 		break;
 	case 0x31:
 		instructions->LD(s.SP, fetch16());
@@ -316,7 +310,7 @@ void CPU::executeMain()
 		instructions->SCF();
 		break;
 	case 0x38:
-		instructions->JR_CON(registers.getFlag(FlagType::Carry), fetch8());
+		instructions->JR_CON(getFlag(Carry), fetch8());
 		break;
 	case 0x39:
 		instructions->addToHL(s.SP);
@@ -499,19 +493,19 @@ void CPU::executeMain()
 		break;
 
 	case 0xC0:
-		instructions->RET_CON(!registers.getFlag(FlagType::Zero));
+		instructions->RET_CON(!getFlag(Zero));
 		break;
 	case 0xC1:
 		instructions->POP(registers.BC.val);
 		break;
 	case 0xC2:
-		instructions->JP_CON(!registers.getFlag(FlagType::Zero), fetch16());
+		instructions->JP_CON(!getFlag(Zero), fetch16());
 		break;
 	case 0xC3:
 		instructions->JP(fetch16()); 
 		break;
 	case 0xC4:
-		instructions->CALL_CON(!registers.getFlag(FlagType::Zero), fetch16());
+		instructions->CALL_CON(!getFlag(Zero), fetch16());
 		break;
 	case 0xC5:
 		instructions->PUSH(registers.BC.val);
@@ -523,20 +517,20 @@ void CPU::executeMain()
 		instructions->RST(0x00);
 		break;
 	case 0xC8:
-		instructions->RET_CON(registers.getFlag(FlagType::Zero));
+		instructions->RET_CON(getFlag(Zero));
 		break;
 	case 0xC9:
 		instructions->RET();
 		break;
 	case 0xCA:
-		instructions->JP_CON(registers.getFlag(FlagType::Zero), fetch16());
+		instructions->JP_CON(getFlag(Zero), fetch16());
 		break;
 	case 0xCB: // PREFIXED OPCODES
 		opcode = fetch8();
 		executePrefixed();
 		break;
 	case 0xCC:
-		instructions->CALL_CON(registers.getFlag(FlagType::Zero), fetch16());
+		instructions->CALL_CON(getFlag(Zero), fetch16());
 		break;
 	case 0xCD:
 		instructions->CALL(fetch16());
@@ -548,16 +542,16 @@ void CPU::executeMain()
 		instructions->RST(0x08);
 		break;
 	case 0xD0:
-		instructions->RET_CON(!registers.getFlag(FlagType::Carry));
+		instructions->RET_CON(!getFlag(Carry));
 		break;
 	case 0xD1:
 		instructions->POP(registers.DE.val);
 		break;
 	case 0xD2:
-		instructions->JP_CON(!registers.getFlag(FlagType::Carry), fetch16());
+		instructions->JP_CON(!getFlag(Carry), fetch16());
 		break;
 	case 0xD4:
-		instructions->CALL_CON(!registers.getFlag(FlagType::Carry), fetch16());
+		instructions->CALL_CON(!getFlag(Carry), fetch16());
 		break;
 	case 0xD5:
 		instructions->PUSH(registers.DE.val);
@@ -569,16 +563,16 @@ void CPU::executeMain()
 		instructions->RST(0x10);
 		break;
 	case 0xD8:
-		instructions->RET_CON(registers.getFlag(FlagType::Carry));
+		instructions->RET_CON(getFlag(Carry));
 		break;
 	case 0xD9:
 		instructions->RET1();
 		break;
 	case 0xDA:
-		instructions->JP_CON(registers.getFlag(FlagType::Carry), fetch16());
+		instructions->JP_CON(getFlag(Carry), fetch16());
 		break;
 	case 0xDC:
-		instructions->CALL_CON(registers.getFlag(FlagType::Carry), fetch16());
+		instructions->CALL_CON(getFlag(Carry), fetch16());
 		break;
 	case 0xDE:
 		instructions->SBC(registers.A, fetch8());

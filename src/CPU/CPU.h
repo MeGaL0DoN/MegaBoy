@@ -1,10 +1,11 @@
 #pragma once
+
 #include <cstdint>
-#include <cstring>
 #include <iostream>
 #include <memory>
-#include <array>
 #include "registers.h"
+#include "../Utils/bitOps.h"
+#include <cassert>
 
 enum class Interrupt : uint8_t
 {
@@ -89,11 +90,25 @@ private:
 		return (read8(s.PC++) << 8) | low;
 	}
 
+	inline bool getFlag(FlagType flag)
+	{
+		return getBit(registers.AF.pair.low.val, flag);
+	}
+	inline void setFlag(FlagType flag, bool value)
+	{
+		registers.AF.pair.low = setBit(registers.AF.pair.low.val, flag, value);
+	}
+	inline void resetFlags()
+	{
+		registers.AF.pair.low.val &= 0x0F;
+	}
+
 	inline void exitHalt()
 	{
 		if (s.halted)
 		{
 			s.halted = false;
+			s.stopState = false;
 
 			if (haltExitEvent != nullptr)
 				haltExitEvent();
@@ -164,6 +179,8 @@ private:
 
 	uint8_t opcode { 0 };
 	uint8_t cycles { 0 };
+
+	uint8_t HL_val {};
 
 	uint8_t tCyclesPerM { 0 };
 	bool executingBootROM { false };

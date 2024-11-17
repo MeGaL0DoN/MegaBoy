@@ -1,7 +1,3 @@
-#ifdef _WIN32
-#define NOMINMAX
-#endif
-
 #include <ImGUI/imgui.h>
 #include <ImGUI/imgui_impl_glfw.h>
 #include <ImGUI/imgui_impl_opengl3.h>
@@ -25,6 +21,7 @@
 #include "GBCore.h"
 #include "gbSystem.h"
 #include "appConfig.h"
+#include "keyBindManager.h"
 #include "debugUI.h"
 #include "resources.h"
 #include "Utils/Shader.h"
@@ -79,9 +76,12 @@ std::string FPS_text{ "FPS: 00.00 - 0.00 ms" };
 
 extern GBCore gbCore;
 
-constexpr float FADE_DURATION = 0.9f;
+constexpr float FADE_DURATION = 0.8f;
 bool fadeEffectActive { false };
 float fadeTime { 0.0f };
+
+bool fastForwarding { false };
+constexpr int FAST_FORWARD_SPEED = 5;
 
 double lastFrameTime = glfwGetTime();
 double secondsTimer{};
@@ -91,6 +91,8 @@ uint32_t cycleCount{};
 double executeTimes{};
 
 bool lockVSyncSetting { false };
+
+int awaitingKeyBind { -1 };
 
 inline void updateWindowTitle()
 {
@@ -107,9 +109,6 @@ inline void setEmulationPaused(bool val)
     if (!val) lastFrameTime = glfwGetTime();
     updateWindowTitle();
 }
-
-constexpr const char* DMG_ROM_NAME = "dmg_boot.bin";
-constexpr const char* CGB_ROM_NAME = "cgb_boot.bin";
 
 void handleBootROMLoad(std::string& destRomPath, const std::filesystem::path& filePath)
 {
@@ -132,14 +131,14 @@ inline bool loadFile(const std::filesystem::path& path)
     {
         ifs.close();
 
-        if (path.filename() == DMG_ROM_NAME)
+        if (path.filename() == GBCore::DMG_BOOTROM_NAME)
         {
-            handleBootROMLoad(appConfig::dmgRomPath, path);
+            handleBootROMLoad(appConfig::dmgBootRomPath, path);
             return true;
         }
-        if (path.filename() == CGB_ROM_NAME)
+        if (path.filename() == GBCore::CGB_BOOTROM_NAME)
         {
-            handleBootROMLoad(appConfig::cgbRomPath, path);
+            handleBootROMLoad(appConfig::cgbBootRomPath, path);
             return true;
         }
 
@@ -155,7 +154,7 @@ inline bool loadFile(const std::filesystem::path& path)
             break;
         case FileLoadResult::Success:
         {
-            if (currentFilePath.filename() != DMG_ROM_NAME && currentFilePath.filename() != CGB_ROM_NAME)
+            if (currentFilePath.filename() != GBCore::DMG_BOOTROM_NAME && currentFilePath.filename() != GBCore::CGB_BOOTROM_NAME)
             {
                 debugUI::signalROMLoaded();
 #ifdef EMSCRIPTEN
@@ -393,7 +392,7 @@ inline void updateImGUIViewports()
     }
 }
 
-inline bool isBootROMFile(const std::string& fileName) { return fileName == "dmg_boot.bin" || fileName == "cgb_boot.bin"; }
+inline bool isBootROMFile(const std::string& fileName) { return fileName == GBCore::DMG_BOOTROM_NAME || fileName == GBCore::CGB_BOOTROM_NAME; }
 
 #ifndef EMSCRIPTEN
 std::optional<std::filesystem::path> saveFileDialog(const std::string& defaultName, const nfdnfilteritem_t* filter)
@@ -464,6 +463,8 @@ void renderImGUI()
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
+    static bool keyConfigWindowOpen { false };
+
     if (ImGui::BeginMainMenuBar())
     {
         if (ImGui::BeginMenu("File"))
@@ -524,15 +525,15 @@ void renderImGUI()
             if (ImGui::Checkbox("Load last ROM on Startup", &appConfig::loadLastROM))
                 appConfig::updateConfigFile();
 #endif
-            static bool romsExist{ false };
+            static bool bootRomsExist{ false };
 
             if (ImGui::IsWindowAppearing())
-                romsExist = std::filesystem::exists(FileUtils::nativePath(appConfig::dmgRomPath)) || std::filesystem::exists(FileUtils::nativePath(appConfig::cgbRomPath));
+                bootRomsExist = std::filesystem::exists(FileUtils::nativePath(appConfig::dmgBootRomPath)) || std::filesystem::exists(FileUtils::nativePath(appConfig::cgbBootRomPath));
 
-            if (!romsExist)
+            if (!bootRomsExist)
             {
                 ImGui::BeginDisabled();
-                ImGui::Checkbox("Boot ROMs not Loaded!", &romsExist);
+                ImGui::Checkbox("Boot ROMs not Loaded!", &bootRomsExist);
 
                 if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
                     ImGui::SetTooltip("Drop 'dmg_boot.bin' or 'cgb_boot.bin'");
@@ -544,9 +545,6 @@ void renderImGUI()
                 if (ImGui::Checkbox("Run Boot ROM", &appConfig::runBootROM))
                     appConfig::updateConfigFile();
             }
-
-            if (ImGui::Checkbox("Pause when unfocused", &appConfig::pauseOnFocus))
-                appConfig::updateConfigFile();
 
             ImGui::SeparatorText("Saves");
 
@@ -560,6 +558,11 @@ void renderImGUI()
             if (ImGui::Checkbox("Create Backups", &appConfig::backupSaves))
                 appConfig::updateConfigFile();
 #endif
+
+            ImGui::SeparatorText("Controls");
+
+            if (ImGui::Button("Key Binding"))
+                keyConfigWindowOpen = true;
 
             ImGui::SeparatorText("Emulated System");
 
@@ -744,15 +747,12 @@ void renderImGUI()
             {
                 if (gbCore.cartridge.hasBattery)
                 {
-                    if (ImGui::MenuItem("Load Battery State"))
-                        gbCore.loadBattery();
+                    if (ImGui::MenuItem("Reset to Battery"))
+                        gbCore.resetToBattery();
                 }
 
                 if (ImGui::MenuItem("Reset State", "Warning!"))
-                {
-                    gbCore.saveCurrentROM();
                     gbCore.restartROM();
-                }
             }
 
             ImGui::EndMenu();
@@ -764,6 +764,11 @@ void renderImGUI()
         {
             ImGui::Separator();
             ImGui::Text("Emulation Paused");
+        }
+        else if (fastForwarding)
+        {
+			ImGui::Separator();
+			ImGui::Text("Fast Forward...");
         }
         else if (gbCore.cartridge.ROMLoaded && gbCore.getSaveNum() != 0)
         {
@@ -798,6 +803,88 @@ void renderImGUI()
             ImGui::CloseCurrentPopup();
 
         ImGui::EndPopup();
+    }
+
+    if (keyConfigWindowOpen)
+    {
+        if (ImGui::Begin("Key Configuration", &keyConfigWindowOpen, ImGuiWindowFlags_NoResize))
+        {
+            constexpr int totalItems = KeyBindManager::TOTAL_KEYS;
+            constexpr int itemsPerColumn = (totalItems + 1) / 2;
+            const float padding = ImGui::GetStyle().FramePadding.x * 2;
+
+            auto calculateColumnWidths = [&]()
+            {
+                float widths[2] = { 0.0f, 0.0f };
+                for (int i = 0; i < totalItems; i++) 
+                {
+                    const char* keyName = KeyBindManager::getMegaBoyKeyName(static_cast<MegaBoyKey>(i));
+                    float width = ImGui::CalcTextSize(keyName).x;
+                    widths[i >= itemsPerColumn] = std::max(widths[i >= itemsPerColumn], width);
+                }
+
+                return std::make_pair(widths[0] + padding, widths[1] + padding);
+            };
+
+            auto [maxWidthCol1, maxWidthCol2] = calculateColumnWidths();
+
+            if (ImGui::BeginTable("KeyBindTable", 2, ImGuiTableFlags_NoKeepColumnsVisible | ImGuiTableFlags_SizingFixedFit))
+            {
+                ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, maxWidthCol1 + 130 * scaleFactor + padding);
+                ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, maxWidthCol2 + 130 * scaleFactor);
+
+                auto renderKeyBinding = [&](int index, float maxWidth) 
+                {
+                    if (index >= totalItems) return;
+
+                    ImGui::PushID(index);
+                    const char* keyName = KeyBindManager::getMegaBoyKeyName(static_cast<MegaBoyKey>(index));
+                    ImGui::Text("%s", keyName);
+
+                    float currentTextWidth = ImGui::CalcTextSize(keyName).x;
+                    float offsetX = maxWidth - currentTextWidth;
+                    ImGui::SameLine(0.0f, offsetX);
+
+                    const char* currentKey = KeyBindManager::getKeyName(KeyBindManager::keyBinds[index]);
+                    std::string buttonLabel = awaitingKeyBind == index ? "Press any key..." : currentKey;
+
+                    const bool yellowText = KeyBindManager::keyBinds[index] == GLFW_KEY_UNKNOWN || index == awaitingKeyBind;
+                    if (yellowText) ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 255, 0, 255));
+
+                    if (ImGui::Button(buttonLabel.c_str(), ImVec2(130 * scaleFactor, 0)))
+                        awaitingKeyBind = index;
+
+                    if (yellowText) ImGui::PopStyleColor();
+                    ImGui::PopID();
+                };
+
+                for (int i = 0; i < itemsPerColumn; i++)
+                {
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0);
+                    renderKeyBinding(i, maxWidthCol1);
+
+                    ImGui::TableSetColumnIndex(1);
+                    renderKeyBinding(i + itemsPerColumn, maxWidthCol2);
+                }
+
+                ImGui::EndTable();
+            }
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            if (ImGui::Button("Reset to Defaults"))
+            {
+                KeyBindManager::keyBinds = KeyBindManager::defaultKeyBinds();
+                awaitingKeyBind = -1;
+                appConfig::updateConfigFile();
+            }
+            if (!keyConfigWindowOpen)
+                awaitingKeyBind = -1;
+        }
+        ImGui::End();
     }
 
     debugUI::updateWindows(scaleFactor);
@@ -854,10 +941,31 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
 {
     (void)_window; (void)scancode;
 
-    if (key == GLFW_KEY_PAGE_UP || key == GLFW_KEY_PAGE_DOWN)
+    if (awaitingKeyBind != -1 && key != GLFW_KEY_UNKNOWN)
+    {
+        if (action == GLFW_PRESS)
+        {
+            for (int i = 0; i < KeyBindManager::TOTAL_KEYS; i++)
+            {
+                if (key == KeyBindManager::keyBinds[i])
+                    KeyBindManager::keyBinds[i] = GLFW_KEY_UNKNOWN;
+            }
+
+            KeyBindManager::keyBinds[awaitingKeyBind] = key;
+            awaitingKeyBind = -1;
+            appConfig::updateConfigFile();
+        }
+
+        return;
+    }
+
+    auto scaleUpKey = KeyBindManager::getBind(MegaBoyKey::ScaleUp);
+    auto scaleDownKey = KeyBindManager::getBind(MegaBoyKey::ScaleDown);
+
+    if (key == scaleUpKey || key == scaleDownKey)
     {
         if (appConfig::integerScaling && action == GLFW_PRESS)
-            setIntegerScale(currentIntegerScale + (key == GLFW_KEY_PAGE_UP ? 1 : -1));
+            setIntegerScale(currentIntegerScale + (key == scaleUpKey ? 1 : -1));
 
         return;
     }
@@ -866,7 +974,7 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
 
     if (action == GLFW_PRESS)
     {
-        if (key == GLFW_KEY_TAB)
+        if (key == KeyBindManager::getBind(MegaBoyKey::Pause))
         {
             resetFade();
             setEmulationPaused(!gbCore.emulationPaused);
@@ -881,28 +989,34 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
 
             else if (mods & GLFW_MOD_SHIFT)
                 gbCore.loadState(key - 48);
-
-            return;
         }
 
-        if (key == GLFW_KEY_Q)
+        if (key == KeyBindManager::getBind(MegaBoyKey::QuickSave))
         {
-            gbCore.saveState(gbCore.getSaveFolderPath() / "quicksave.mbs");
+            gbCore.saveState(gbCore.getSaveStateFolderPath() / "quicksave.mbs");
             return;
         }
-        if (key == GLFW_KEY_GRAVE_ACCENT)
+        if (key == KeyBindManager::getBind(MegaBoyKey::LoadQuickSave))
         {
-            loadFile(gbCore.getSaveFolderPath() / "quicksave.mbs");
+            loadFile(gbCore.getSaveStateFolderPath() / "quicksave.mbs");
             return;
         }
     }
 
-    if (key == GLFW_KEY_R)
+    if (key == KeyBindManager::getBind(MegaBoyKey::Restart))
     {
         if (action == GLFW_PRESS)
             fadeEffectActive = true;
         else if (action == GLFW_RELEASE)
             resetFade();
+    }
+
+    if (key == KeyBindManager::getBind(MegaBoyKey::FastForward))
+    {
+        if (action == GLFW_PRESS)
+			fastForwarding = true;
+		else if (action == GLFW_RELEASE)
+			fastForwarding = false;
     }
 
     gbCore.input.update(key, action);
@@ -933,12 +1047,6 @@ void window_iconify_callback(GLFWwindow* _window, int iconified)
     (void)_window;
     handleVisibilityChange(iconified);
 }
-void window_focus_callback(GLFWwindow* _window, int focused)
-{
-    (void)_window;
-    if (!appConfig::pauseOnFocus) return;
-    handleVisibilityChange(!focused);
-}
 
 #ifdef EMSCRIPTEN
 EM_BOOL emscripten_resize_callback(int eventType, const EmscriptenUiEvent *uiEvent, void *userData)
@@ -956,82 +1064,15 @@ EM_BOOL emscripten_resize_callback(int eventType, const EmscriptenUiEvent *uiEve
 }
 void content_scale_callback(GLFWwindow* _window, float xScale, float yScale)
 {
-   // ImGui::get
-  //;
-
-//std::cout << "xscale: " << xScale << "yscale: " << yScale << "\n";
-
-   //  int  inner_window_width = EM_ASM_INT({ return window.innerWidth; }) * devicePixelRatio;
-   // int inner_window_height = EM_ASM_INT({ return window.innerHeight; }) * devicePixelRatio;
-   //
-   //  std::cout << "prev ratio: " << devicePixelRatio << " prev width: " << window_width << " prev height: "
-   //                  << window_height << "prev menu height: " << menuBarHeight
-   //                   << "prev inner width: " << inner_window_width << "prev inner height: " << inner_window_height << "\n";
-
-
-
-    //devicePixelRatio = EM_ASM_DOUBLE ({ return window.devicePixelRatio; });
-
-    // scaleFactor = (static_cast<float>(getResolutionX()) / 1920.0f + static_cast<float>(getResolutionY()) / 1080.0f) / 2.0f;
-    //
-    // ImGui::GetIO().Fonts->Clear();
-    // ImGui::GetIO().Fonts->AddFontFromMemoryCompressedTTF(resources::robotoMonoFont, sizeof(resources::robotoMonoFont), scaleFactor * 17.0f);
-    //
-    // ImGui_ImplOpenGL3_DestroyFontsTexture();
-    // ImGui_ImplOpenGL3_CreateFontsTexture();
-    //
-    // ImGui::GetStyle() = ImGuiStyle();
-    // ImGui::StyleColorsDark();
-    // ImGui::GetStyle().ScaleAllSizes(scaleFactor);
-
-    // ImGui_ImplOpenGL3_NewFrame();
-    // ImGui_ImplGlfw_NewFrame();
-    // ImGui::NewFrame();
-    // ImGui::BeginMainMenuBar();
-    // menuBarHeight = static_cast<int>(ImGui::GetWindowSize().y);
-    // ImGui::EndMainMenuBar();
-    //
-    // ImGui::Render();
-
-
-
-    // window_width = EM_ASM_INT({ return window.innerWidth; }) * devicePixelRatio;
-    // window_height = EM_ASM_INT({ return window.innerHeight; }) * devicePixelRatio;
-    //
-    // glfwSetWindowSize(_window, window_width, window_height);
-    //
-    // rescaleWindow();
-
-   //
-
-    // int glfw_framebufwidth, glfw_framebufheight;
-    // int glfw_width, glfw_height;
-    // glfwGetFramebufferSize(window, &glfw_framebufwidth, &glfw_framebufheight);
-    // glfwGetWindowSize(window, &glfw_width, &glfw_height);
-    //
-    // std::cout << "glfw framebbufer width: " << glfw_framebufwidth << " framebuf height: " << glfw_framebufheight
-    //             << " glfw window width: " << glfw_width << "window height: " << glfw_height << "\n";
-    //
-    // glfwSetWindowSize(_window, window_width, window_height);
-    //
-    // glfwGetFramebufferSize(window, &glfw_framebufwidth, &glfw_framebufheight);
-    // glfwGetWindowSize(window, &glfw_width, &glfw_height);
-    //
-    // std::cout << "glfw framebbufer width: " << glfw_framebufwidth << " framebuf height: " << glfw_framebufheight
-    //         << " glfw window width: " << glfw_width << "window height: " << glfw_height << "\n";
-    //
-    // rescaleWindow();
-    //
-    // std::cout << "new ratio: " << devicePixelRatio << " new width: " << window_width << " new height: "
-    //                 << window_height << "new menu height: " << menuBarHeight << "\n";
+    devicePixelRatio = EM_ASM_DOUBLE({ return window.devicePixelRatio; });
 }
+
 const char* unloadCallback(int eventType, const void *reserved, void *userData)
 {
-    if (gbCore.cartridge.ROMLoaded)
-        return "Are you sure? Don't forget to export saves.";
-
-    return "";
+    gbCore.autoSave();
+    return gbCore.getSaveNum() != 0 ? "Are you sure? Don't forget to export saves." : "";
 }
+
 EM_BOOL visibilityChangeCallback(int eventType, const EmscriptenVisibilityChangeEvent *visibilityChangeEvent, void *userData)
 {
     handleVisibilityChange(visibilityChangeEvent->hidden);
@@ -1119,12 +1160,13 @@ bool setGLFW()
     }
 
     glfwMakeContextCurrent(window);
-    glfwSetWindowFocusCallback(window, window_focus_callback);
     glfwSetWindowRefreshCallback(window, window_refresh_callback);
     glfwSetDropCallback(window, drop_callback);
     glfwSetKeyCallback(window, key_callback);
 
 #ifdef  EMSCRIPTEN
+    glfwSetWindowTitle(window, "MegaBoy");
+
     glfwSetWindowContentScaleCallback(window, content_scale_callback);
     emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, NULL, EM_TRUE, emscripten_resize_callback);
     emscripten_set_beforeunload_callback(nullptr, unloadCallback);
@@ -1215,7 +1257,7 @@ void mainLoop()
 
         const uint32_t cycles = appConfig::vsync ? GBCore::calculateCycles(gbTimer) : GBCore::CYCLES_PER_FRAME;
         const auto execStart = glfwGetTime();
-        gbCore.update(cycles);
+        gbCore.update(cycles * (fastForwarding ? FAST_FORWARD_SPEED : 1));
 
         executeTimes += (glfwGetTime() - execStart);
         cycleCount += cycles;
@@ -1254,8 +1296,8 @@ void mainLoop()
         executeTimes = 0;
         secondsTimer = 0;
 
-        if (!gbCore.emulationPaused && appConfig::autosaveState)
-            gbCore.autoSave(); // Autosave once a second.
+         if (!gbCore.emulationPaused && appConfig::autosaveState)
+             gbCore.autoSave(); // Autosave once a second.
     }
 
     lastFrameTime = currentFrameTime;
@@ -1267,9 +1309,33 @@ void mainLoop()
     }
 }
 
+#ifdef EMSCRIPTEN
+extern "C" EMSCRIPTEN_KEEPALIVE void loadAppConfigFile()
+{
+    appConfig::loadConfigFile();
+}
+#endif
+
 int main(int argc, char* argv[])
 {
-#ifndef EMSCRIPTEN
+#ifdef EMSCRIPTEN
+    gbCore.setBatterySaveFolder("batterySaves");
+
+    EM_ASM ({
+        FS.mkdir('/batterySaves');
+        FS.mount(IDBFS, { autoPersist: true }, '/batterySaves');
+        FS.mkdir('/data');
+        FS.mount(IDBFS, { autoPersist: true }, '/data');
+
+        FS.syncfs(true, function(err) {
+            if (err != null) {
+                console.log(err);
+            } else {
+                Module.ccall('loadAppConfigFile', null, [], []);
+            }
+        });
+    });
+#else
     appConfig::loadConfigFile();
 #endif
 
@@ -1308,7 +1374,7 @@ int main(int argc, char* argv[])
 
     while (!glfwWindowShouldClose(window)) { mainLoop(); }
 
-    gbCore.saveCurrentROM();
+    gbCore.saveAndBackup();
     appConfig::updateConfigFile();
 
     NFD_Quit();
