@@ -224,9 +224,15 @@ void GBCore::autoSave() const
 		return;
 
 	if (cartridge.hasBattery && appConfig::batterySaves)
-		saveBattery(getBatteryFilePath(romFilePath));
+	{
+		if (cartridge.getMapper()->sramDirty)
+		{
+			saveBattery(getBatteryFilePath(romFilePath));
+			cartridge.getMapper()->sramDirty = false;	
+		}
+	}
 
-	if (currentSave != 0)
+	if (currentSave != 0 && appConfig::autosaveState)
 		saveState(getSaveStateFilePath(currentSave));
 }
 

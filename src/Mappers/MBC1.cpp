@@ -4,16 +4,16 @@ uint8_t MBC1::read(uint16_t addr) const
 {
 	if (addr <= 0x3FFF)
 	{
-		return rom[(addr + s.lowROMOffset) % rom.size()];
+		return rom[(addr + s.lowROMOffset) & (rom.size() - 1)];
 	}
 	if (addr <= 0x7FFF)
 	{
-		return rom[((addr & 0x3FFF) + s.highROMOffset) % rom.size()];
+		return rom[((addr & 0x3FFF) + s.highROMOffset) & (rom.size() - 1)];
 	}
 	if (addr <= 0xBFFF)
 	{
 		if (!cartridge.hasRAM || !s.ramEnable) return 0xFF;
-		return ram[(s.RAMOffset + (addr - 0xA000)) % ram.size()];
+		return ram[(s.RAMOffset + (addr - 0xA000)) & (ram.size() - 1)];
 	}
 
 	return 0xFF;
@@ -45,7 +45,8 @@ void MBC1::write(uint16_t addr, uint8_t val)
 	else if (addr <= 0xBFFF)
 	{
 		if (!cartridge.hasRAM || !s.ramEnable) return;
-		ram[(s.RAMOffset + (addr - 0xA000)) % ram.size()] = val;
+		sramDirty = true;
+		ram[(s.RAMOffset + (addr - 0xA000)) & (ram.size() - 1)] = val;
 	}
 }
 
@@ -58,9 +59,11 @@ void MBC1::updateOffsets()
 	}
 	else
 	{
-		s.lowROMOffset = ((32 * s.bank2) % cartridge.romBanks) * 0x4000;
-		if (cartridge.hasRAM) s.RAMOffset = (s.bank2 % cartridge.ramBanks) * 0x2000;
+		s.lowROMOffset = ((32 * s.bank2) & (cartridge.romBanks - 1)) * 0x4000;
+
+		if (cartridge.hasRAM) 
+			s.RAMOffset = (s.bank2 & (cartridge.ramBanks - 1)) * 0x2000;
 	}
 
-	s.highROMOffset = (((s.bank2 << 5) | s.romBank) % cartridge.romBanks) * 0x4000;
+	s.highROMOffset = (((s.bank2 << 5) | s.romBank) & (cartridge.romBanks - 1)) * 0x4000;
 }

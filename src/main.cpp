@@ -110,6 +110,8 @@ inline void setEmulationPaused(bool val)
     updateWindowTitle();
 }
 
+inline bool emulationRunning() { return !gbCore.emulationPaused && gbCore.cartridge.ROMLoaded; }
+
 void handleBootROMLoad(std::string& destRomPath, const std::filesystem::path& filePath)
 {
     if (GBCore::isBootROMValid(filePath))
@@ -575,7 +577,7 @@ void renderImGUI()
         }
         if (ImGui::BeginMenu("Graphics"))
         {
-            if (gbCore.cartridge.ROMLoaded && !gbCore.emulationPaused)
+            if (emulationRunning())
                 ImGui::SeparatorText(FPS_text.c_str());;
 
 #ifndef EMSCRIPTEN
@@ -740,8 +742,10 @@ void renderImGUI()
         }
         if (ImGui::BeginMenu("Emulation"))
         {
-            if (ImGui::MenuItem(gbCore.emulationPaused ? "Resume" : "Pause", "(Tab)"))
-                gbCore.emulationPaused = !gbCore.emulationPaused;
+            const std::string pauseKeyStr = "(" + std::string(KeyBindManager::getKeyName(KeyBindManager::getBind(MegaBoyKey::Pause))) + ")";
+
+            if (ImGui::MenuItem(gbCore.emulationPaused ? "Resume" : "Pause", pauseKeyStr.c_str()))
+                setEmulationPaused(!gbCore.emulationPaused);
 
             if (gbCore.cartridge.ROMLoaded)
             {
@@ -1255,15 +1259,18 @@ void mainLoop()
     {
         glfwPollEvents();
 
-        const uint32_t cycles = appConfig::vsync ? GBCore::calculateCycles(gbTimer) : GBCore::CYCLES_PER_FRAME;
-        const auto execStart = glfwGetTime();
-        gbCore.update(cycles * (fastForwarding ? FAST_FORWARD_SPEED : 1));
+        if (emulationRunning())
+        {
+            const uint32_t cycles = appConfig::vsync ? GBCore::calculateCycles(gbTimer) : GBCore::CYCLES_PER_FRAME;
+            const auto execStart = glfwGetTime();
+            gbCore.update(cycles * (fastForwarding ? FAST_FORWARD_SPEED : 1));
 
-        executeTimes += (glfwGetTime() - execStart);
-        cycleCount += cycles;
-        frameCount++;
+            executeTimes += (glfwGetTime() - execStart);
+            cycleCount += cycles;
+            frameCount++;
+        }
+
         gbTimer = appConfig::vsync ? 0 : gbTimer - GBCore::FRAME_RATE;
-
         render(deltaTime);
     }
 
@@ -1279,25 +1286,26 @@ void mainLoop()
 
     if (secondsTimer >= 1.0)
     {
-        const double totalGBFrames = static_cast<double>(cycleCount) / GBCore::CYCLES_PER_FRAME;
-        const double avgGBExecuteTime = (executeTimes / totalGBFrames) * 1000;
-        const double fps = frameCount / secondsTimer;
+        if (emulationRunning())
+        {
+            const double totalGBFrames = static_cast<double>(cycleCount) / GBCore::CYCLES_PER_FRAME;
+            const double avgGBExecuteTime = (executeTimes / totalGBFrames) * 1000;
+            const double fps = frameCount / secondsTimer;
 
-        std::ostringstream oss;
-        oss << "FPS: " << std::fixed << std::setprecision(2) << fps << " - " << avgGBExecuteTime << " ms";
-        FPS_text = oss.str();
+            std::ostringstream oss;
+            oss << "FPS: " << std::fixed << std::setprecision(2) << fps << " - " << avgGBExecuteTime << " ms";
+            FPS_text = oss.str();
 
 #ifndef  EMSCRIPTEN
-        updateWindowTitle();
+            updateWindowTitle();
 #endif 
+            gbCore.autoSave();
+        }
 
         cycleCount = 0;
         frameCount = 0;
         executeTimes = 0;
         secondsTimer = 0;
-
-         if (!gbCore.emulationPaused && appConfig::autosaveState)
-             gbCore.autoSave(); // Autosave once a second.
     }
 
     lastFrameTime = currentFrameTime;
@@ -1314,6 +1322,11 @@ extern "C" EMSCRIPTEN_KEEPALIVE void loadAppConfigFile()
 {
     appConfig::loadConfigFile();
 }
+extern "C" EMSCRIPTEN_KEEPALIVE void checkForIntScalingOff()
+{
+    if (!appConfig::integerScaling)
+        rescaleWindow();
+}
 #endif
 
 int main(int argc, char* argv[])
@@ -1322,8 +1335,6 @@ int main(int argc, char* argv[])
     gbCore.setBatterySaveFolder("batterySaves");
 
     EM_ASM ({
-        FS.mkdir('/batterySaves');
-        FS.mount(IDBFS, { autoPersist: true }, '/batterySaves');
         FS.mkdir('/data');
         FS.mount(IDBFS, { autoPersist: true }, '/data');
 
@@ -1332,7 +1343,12 @@ int main(int argc, char* argv[])
                 console.log(err);
             } else {
                 Module.ccall('loadAppConfigFile', null, [], []);
+                Module.ccall('checkForIntScalingOff', null, [], []); // In case integer scaling option is off after loading config file.
             }
+
+            FS.mkdir('/batterySaves');
+            FS.mount(IDBFS, { autoPersist: true }, '/batterySaves');
+            FS.syncfs(true, function(err) { console.log(err); });
         });
     });
 #else

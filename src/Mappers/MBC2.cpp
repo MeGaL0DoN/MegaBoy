@@ -14,7 +14,7 @@ uint8_t MBC2::read(uint16_t addr) const
 	}
 	if (addr <= 0x7FFF)
 	{
-		return rom[(s.romBank % cartridge.romBanks) * 0x4000 + (addr - 0x4000)];
+		return rom[(s.romBank & (cartridge.romBanks - 1)) * 0x4000 + (addr - 0x4000)];
 	}
 	if (addr <= 0xBFFF)
 	{
@@ -41,6 +41,7 @@ void MBC2::write(uint16_t addr, uint8_t val)
 	else if (addr >= 0xA000 && addr <= 0xBFFF)
 	{
 		if (!s.ramEnable) return;
+		sramDirty = true;
 		ram[addr & 0x1FF] = val;
 	}
 }

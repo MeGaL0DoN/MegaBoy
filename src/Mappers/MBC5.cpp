@@ -9,12 +9,12 @@ uint8_t MBC5::read(uint16_t addr) const
 	}
 	if (addr <= 0x7FFF)
 	{
-		return rom[(s.romBank % cartridge.romBanks) * 0x4000 + (addr - 0x4000)];
+		return rom[(s.romBank & (cartridge.romBanks - 1)) * 0x4000 + (addr - 0x4000)];
 	}
 	if (addr >= 0xA000 && addr <= 0xBFFF)
 	{
 		if (!cartridge.hasRAM || !s.ramEnable) return 0xFF;
-		return ram[(s.ramBank % cartridge.ramBanks) * 0x2000 + (addr - 0xA000)];
+		return ram[(s.ramBank & (cartridge.ramBanks - 1)) * 0x2000 + (addr - 0xA000)];
 	}
 
 	return 0xFF;
@@ -41,6 +41,7 @@ void MBC5::write(uint16_t addr, uint8_t val)
 	else if (addr >= 0xA000 && addr <= 0xBFFF)
 	{
 		if (!cartridge.hasRAM || !s.ramEnable) return;
-		ram[(s.ramBank % cartridge.ramBanks) * 0x2000 + (addr - 0xA000)] = val;
+		sramDirty = true;
+		ram[(s.ramBank & (cartridge.ramBanks - 1)) * 0x2000 + (addr - 0xA000)] = val;
 	}
 }

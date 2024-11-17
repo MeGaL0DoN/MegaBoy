@@ -19,7 +19,7 @@ uint8_t MBC3::read(uint16_t addr) const
 	}
 	if (addr <= 0x7FFF)
 	{
-		return rom[(s.romBank % cartridge.romBanks) * 0x4000 + (addr - 0x4000)];
+		return rom[(s.romBank & (cartridge.romBanks - 1)) * 0x4000 + (addr - 0x4000)];
 	}
 	if (addr <= 0xBFFF)
 	{
@@ -30,7 +30,8 @@ uint8_t MBC3::read(uint16_t addr) const
 			updateRTC();
 			return RTC.s.latched ? RTC.s.latchedRegs.getReg(RTC.s.reg) : RTC.s.regs.getReg(RTC.s.reg);
 		}		
-		else return ram[(s.ramBank % cartridge.ramBanks) * 0x2000 + (addr - 0xA000)];
+		else 
+			return ram[(s.ramBank & (cartridge.ramBanks - 1)) * 0x2000 + (addr - 0xA000)];
 	}
 
 	return 0xFF;
@@ -76,12 +77,14 @@ void MBC3::write(uint16_t addr, uint8_t val)
 	else if (addr <= 0xBFFF)
 	{
 		if (!s.ramEnable) return;
+		sramDirty = true;
 
 		if (s.rtcModeActive)
 		{
 			updateRTC();
 			RTC.writeReg(val);
 		}
-		else ram[(s.ramBank % cartridge.ramBanks) * 0x2000 + (addr - 0xA000)] = val;
+		else 
+			ram[(s.ramBank & (cartridge.ramBanks - 1)) * 0x2000 + (addr - 0xA000)] = val;
 	}
 }
