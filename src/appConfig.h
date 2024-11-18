@@ -12,12 +12,6 @@ namespace appConfig
 	inline bool autosaveState{ true };
 	inline bool batterySaves{ true };
 
-#ifdef EMSCRIPTEN
-	inline bool backupSaves{ false };
-#else
-	inline bool backupSaves{ true };
-#endif
-
 	inline bool blending { false };
 	inline bool vsync { true };
 	inline bool integerScaling { true };

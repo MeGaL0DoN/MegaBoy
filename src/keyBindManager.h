@@ -14,7 +14,7 @@ enum class MegaBoyKey
     Up = 6,
     Down = 7,
     Pause = 8,
-    Restart = 9,
+    Reset = 9,
     FastForward = 10,
     QuickSave = 11,
     LoadQuickSave = 12,
@@ -40,7 +40,7 @@ public:
             GLFW_KEY_UP,           // Up
             GLFW_KEY_DOWN,         // Down
             GLFW_KEY_TAB,          // Pause
-            GLFW_KEY_R,            // Restart
+            GLFW_KEY_R,            // Reset
             GLFW_KEY_SPACE,        // FastForward
             GLFW_KEY_Q,		       // QuikSave
             GLFW_KEY_GRAVE_ACCENT, // LoadQuickSave
@@ -69,7 +69,7 @@ public:
             case MegaBoyKey::Up: return "Up";
             case MegaBoyKey::Down: return "Down";
             case MegaBoyKey::Pause: return "Pause";
-            case MegaBoyKey::Restart: return "Restart";
+            case MegaBoyKey::Reset: return "Reset";
             case MegaBoyKey::FastForward: return "Fast Forward";
             case MegaBoyKey::QuickSave: return "Quick Save";
             case MegaBoyKey::LoadQuickSave: return "Load Quick";

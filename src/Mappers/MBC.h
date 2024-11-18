@@ -33,7 +33,10 @@ public:
 	virtual void loadBattery(std::ifstream& st) override
 	{
 		if (cartridge.hasRAM)
+		{
 			st.read(reinterpret_cast<char*>(ram.data()), ram.size());
+			sramDirty = true;
+		}
 	}
 
 	void saveState(std::ofstream& st) const override

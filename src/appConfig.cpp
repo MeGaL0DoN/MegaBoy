@@ -65,7 +65,6 @@ void appConfig::loadConfigFile()
 	to_bool(enableAudio, "audio", "enable");
 
 #ifndef EMSCRIPTEN
-	to_bool(backupSaves, "options", "backupSaves");
 	to_bool(runBootROM, "options", "runBootROM");
 
 	romPath = config["gameState"]["romPath"];
@@ -109,7 +108,6 @@ void appConfig::updateConfigFile()
 	config["audio"]["enable"] = to_string(enableAudio);
 
 #ifndef EMSCRIPTEN
-	config["options"]["backupSaves"] = to_string(backupSaves);
 	config["options"]["runBootROM"] = to_string(runBootROM);
 
 	if (gbCore.cartridge.ROMLoaded)

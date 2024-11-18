@@ -76,25 +76,15 @@ public:
 		cartridge.getMapper()->saveBattery(st);
 	}
 
-	inline void saveAndBackup() const
-	{
-		autoSave();
-		backupState(currentSave);
-		backupBattery();
-	}
-
+	void backupBatteryFile() const;
 	void autoSave() const;
 
-	void backupState(int num) const;
-	void backupBattery() const;
-
-	void reset(bool resetBattery);
-	void restartROM(bool resetBattery = true);
-
-	inline void resetToBattery()
+	inline void resetRom(bool fullReset)
 	{
-		if (!cartridge.ROMLoaded || !cartridge.hasBattery) return;
-		restartROM(false);
+		if (!cartridge.ROMLoaded) return;;
+		if (fullReset) backupBatteryFile();
+		reset(fullReset);
+		loadBootROM();
 	}
 
 	bool emulationPaused { false };
@@ -133,7 +123,7 @@ private:
 	inline std::filesystem::path getBatteryFilePath(const std::filesystem::path& romPath) const
 	{
 		return customBatterySavePath.empty() ? FileUtils::replaceExtension(romPath, ".sav") 
-											 : customBatterySavePath / romPath.filename().replace_extension(".sav");
+											 : customBatterySavePath / std::to_string(cartridge.checksum);
 	}
 
 	inline std::filesystem::path getSaveStateFilePath(int saveNum) const
@@ -156,6 +146,8 @@ private:
 		ppu->drawCallback = this->drawCallback;
 	}
 
+	void reset(bool resetBattery);
+
 	inline bool loadROM(std::ifstream& st, const std::filesystem::path& filePath)
 	{
 		if (cartridge.loadROM(st))
@@ -168,6 +160,15 @@ private:
 		}
 
 		return false;
+	}
+
+	inline void loadBattery(std::ifstream& st)
+	{
+		if (cartridge.hasBattery)
+		{
+			backupBatteryFile();
+			cartridge.getMapper()->loadBattery(st);
+		}
 	}
 
 	static constexpr std::string_view SAVE_STATE_SIGNATURE = "MegaBoy Emulator Save State";

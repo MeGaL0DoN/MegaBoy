@@ -106,7 +106,6 @@ inline void updateWindowTitle()
 inline void setEmulationPaused(bool val)
 {
     gbCore.emulationPaused = val;
-    if (!val) lastFrameTime = glfwGetTime();
     updateWindowTitle();
 }
 
@@ -444,19 +443,6 @@ void openFileDialog(const char* filter)
 {
     emscripten_browser_file::upload(filter, handle_upload_file);
 }
-
-void emscripten_download_saveState()
-{
-    const std::string fileName = gbCore.gameTitle + " - Save State.mbs";
-    gbCore.saveState(fileName);
-    downloadFile(fileName.c_str());
-}
-void emscripten_download_batterySave()
-{
-    const std::string fileName = gbCore.gameTitle + " - Battery Save.sav";
-    gbCore.saveBattery(fileName);
-    downloadFile(fileName.c_str());
-}
 #endif
 
 void renderImGUI()
@@ -493,10 +479,12 @@ void renderImGUI()
             {
                 if (ImGui::MenuItem("Export State"))
                 {
+                    const std::string fileName = gbCore.gameTitle + " - Save State.mbs";
 #ifdef EMSCRIPTEN
-                    emscripten_download_saveState();
+                    gbCore.saveState(fileName);
+                    downloadFile(fileName.c_str());
 #else
-                    auto result = saveFileDialog(gbCore.gameTitle + " - Save State", saveStateFilterItem);
+                    auto result = saveFileDialog(fileName, saveStateFilterItem);
 
                     if (result.has_value())
                         gbCore.saveState(result.value());
@@ -507,10 +495,12 @@ void renderImGUI()
                 {
                     if (ImGui::MenuItem("Export Battery"))
                     {
+                        const std::string fileName = gbCore.gameTitle + " - Battery Save.sav";
 #ifdef EMSCRIPTEN
-                        emscripten_download_batterySave();
+                        gbCore.saveBattery(fileName);
+                        downloadFile(fileName.c_str());
 #else
-                        auto result = saveFileDialog(gbCore.gameTitle + " - Battery Save", batterySaveFilterItem);
+                        auto result = saveFileDialog(fileName, batterySaveFilterItem);
 
                         if (result.has_value())
                             gbCore.saveBattery(result.value());
@@ -555,11 +545,6 @@ void renderImGUI()
 
             if (ImGui::Checkbox("Autosave Save State", &appConfig::autosaveState))
                 appConfig::updateConfigFile();
-
-#ifndef EMSCRIPTEN
-            if (ImGui::Checkbox("Create Backups", &appConfig::backupSaves))
-                appConfig::updateConfigFile();
-#endif
 
             ImGui::SeparatorText("Controls");
 
@@ -749,14 +734,21 @@ void renderImGUI()
 
             if (gbCore.cartridge.ROMLoaded)
             {
+                const std::string resetKeyStr = "(" + std::string(KeyBindManager::getKeyName(KeyBindManager::getBind(MegaBoyKey::Reset))) + ")";
+
                 if (gbCore.cartridge.hasBattery)
                 {
-                    if (ImGui::MenuItem("Reset to Battery"))
-                        gbCore.resetToBattery();
-                }
+                    if (ImGui::MenuItem("Reset to Battery", resetKeyStr.c_str()))
+                        gbCore.resetRom(false);
 
-                if (ImGui::MenuItem("Reset State", "Warning!"))
-                    gbCore.restartROM();
+                    if (ImGui::MenuItem("Full Reset", "Warning!"))
+                        gbCore.resetRom(true);
+                }
+                else
+                {
+                    if (ImGui::MenuItem("Reset", resetKeyStr.c_str()))
+                        gbCore.resetRom(true);
+                }
             }
 
             ImGui::EndMenu();
@@ -911,7 +903,7 @@ void renderGameBoy(double deltaTime)
         if (fadeAmount >= 0.95f)
         {
             resetFade();
-            loadFile(currentFilePath);
+            gbCore.resetRom(false);
         }
         else 
             currentShader->setFloat("fadeAmount", fadeAmount);
@@ -1007,7 +999,7 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
         }
     }
 
-    if (key == KeyBindManager::getBind(MegaBoyKey::Restart))
+    if (key == KeyBindManager::getBind(MegaBoyKey::Reset))
     {
         if (action == GLFW_PRESS)
             fadeEffectActive = true;
@@ -1055,7 +1047,6 @@ void window_iconify_callback(GLFWwindow* _window, int iconified)
 #ifdef EMSCRIPTEN
 EM_BOOL emscripten_resize_callback(int eventType, const EmscriptenUiEvent *uiEvent, void *userData)
 {
-    std::cout << "in resize callback!\n";
     window_width = static_cast<int>(uiEvent->windowInnerWidth * devicePixelRatio);
     window_height = static_cast<int>(uiEvent->windowInnerHeight * devicePixelRatio);
 
@@ -1270,8 +1261,9 @@ void mainLoop()
             frameCount++;
         }
 
-        gbTimer = appConfig::vsync ? 0 : gbTimer - GBCore::FRAME_RATE;
         render(deltaTime);
+        gbTimer = appConfig::vsync ? 0 : gbTimer - GBCore::FRAME_RATE;
+        lastFrameTime = currentFrameTime;
     }
 
 #ifndef EMSCRIPTEN
@@ -1308,8 +1300,6 @@ void mainLoop()
         secondsTimer = 0;
     }
 
-    lastFrameTime = currentFrameTime;
-
     if ((gbCore.emulationPaused && !fadeEffectActive) || !gbCore.cartridge.ROMLoaded)
     {
         glfwWaitEvents(); // To reduce CPU usage when paused.
@@ -1318,62 +1308,28 @@ void mainLoop()
 }
 
 #ifdef EMSCRIPTEN
-extern "C" EMSCRIPTEN_KEEPALIVE void loadAppConfigFile()
-{
-    appConfig::loadConfigFile();
-}
-extern "C" EMSCRIPTEN_KEEPALIVE void checkForIntScalingOff()
-{
-    if (!appConfig::integerScaling)
-        rescaleWindow();
-}
-#endif
-
-int main(int argc, char* argv[])
-{
-#ifdef EMSCRIPTEN
-    gbCore.setBatterySaveFolder("batterySaves");
-
-    EM_ASM ({
-        FS.mkdir('/data');
-        FS.mount(IDBFS, { autoPersist: true }, '/data');
-
-        FS.syncfs(true, function(err) {
-            if (err != null) {
-                console.log(err);
-            } else {
-                Module.ccall('loadAppConfigFile', null, [], []);
-                Module.ccall('checkForIntScalingOff', null, [], []); // In case integer scaling option is off after loading config file.
-            }
-
-            FS.mkdir('/batterySaves');
-            FS.mount(IDBFS, { autoPersist: true }, '/batterySaves');
-            FS.syncfs(true, function(err) { console.log(err); });
-        });
-    });
+extern "C" EMSCRIPTEN_KEEPALIVE void runApp()
 #else
-    appConfig::loadConfigFile();
+void runApp(int argc, char* argv[])
 #endif
+{
+    appConfig::loadConfigFile();
 
-    if (!setGLFW()) return -1;
+    setGLFW();
     setOpenGL();
     setImGUI();
     setWindowSize();
 #ifndef EMSCRIPTEN
-	checkVSyncStatus();
+    checkVSyncStatus();
     NFD_Init();
-#endif
 
-#ifdef EMSCRIPTEN
-    emscripten_set_main_loop(mainLoop, 0, 1);
-#else
     if (argc > 1)
     {
 #ifdef _WIN32
         auto argv = CommandLineToArgvW(GetCommandLineW(), &argc);
 #endif
         loadFile(argv[1]);
-    }
+}
     else
     {
         if (appConfig::loadLastROM && !appConfig::romPath.empty())
@@ -1389,8 +1345,34 @@ int main(int argc, char* argv[])
     }
 
     while (!glfwWindowShouldClose(window)) { mainLoop(); }
+#else
+    emscripten_set_main_loop(mainLoop, 0, 1);
+#endif
+}
 
-    gbCore.saveAndBackup();
+int main(int argc, char* argv[])
+{
+#ifdef EMSCRIPTEN
+    gbCore.setBatterySaveFolder("batterySaves");
+
+    EM_ASM ({
+        FS.mkdir('/data');
+        FS.mount(IDBFS, { autoPersist: true }, '/data');
+
+        FS.syncfs(true, function(err) {
+            if (err != null) { console.log(err); }
+
+            FS.mkdir('/batterySaves');
+            FS.mount(IDBFS, { autoPersist: true }, '/batterySaves');
+            FS.syncfs(true, function(err) { if (err != null) { console.log(err); } });
+
+            Module.ccall('runApp', null, [], []);
+        });
+    });
+#else
+    runApp(argc, argv);
+
+    gbCore.autoSave();
     appConfig::updateConfigFile();
 
     NFD_Quit();

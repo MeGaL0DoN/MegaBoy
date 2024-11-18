@@ -119,16 +119,6 @@ void GBCore::stepComponents()
 	serial.execute();
 }
 
-void GBCore::restartROM(bool resetBattery)
-{
-	if (!cartridge.ROMLoaded)
-		return;
-
-	saveAndBackup();
-	reset(resetBattery);
-	loadBootROM();
-}
-
 bool GBCore::isSaveStateFile(std::ifstream& st)
 {
 	std::string filePrefix(SAVE_STATE_SIGNATURE.length(), 0);
@@ -166,7 +156,7 @@ FileLoadResult GBCore::loadFile(std::ifstream& st)
 				{
 					if (loadROM(ifs, romPath))
 					{
-						cartridge.getMapper()->loadBattery(st);
+						loadBattery(st);
 						loadBootROM();
 						return true;
 					}
@@ -180,8 +170,8 @@ FileLoadResult GBCore::loadFile(std::ifstream& st)
 			{
 				currentSave = 0;
 				reset(false);
+				loadBattery(st);
 				loadBootROM();
-				cartridge.getMapper()->loadBattery(st);
 			}
 			else
 			{
@@ -195,8 +185,8 @@ FileLoadResult GBCore::loadFile(std::ifstream& st)
 			{
 				if (cartridge.hasBattery && appConfig::batterySaves)
 				{
-					if (std::ifstream ifs { getBatteryFilePath(filePath), std::ios::in | std::ios::binary })
-						cartridge.getMapper()->loadBattery(ifs);
+					if (std::ifstream ifs{ getBatteryFilePath(filePath), std::ios::in | std::ios::binary })
+						loadBattery(ifs);
 				}
 
 				loadBootROM();
@@ -220,25 +210,22 @@ FileLoadResult GBCore::loadFile(std::ifstream& st)
 
 void GBCore::autoSave() const
 {
-	if (!cartridge.ROMLoaded)
-		return;
+	if (currentSave != 0 && appConfig::autosaveState)
+		saveState(getSaveStateFilePath(currentSave));
 
 	if (cartridge.hasBattery && appConfig::batterySaves)
 	{
 		if (cartridge.getMapper()->sramDirty)
 		{
 			saveBattery(getBatteryFilePath(romFilePath));
-			cartridge.getMapper()->sramDirty = false;	
+			cartridge.getMapper()->sramDirty = false;
 		}
 	}
-
-	if (currentSave != 0 && appConfig::autosaveState)
-		saveState(getSaveStateFilePath(currentSave));
 }
 
-void GBCore::backupBattery() const
+void GBCore::backupBatteryFile() const
 {
-	if (!cartridge.hasBattery || !appConfig::batterySaves || !appConfig::backupSaves)
+	if (!cartridge.hasBattery || !appConfig::batterySaves || !customBatterySavePath.empty())
 		return;
 	
 	const auto batterySavePath{ getBatteryFilePath(romFilePath) };
@@ -246,31 +233,6 @@ void GBCore::backupBattery() const
 
 	batteryBackupPath.replace_filename(FileUtils::pathToUTF8(batterySavePath.stem()) + " - BACKUP.sav");
 	std::filesystem::copy_file(batterySavePath, batteryBackupPath, std::filesystem::copy_options::overwrite_existing);
-}
-
-void GBCore::backupState(int num) const
-{
-	if (!appConfig::backupSaves)
-		return;
-
-	const auto saveFilePath = getSaveStateFilePath(num);
-
-	if (!cartridge.ROMLoaded || !std::filesystem::exists(saveFilePath))
-		return;
-
-	const auto t = std::time(nullptr);
-	const auto tm = *std::localtime(&t);
-
-	std::ostringstream oss;
-	oss << std::put_time(&tm, "%d-%m-%Y %H-%M-%S");
-	std::string timeStr = oss.str();
-
-	const auto backupPath = saveStateFolderPath / "backups";
-
-	if (!std::filesystem::exists(backupPath))
-		std::filesystem::create_directories(backupPath);
-
-	std::filesystem::copy_file(saveFilePath, backupPath / ("save" + std::to_string(num) + " (" + timeStr + ").mbs"), std::filesystem::copy_options::overwrite_existing);
 }
 
 void GBCore::loadState(int num)
@@ -294,12 +256,7 @@ void GBCore::saveState(int num)
 {
 	if (!cartridge.ROMLoaded) return;
 
-	const auto _filePath = getSaveStateFilePath(num);
-
-	if (currentSave != num && std::filesystem::exists(_filePath))
-		backupState(num);
-
-	saveState(_filePath);
+	saveState(getSaveStateFilePath(num));
 
 	if (currentSave == 0)
 		updateSelectedSaveInfo(num);
