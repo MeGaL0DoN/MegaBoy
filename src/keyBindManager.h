@@ -19,15 +19,18 @@ enum class MegaBoyKey
     QuickSave = 11,
     LoadQuickSave = 12,
     ScaleUp = 13,
-    ScaleDown = 14
+    ScaleDown = 14,
+    SaveStateModifier = 15,
+    LoadStateModifier = 16
 };
 
 class KeyBindManager
 {
 public:
-    static constexpr int TOTAL_KEYS = 15;
+    static constexpr int TOTAL_BINDS = 17;
+    static constexpr int TOTAL_KEYS = 17 - 2; // 2 are modifiers
 
-    inline static std::array<int, TOTAL_KEYS> defaultKeyBinds()
+    static inline std::array<int, TOTAL_BINDS> defaultKeyBinds()
     {
         return std::array
         {
@@ -45,7 +48,10 @@ public:
             GLFW_KEY_Q,		       // QuikSave
             GLFW_KEY_GRAVE_ACCENT, // LoadQuickSave
             GLFW_KEY_PAGE_UP,      // ScaleUp
-            GLFW_KEY_PAGE_DOWN     // ScaleDown
+            GLFW_KEY_PAGE_DOWN,    // ScaleDown
+
+            GLFW_MOD_ALT,          // SaveStateModifier
+            GLFW_MOD_SHIFT         // LoadStateModifier
         };
     }
 
@@ -55,8 +61,12 @@ public:
 	{
 		return keyBinds[static_cast<int>(key)];
 	}
+    static inline void setBind(MegaBoyKey key, int newBind)
+	{
+		keyBinds[static_cast<int>(key)] = newBind;
+	}
 
-    static const char* getMegaBoyKeyName(MegaBoyKey key)
+    static constexpr const char* getMegaBoyKeyName(MegaBoyKey key)
     {
         switch (key)
         {
@@ -75,6 +85,8 @@ public:
             case MegaBoyKey::LoadQuickSave: return "Load Quick";
             case MegaBoyKey::ScaleUp: return "Scale Up";
             case MegaBoyKey::ScaleDown: return "Scale Down";
+            case MegaBoyKey::SaveStateModifier: return "Save State (... + 1-9)";
+            case MegaBoyKey::LoadStateModifier : return "Load State (... + 1-9)";
         }
     }
 

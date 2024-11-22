@@ -43,8 +43,16 @@ void appConfig::loadConfigFile()
 	to_bool(loadLastROM, "options", "loadLastROM");
 	to_int(systemPreference, "options", "preferredSystem");
 
-	for (int i = 0; i < KeyBindManager::TOTAL_KEYS; i++)
-		to_int(KeyBindManager::keyBinds[i], "keyBinds", KeyBindManager::getMegaBoyKeyName(static_cast<MegaBoyKey>(i)));
+	if (config.has("keyBinds"))
+	{
+		for (int i = 0; i < KeyBindManager::TOTAL_BINDS; i++)
+		{
+			const char* keyName = KeyBindManager::getMegaBoyKeyName(static_cast<MegaBoyKey>(i));
+
+			if (config["keyBinds"].has(keyName))
+				to_int(KeyBindManager::keyBinds[i], "keyBinds", keyName);
+		}
+	}
 
 	to_bool(blending, "graphics", "blending");
 	to_bool(vsync, "graphics", "vsync");
@@ -54,24 +62,30 @@ void appConfig::loadConfigFile()
 	to_int(palette, "graphics", "palette");
 	to_int(filter, "graphics", "filter");
 
-	for (int i = 0; i < 4; i++)
+	if (config.has("customPalette"))
 	{
-		const std::string section = "Color " + std::to_string(i);
+		for (int i = 0; i < 4; i++)
+		{
+			const std::string section = "Color " + std::to_string(i);
 
-		if (config["customPalette"].has(section))
-			PPU::CUSTOM_PALETTE[i] = color::fromHex(config["customPalette"][section]);
+			if (config["customPalette"].has(section))
+				PPU::CUSTOM_PALETTE[i] = color::fromHex(config["customPalette"][section]);
+		}
 	}
 
 	to_bool(enableAudio, "audio", "enable");
 
 #ifndef EMSCRIPTEN
-	to_bool(runBootROM, "options", "runBootROM");
-
 	romPath = config["gameState"]["romPath"];
 	to_int(saveStateNum, "gameState", "saveStateNum");
 
-	dmgBootRomPath = config["bootRoms"]["dmgBootRomPath"];
-	cgbBootRomPath = config["bootRoms"]["cgbBootRomPath"];
+	to_bool(runBootROM, "bootRoms", "runBootROM");
+
+	if (config.get("bootRoms").has("dmgBootRomPath"))
+		dmgBootRomPath = config["bootRoms"]["dmgBootRomPath"];
+
+	if (config.get("bootRoms").has("cgbBootRomPath"))
+		cgbBootRomPath = config["bootRoms"]["cgbBootRomPath"];
 #endif
 }
 
@@ -89,8 +103,11 @@ void appConfig::updateConfigFile()
 	config["options"]["loadLastROM"] = to_string(loadLastROM);
 	config["options"]["preferredSystem"] = std::to_string(systemPreference);
 
-	for (int i = 0; i < KeyBindManager::TOTAL_KEYS; i++)
-		config["keyBinds"][KeyBindManager::getMegaBoyKeyName(static_cast<MegaBoyKey>(i))] = std::to_string(KeyBindManager::keyBinds[i]);
+	if (KeyBindManager::keyBinds != KeyBindManager::defaultKeyBinds() || config.has("keyBinds"))
+	{
+		for (int i = 0; i < KeyBindManager::TOTAL_BINDS; i++)
+			config["keyBinds"][KeyBindManager::getMegaBoyKeyName(static_cast<MegaBoyKey>(i))] = std::to_string(KeyBindManager::keyBinds[i]);
+	}
 
 	config["graphics"]["blending"] = to_string(blending);
 	config["graphics"]["vsync"] = to_string(vsync);
@@ -99,7 +116,7 @@ void appConfig::updateConfigFile()
 	config["graphics"]["palette"] = std::to_string(palette);
 	config["graphics"]["filter"] = std::to_string(filter);
 
-	if (PPU::CUSTOM_PALETTE != PPU::DEFAULT_CUSTOM_PALETTE) 
+	if (PPU::CUSTOM_PALETTE != PPU::DEFAULT_CUSTOM_PALETTE || config.has("customPalette"))
 	{
 		for (int i = 0; i < 4; i++)
 			config["customPalette"]["Color " + std::to_string(i)] = PPU::CUSTOM_PALETTE[i].toHex();
@@ -108,8 +125,6 @@ void appConfig::updateConfigFile()
 	config["audio"]["enable"] = to_string(enableAudio);
 
 #ifndef EMSCRIPTEN
-	config["options"]["runBootROM"] = to_string(runBootROM);
-
 	if (gbCore.cartridge.ROMLoaded)
 	{
 		config["gameState"]["romPath"] = FileUtils::pathToUTF8(gbCore.getROMPath());
@@ -117,6 +132,8 @@ void appConfig::updateConfigFile()
 	}
 	else
 		config.remove("gameState");
+
+	config["bootRoms"]["runBootROM"] = to_string(runBootROM);
 
 	if (!dmgBootRomPath.empty())
 		config["bootRoms"]["dmgBootRomPath"] = FileUtils::pathToUTF8(dmgBootRomPath);

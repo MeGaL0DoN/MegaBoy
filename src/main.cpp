@@ -125,25 +125,24 @@ void handleBootROMLoad(std::string& destRomPath, const std::filesystem::path& fi
     showPopUp = true;
 }
 
-std::filesystem::path currentFilePath{};
-inline bool loadFile(const std::filesystem::path& path)
+inline bool loadFile(const std::filesystem::path& filePath)
 {
-    if (std::ifstream ifs { path })
+    if (std::ifstream ifs { filePath })
     {
         ifs.close();
 
-        if (path.filename() == GBCore::DMG_BOOTROM_NAME)
+        if (filePath.filename() == GBCore::DMG_BOOTROM_NAME)
         {
-            handleBootROMLoad(appConfig::dmgBootRomPath, path);
+            handleBootROMLoad(appConfig::dmgBootRomPath, filePath);
             return true;
         }
-        if (path.filename() == GBCore::CGB_BOOTROM_NAME)
+        if (filePath.filename() == GBCore::CGB_BOOTROM_NAME)
         {
-            handleBootROMLoad(appConfig::cgbBootRomPath, path);
+            handleBootROMLoad(appConfig::cgbBootRomPath, filePath);
             return true;
         }
 
-        switch (gbCore.loadFile(path))
+        switch (gbCore.loadFile(filePath))
         {
         case FileLoadResult::InvalidROM:
             popupTitle = "Error Loading the ROM!";
@@ -155,23 +154,21 @@ inline bool loadFile(const std::filesystem::path& path)
             break;
         case FileLoadResult::Success:
         {
-            if (currentFilePath.filename() != GBCore::DMG_BOOTROM_NAME && currentFilePath.filename() != GBCore::CGB_BOOTROM_NAME)
+            if (filePath.filename() != GBCore::DMG_BOOTROM_NAME && filePath.filename() != GBCore::CGB_BOOTROM_NAME)
             {
                 debugUI::signalROMLoaded();
 #ifdef EMSCRIPTEN
-                if (path != currentFilePath)
-					std::filesystem::remove(currentFilePath);
+                std::filesystem::remove(filePath);
 #endif
             }
             updateWindowTitle();
-            currentFilePath = path;
             return true;
         }
         }
     }
 
 #ifdef EMSCRIPTEN
-    std::filesystem::remove(path);
+    std::filesystem::remove(filePath);
 #endif
 
     return false;
@@ -468,13 +465,6 @@ void renderImGUI()
                     loadFile(result.value());
 #endif
             }
-
-            if (!currentFilePath.empty())
-            {
-                if (ImGui::MenuItem("Reload"))
-                    loadFile(currentFilePath);
-            }
-
             if (gbCore.cartridge.ROMLoaded)
             {
                 if (ImGui::MenuItem("Export State"))
@@ -739,14 +729,15 @@ void renderImGUI()
         }
         if (ImGui::BeginMenu("Emulation"))
         {
-            const std::string pauseKeyStr = "(" + std::string(KeyBindManager::getKeyName(KeyBindManager::getBind(MegaBoyKey::Pause))) + ")";
-
-            if (ImGui::MenuItem(gbCore.emulationPaused ? "Resume" : "Pause", pauseKeyStr.c_str()))
-                setEmulationPaused(!gbCore.emulationPaused);
-
             if (gbCore.cartridge.ROMLoaded)
             {
-                const std::string resetKeyStr = "(" + std::string(KeyBindManager::getKeyName(KeyBindManager::getBind(MegaBoyKey::Reset))) + ")";
+                const auto formatKeyBind = [](MegaBoyKey key) { return "(" + std::string(KeyBindManager::getKeyName(KeyBindManager::getBind(key))) + ")"; };
+
+                const std::string pauseKeyStr = formatKeyBind(MegaBoyKey::Pause);
+                const std::string resetKeyStr = formatKeyBind(MegaBoyKey::Reset);
+
+                if (ImGui::MenuItem(gbCore.emulationPaused ? "Resume" : "Pause", pauseKeyStr.c_str()))
+                    setEmulationPaused(!gbCore.emulationPaused);
 
                 if (gbCore.cartridge.hasBattery)
                 {
@@ -821,10 +812,10 @@ void renderImGUI()
             constexpr int itemsPerColumn = (totalItems + 1) / 2;
             const float padding = ImGui::GetStyle().FramePadding.x * 2;
 
-            auto calculateColumnWidths = [&]()
+            const auto calculateColumnWidths = [&]()
             {
                 float widths[2] = { 0.0f, 0.0f };
-                for (int i = 0; i < totalItems; i++) 
+                for (int i = 0; i < totalItems; i++)
                 {
                     const char* keyName = KeyBindManager::getMegaBoyKeyName(static_cast<MegaBoyKey>(i));
                     float width = ImGui::CalcTextSize(keyName).x;
@@ -834,14 +825,14 @@ void renderImGUI()
                 return std::make_pair(widths[0] + padding, widths[1] + padding);
             };
 
-            auto [maxWidthCol1, maxWidthCol2] = calculateColumnWidths();
+            const auto [maxWidthCol1, maxWidthCol2] = calculateColumnWidths();
 
             if (ImGui::BeginTable("KeyBindTable", 2, ImGuiTableFlags_NoKeepColumnsVisible | ImGuiTableFlags_SizingFixedFit))
             {
                 ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, maxWidthCol1 + 130 * scaleFactor + padding);
                 ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, maxWidthCol2 + 130 * scaleFactor);
 
-                auto renderKeyBinding = [&](int index, float maxWidth) 
+                const auto renderKeyBinding = [&](int index, float maxWidth)
                 {
                     if (index >= totalItems) return;
 
@@ -878,6 +869,52 @@ void renderImGUI()
 
                 ImGui::EndTable();
             }
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            const auto renderModifierSelection = []<MegaBoyKey modifier, MegaBoyKey otherModifier>() 
+            {
+                constexpr const char* comboLabel = KeyBindManager::getMegaBoyKeyName(modifier);
+                const int selectedModifier = KeyBindManager::getBind(modifier);
+                const char* modifierLabel = [&]()
+                {
+                    switch (selectedModifier) {
+                        case GLFW_MOD_SHIFT: return "Shift";
+                        case GLFW_MOD_CONTROL: return "Ctrl";
+                        case GLFW_MOD_ALT: return "Alt";
+                        default: return "None";
+                    }
+                }();
+
+                ImGui::Text("%s", comboLabel);
+                ImGui::SameLine();
+                ImGui::PushItemWidth(140 * scaleFactor);
+
+                constexpr std::pair<int, const char*> modifiers[] = { { GLFW_MOD_SHIFT, "Shift" }, { GLFW_MOD_CONTROL, "Ctrl" }, { GLFW_MOD_ALT, "Alt" } };
+
+                if (ImGui::BeginCombo((std::string("##") + comboLabel).c_str(), modifierLabel))
+                {
+                    for (const auto& [modValue, modName] : modifiers) 
+                    {
+                        if (modValue == KeyBindManager::getBind(otherModifier)) continue;
+
+                        const bool isSelected = selectedModifier == modValue;
+
+                        if (ImGui::Selectable(modName, isSelected))
+                            KeyBindManager::setBind(modifier, modValue);
+
+                        if (isSelected) ImGui::SetItemDefaultFocus();
+                    }
+
+                    ImGui::EndCombo();
+                }
+                ImGui::PopItemWidth();
+            };
+
+            renderModifierSelection.operator()<MegaBoyKey::SaveStateModifier, MegaBoyKey::LoadStateModifier>();
+            renderModifierSelection.operator()<MegaBoyKey::LoadStateModifier, MegaBoyKey::SaveStateModifier>();
 
             ImGui::Spacing();
             ImGui::Separator();
@@ -992,10 +1029,10 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
         // number keys 1 though 9
         if (key >= 49 && key <= 57)
         {
-            if (mods & GLFW_MOD_ALT)
+            if (mods & KeyBindManager::getBind(MegaBoyKey::SaveStateModifier))
                 gbCore.saveState(key - 48);
 
-            else if (mods & GLFW_MOD_SHIFT)
+            else if (mods & KeyBindManager::getBind(MegaBoyKey::LoadStateModifier))
                 gbCore.loadState(key - 48);
         }
 
