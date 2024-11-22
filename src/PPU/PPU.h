@@ -256,12 +256,19 @@ public:
 	void (*drawCallback)(const uint8_t* framebuffer) { nullptr };
 
 	inline uint8_t* oamFramebuffer() { return debugOAMFramebuffer.get(); }
-	inline void setOAMDebugEnable(bool val)
-	{
-		debugOAM = val;
+	inline uint8_t* bgFramebuffer() { return debugBGFramebuffer.get(); }
+	inline uint8_t* windowFramebuffer() { return debugWindowFramebuffer.get(); }
 
-		if (val && !debugOAMFramebuffer) 
+	inline void setDebugEnable(bool val)
+	{
+		debugPPU = val;
+
+		if (val && !debugOAMFramebuffer)
+		{
 			debugOAMFramebuffer = std::make_unique<uint8_t[]>(FRAMEBUFFER_SIZE);
+			debugBGFramebuffer = std::make_unique<uint8_t[]>(FRAMEBUFFER_SIZE);
+			debugWindowFramebuffer = std::make_unique<uint8_t[]>(FRAMEBUFFER_SIZE);
+		}
 	}
 protected:
 	std::array<uint8_t, FRAMEBUFFER_SIZE> framebuffer{};
@@ -289,8 +296,10 @@ protected:
 	bool canAccessOAM{};
 	bool canAccessVRAM{};
 
-	bool debugOAM{ false };
+	bool debugPPU { false };
 	std::unique_ptr<uint8_t[]> debugOAMFramebuffer{};
+	std::unique_ptr<uint8_t[]> debugBGFramebuffer{};
+	std::unique_ptr<uint8_t[]> debugWindowFramebuffer{};
 
 	inline static void updatePalette(uint8_t val, std::array<uint8_t, 4>& palette)
 	{

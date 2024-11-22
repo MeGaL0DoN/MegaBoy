@@ -1,6 +1,7 @@
 #define MINIAUDIO_IMPLEMENTATION
 #include <MiniAudio/miniaudio.h>
 
+#include <cstring>
 #include "APU.h"
 #include "../GBCore.h"
 #include "../Utils/bitOps.h"

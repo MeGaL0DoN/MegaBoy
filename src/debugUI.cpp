@@ -1,6 +1,5 @@
 #include "debugUI.h"
 #include "Utils/bitOps.h"
-#include "CPU/regDefines.h"
 
 #include <algorithm>
 #include <cmath>
@@ -25,7 +24,9 @@ void debugUI::updateMenu()
         if (ImGui::MenuItem("VRAM View"))
         {
             showVRAMView = !showVRAMView;
-            gbCore.setOAMDebugEnable(showVRAMView);
+            
+            if (!showVRAMView)
+                gbCore.setPPUDebugEnable(false);
         }
         if (ImGui::MenuItem("Audio View"))
         {
@@ -77,30 +78,51 @@ void debugUI::disassembleRom()
     }
 }
 
-void debugUI::signalVBlank()
+void debugUI::signalVBlank() 
 {
-    if (showVRAMView)
+    if (!showVRAMView) return;
+
+    auto updateTexture = [](uint32_t& texture, uint16_t width, uint16_t height, uint8_t* data)
     {
-        switch (currentTab)
-        {
-        case VRAMTab::TileData:
-            gbCore.ppu->renderTileData(tileDataFrameBuffer.get(), System::Current() == GBSystem::DMG ? 0 : vramTileBank);
-            OpenGL::updateTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileDataFrameBuffer.get());
-            break;
-        case VRAMTab::BackgroundMap:
-            gbCore.ppu->renderBGTileMap(BGFrameBuffer.get());
-            OpenGL::updateTexture(backgroundTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, BGFrameBuffer.get());
-            break;
-        case VRAMTab::WindowMap:
-            gbCore.ppu->renderWindowTileMap(windowFrameBuffer.get());
-            OpenGL::updateTexture(windowTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, windowFrameBuffer.get());
-            break;
-        case VRAMTab::OAM:
-            OpenGL::updateTexture(oamTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu->oamFramebuffer());
-            PixelOps::clearBuffer(gbCore.ppu->oamFramebuffer(), PPU::SCR_WIDTH, PPU::SCR_HEIGHT, color{ 0, 0, 0 });
-            break;
-        }
-	}
+        if (!texture) 
+            OpenGL::createTexture(texture, width, height, data);
+        else 
+            OpenGL::updateTexture(texture, width, height, data);
+    };
+
+    switch (currentTab) 
+    {
+    case VRAMTab::TileData:
+        if (!tileDataFrameBuffer) 
+            tileDataFrameBuffer = std::make_unique<uint8_t[]>(PPU::TILEDATA_FRAMEBUFFER_SIZE);
+
+        gbCore.ppu->renderTileData(tileDataFrameBuffer.get(),System::Current() == GBSystem::DMG ? 0 : vramTileBank);
+        updateTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileDataFrameBuffer.get());
+        break;
+    case VRAMTab::BackgroundMap:
+        if (!BGFrameBuffer) 
+            BGFrameBuffer = std::make_unique<uint8_t[]>(PPU::TILEMAP_FRAMEBUFFER_SIZE);
+
+        gbCore.ppu->renderBGTileMap(BGFrameBuffer.get());
+        updateTexture(backgroundMapTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, BGFrameBuffer.get());
+        break;
+    case VRAMTab::WindowMap:
+        if (!windowFrameBuffer) 
+            windowFrameBuffer = std::make_unique<uint8_t[]>(PPU::TILEMAP_FRAMEBUFFER_SIZE);
+
+        gbCore.ppu->renderWindowTileMap(windowFrameBuffer.get());
+        updateTexture(windowMapTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, windowFrameBuffer.get());
+        break;
+    case VRAMTab::PPUOutput:
+        updateTexture(oamTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu->oamFramebuffer());
+        updateTexture(backgroundTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu->bgFramebuffer());
+        updateTexture(windowTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu->windowFramebuffer());
+
+        clearBuffer(gbCore.ppu->oamFramebuffer());
+        clearBuffer(gbCore.ppu->bgFramebuffer());
+        clearBuffer(gbCore.ppu->windowFramebuffer());
+        break;
+    }
 }
 
 inline void displayImage(uint32_t texture, uint16_t width, uint16_t height, int& scale)
@@ -126,9 +148,20 @@ inline void displayImage(uint32_t texture, uint16_t width, uint16_t height, int&
     if (xPos > 0)
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + xPos);
 
-    OpenGL::bindTexture(texture);
-    uint64_t _texture64{ texture };
-    ImGui::Image(reinterpret_cast<void*>(_texture64), imageSize);
+    if (texture)
+    {
+        OpenGL::bindTexture(texture);
+        uint64_t _texture64{ texture };
+        ImGui::Image(reinterpret_cast<void*>(_texture64), imageSize);
+    }
+    else
+    {
+        const auto screenPos = ImGui::GetCursorScreenPos();
+        const auto color = IM_COL32(PPU::ColorPalette[0].R, PPU::ColorPalette[0].G, PPU::ColorPalette[0].B, 255);
+
+        ImGui::GetWindowDrawList()->AddRectFilled(screenPos, ImVec2(screenPos.x + imageSize.x, screenPos.y + imageSize.y), color);
+        ImGui::Dummy(imageSize);  
+    }
 }
 
 inline std::string disassemble(uint16_t addr, uint8_t* instrLen)
@@ -230,6 +263,8 @@ void debugUI::signalBreakpoint()
     removeTempBreakpoint();
     extendBreakpointDisasmWindow();
 }
+
+#include "CPU/regDefines.h"
 
 void debugUI::updateWindows(float scaleFactor)
 {
@@ -750,11 +785,11 @@ void debugUI::updateWindows(float scaleFactor)
     {
         static int tileViewScale { std::max(1,static_cast<int>(2 * scaleFactor)) };
         static int tileMapViewScale { std::max(1, static_cast<int>(scaleFactor)) };
-        static int oamViewScale { std::max(1, static_cast<int>(2 * scaleFactor)) };
+        static int ppuOutputScale { std::max(1, static_cast<int>(2 * scaleFactor)) };
 
         ImGui::Begin("VRAM View", &showVRAMView, ImGuiWindowFlags_AlwaysAutoResize);
 
-        if (ImGui::BeginTabBar("tabbar"))
+        if (ImGui::BeginTabBar("vramTabBar"))
         {
             if (ImGui::BeginTabItem("Tile Data"))
             {
@@ -767,59 +802,62 @@ void debugUI::updateWindows(float scaleFactor)
                     ImGui::RadioButton("VRAM Bank 1", &vramTileBank, 1);
                 }
 
-                if (!tileDataTexture)
-                {
-                    tileDataFrameBuffer = std::make_unique<uint8_t[]>(PPU::TILEDATA_FRAMEBUFFER_SIZE);
-                    clearBuffer(tileDataFrameBuffer.get(), PPU::TILES_WIDTH, PPU::TILES_HEIGHT);
-                    OpenGL::createTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileDataFrameBuffer.get());
-                }
-
                 displayImage(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileViewScale);
                 ImGui::EndTabItem();
             }
-
-            if (ImGui::BeginTabItem("Background Map"))
+            if (ImGui::BeginTabItem("Tile Maps"))
             {
-                currentTab = VRAMTab::BackgroundMap;
-
-                if (!backgroundTexture)
+                if (ImGui::BeginTabBar("tileMapsTabBar"))
                 {
-                    BGFrameBuffer = std::make_unique<uint8_t[]>(PPU::TILEMAP_FRAMEBUFFER_SIZE);
-                    clearBuffer(BGFrameBuffer.get(), PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT);
-                    OpenGL::createTexture(backgroundTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, BGFrameBuffer.get());
-                }
+                    if (ImGui::BeginTabItem("Background Map"))
+                    {
+                        currentTab = VRAMTab::BackgroundMap;
+                        displayImage(backgroundMapTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, tileMapViewScale);
+                        ImGui::EndTabItem();
+                    }
 
-                displayImage(backgroundTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, tileMapViewScale);
+                    if (ImGui::BeginTabItem("Window Map"))
+                    {
+                        currentTab = VRAMTab::WindowMap;
+                        displayImage(windowMapTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, tileMapViewScale);
+                        ImGui::EndTabItem();
+                    }
+
+                    ImGui::EndTabBar();
+                }
                 ImGui::EndTabItem();
             }
-
-            if (ImGui::BeginTabItem("Window Map"))
+            if (ImGui::BeginTabItem("PPU Output"))
             {
-                currentTab = VRAMTab::WindowMap;
-
-                if (!windowTexture)
+                if (ImGui::BeginTabBar("outputTabBar"))
                 {
-                    windowFrameBuffer = std::make_unique<uint8_t[]>(PPU::TILEMAP_FRAMEBUFFER_SIZE);
-                    clearBuffer(windowFrameBuffer.get(), PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT);
-                    OpenGL::createTexture(windowTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, windowFrameBuffer.get());
+                    currentTab = VRAMTab::PPUOutput;
+
+                    if (ImGui::BeginTabItem("OAM"))
+                    {
+                        displayImage(oamTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, ppuOutputScale);
+                        ImGui::EndTabItem();
+                    }
+                    if (ImGui::BeginTabItem("Background"))
+                    {
+                        displayImage(backgroundTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, ppuOutputScale);
+                        ImGui::EndTabItem();
+                    }
+                    if (ImGui::BeginTabItem("Window"))
+                    {
+                        displayImage(windowTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, ppuOutputScale);
+                        ImGui::EndTabItem();
+                    }
+
+                    ImGui::EndTabBar();
                 }
-
-                displayImage(windowTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, tileMapViewScale);
-                ImGui::EndTabItem();
-            }
-            if (ImGui::BeginTabItem("OAM"))
-			{
-                currentTab = VRAMTab::OAM;
-
-				if (!oamTexture)
-					OpenGL::createTexture(oamTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
-
-				displayImage(oamTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, oamViewScale);
 				ImGui::EndTabItem();
-			}
+            }
 
             ImGui::EndTabBar();
         }
+
+        gbCore.setPPUDebugEnable(showVRAMView && currentTab == VRAMTab::PPUOutput);
 
         ImGui::End();
     }

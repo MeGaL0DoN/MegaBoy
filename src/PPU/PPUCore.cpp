@@ -1,7 +1,8 @@
-#include "PPUCore.h"
-#include "../Utils/bitOps.h"
 #include <iostream>
 #include <algorithm>
+#include <cstring>
+#include "PPUCore.h"
+#include "../Utils/bitOps.h"
 
 template class PPUCore<GBSystem::DMG>;
 template class PPUCore<GBSystem::GBC>;
@@ -623,10 +624,6 @@ void PPUCore<sys>::renderFIFOs()
 		if (!objFIFO.empty())
 		{
 			const auto obj = objFIFO.pop();
-
-			if (debugOAM) [[unlikely]]
-				PixelOps::setPixel(debugOAMFramebuffer.get(), SCR_WIDTH, s.xPosCounter, s.LY, getColor<true>(obj.color, obj.palette));
-
 			bool objHasPriority = obj.color != 0 && OBJEnable();
 
 			if constexpr (sys == GBSystem::DMG)
@@ -635,9 +632,21 @@ void PPUCore<sys>::renderFIFOs()
 				objHasPriority &= (bg.color == 0 || GBCMasterPriority() || (!obj.priority && !bg.priority));
 
 			outputColor = objHasPriority ? getColor<true>(obj.color, obj.palette) : getColor<false>(bg.color, bg.palette);
+
+			if (debugPPU) [[unlikely]]
+			{
+				if (objHasPriority)
+					PixelOps::setPixel(debugOAMFramebuffer.get(), SCR_WIDTH, s.xPosCounter, s.LY, getColor<true>(obj.color, obj.palette));
+			}
 		}
 		else
 			outputColor = getColor<false>(bg.color, bg.palette);
+
+		if (debugPPU) [[unlikely]]
+		{
+			const auto framebuffer = bgFIFO.s.fetchingWindow ? debugWindowFramebuffer.get() : debugBGFramebuffer.get();
+			PixelOps::setPixel(framebuffer, SCR_WIDTH, s.xPosCounter, s.LY, getColor<false>(bg.color, bg.palette));
+		}
 
 		PixelOps::setPixel(framebuffer.data(), SCR_WIDTH, s.xPosCounter, s.LY, outputColor);
 		s.xPosCounter++;

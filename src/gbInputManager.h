@@ -1,6 +1,7 @@
 #pragma once
 
 #include <fstream>
+#include <cstdint>
 #include <map>
 #include "defines.h"
 

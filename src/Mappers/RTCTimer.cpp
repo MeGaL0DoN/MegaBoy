@@ -41,9 +41,9 @@ void RTCTimer::addRTCcycles(uint32_t cycles)
 		}
 		else
 		{
-			while (s.cycles >= CYCLES_PER_SECOND)
+			while (s.cycles >= CYCLES_PER_SECOND * slowDownFactor)
 			{
-				s.cycles -= CYCLES_PER_SECOND;
+				s.cycles -= CYCLES_PER_SECOND * slowDownFactor;
 				s.regs.S++;
 
 				if (s.regs.S == 60)

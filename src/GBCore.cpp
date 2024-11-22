@@ -96,7 +96,7 @@ void GBCore::update(uint32_t cyclesToExecute)
 	if (!cartridge.ROMLoaded || emulationPaused || breakpointHit) [[unlikely]] 
 		return;
 
-	const uint64_t targetCycles = cycleCounter + cyclesToExecute;
+	const uint64_t targetCycles = cycleCounter + (cyclesToExecute * speedFactor);
 
 	while (cycleCounter < targetCycles)
 	{

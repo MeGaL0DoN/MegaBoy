@@ -1,8 +1,10 @@
 #pragma once
 
 #ifdef _WIN32
+#ifndef NOMINMAX
 #define NOMINMAX
 #include "Windows.h"
+#endif
 #elif defined(__linux__) || defined(__unix__) || defined(__APPLE__)
 #include <unistd.h>
 #endif
@@ -14,8 +16,7 @@
 namespace FileUtils
 {
     #ifdef _WIN32
-
-    inline std::wstring ToUTF16(const std::string& utf8Str)
+    inline std::wstring toUTF16(const std::string& utf8Str)
     {
         const auto size = MultiByteToWideChar(CP_UTF8, 0, utf8Str.c_str(), utf8Str.length(), nullptr, 0);
 
@@ -27,7 +28,7 @@ namespace FileUtils
         return result;
     }
 
-    inline std::string ToUTF8(const std::wstring& utf16Str)
+    inline std::string toUTF8(const std::wstring& utf16Str)
     {
         const auto size = WideCharToMultiByte(CP_UTF8, 0, utf16Str.c_str(), utf16Str.length(), nullptr, 0, nullptr, nullptr);
 
@@ -38,13 +39,12 @@ namespace FileUtils
         WideCharToMultiByte(CP_UTF8, 0, utf16Str.c_str(), utf16Str.length(), result.data(), size, nullptr, nullptr);
         return result;
     }
-
     #endif
 
     inline auto nativePath(const std::string& path)
     {
         #ifdef _WIN32
-            return ToUTF16(path);
+            return toUTF16(path);
         #else
             return path;
         #endif
@@ -53,7 +53,7 @@ namespace FileUtils
     inline std::string pathToUTF8(const std::filesystem::path& filePath)
     {
         #ifdef _WIN32
-            return ToUTF8(filePath.wstring());
+            return toUTF8(filePath.wstring());
         #else
             return filePath.string();
         #endif

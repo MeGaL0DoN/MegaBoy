@@ -57,34 +57,49 @@ namespace PixelOps
 		}
 	};
 
-	constexpr void setPixel(uint8_t* buffer, uint16_t width, uint8_t x, uint8_t y, color c)
+	inline void setPixel(uint8_t* buffer, uint16_t width, uint8_t x, uint8_t y, color c)
 	{
-		const uint32_t baseInd = (y * width * 3) + (x * 3);
-
-		buffer[baseInd] = c.R;
-		buffer[baseInd + 1] = c.G;
-		buffer[baseInd + 2] = c.B;
+		auto pixel = reinterpret_cast<color*>(buffer + (y * width + x) * 3);
+		*pixel = { c.R, c.G, c.B };
 	}
-	constexpr color getPixel(const uint8_t* buffer, uint16_t width, uint8_t x, uint8_t y)
+	inline color getPixel(const uint8_t* buffer, uint16_t width, uint8_t x, uint8_t y)
 	{
-		const uint32_t baseInd = (y * width * 3) + (x * 3);
-
-		return color
-		{
-			buffer[baseInd],
-			buffer[baseInd + 1],
-			buffer[baseInd + 2]
-		};
+		const auto pixel = reinterpret_cast<const color*>(buffer + (y * width + x) * 3);
+		return *pixel;
 	}
 
-	constexpr void clearBuffer(uint8_t* buffer, uint16_t width, uint16_t height, color c)
+	inline void clearBuffer(uint8_t* buffer, uint16_t width, uint16_t height, color c) 
 	{
 		if (!buffer) return;
 
-		for (uint16_t x = 0; x < width; x++)
+		const size_t totalBytes = width * height * 3;
+
+		if (c.R == c.G && c.G == c.B)
 		{
-			for (uint16_t y = 0; y < height; y++)
-				setPixel(buffer, width, x, y, c);
+			std::memset(buffer, c.R, totalBytes);
+			return;
+		}
+
+		constexpr size_t PATTERN_SIZE = 384;
+		uint8_t pattern[PATTERN_SIZE];
+
+		for (int i = 0; i < PATTERN_SIZE; i += 3)
+		{
+			pattern[i] = c.R;
+			pattern[i + 1] = c.G;
+			pattern[i + 2] = c.B;
+		}
+
+		size_t i = 0;
+
+		for (; i + PATTERN_SIZE <= totalBytes; i += PATTERN_SIZE)
+			std::memcpy(buffer + i, pattern, PATTERN_SIZE);
+
+		for (; i + 3 <= totalBytes; i += 3)
+		{
+			buffer[i] = c.R;
+			buffer[i + 1] = c.G;
+			buffer[i + 2] = c.B;
 		}
 	}
 }

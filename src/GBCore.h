@@ -87,6 +87,9 @@ public:
 		loadBootROM();
 	}
 
+	constexpr void enableFastForward(int factor) { speedFactor = factor; cartridge.timer.slowDownFactor = factor; }
+	constexpr void disableFastForward() { speedFactor = 1; cartridge.timer.slowDownFactor = 1; }
+
 	bool emulationPaused { false };
 ;	std::string gameTitle { };
 
@@ -99,9 +102,10 @@ public:
 	Cartridge cartridge { *this };
 private:
 	void (*drawCallback)(const uint8_t* framebuffer) { nullptr };
-	bool oamDebugEnable { false };
+	bool ppuDebugEnable { false };
 
 	uint64_t cycleCounter { 0 };
+	int speedFactor { 1 };
 
 	std::filesystem::path saveStateFolderPath;
 	std::filesystem::path filePath;
@@ -114,10 +118,10 @@ private:
 	std::array<bool, 0x10000> breakpoints{};
 	bool breakpointHit{ false };
 
-	inline void setOAMDebugEnable(bool val)
+	inline void setPPUDebugEnable(bool val)
 	{
-		oamDebugEnable = val;
-		if (ppu) ppu->setOAMDebugEnable(val);
+		ppuDebugEnable = val;
+		if (ppu) ppu->setDebugEnable(val);
 	}
 
 	inline std::filesystem::path getBatteryFilePath(const std::filesystem::path& romPath) const
@@ -142,7 +146,7 @@ private:
 		ppu = System::Current() == GBSystem::DMG ? std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::DMG>>(mmu, cpu) } :
 												   std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::GBC>>(mmu, cpu) };
 
-		ppu->setOAMDebugEnable(oamDebugEnable);
+		ppu->setDebugEnable(ppuDebugEnable);
 		ppu->drawCallback = this->drawCallback;
 	}
 

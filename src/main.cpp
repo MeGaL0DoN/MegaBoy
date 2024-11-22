@@ -76,7 +76,7 @@ std::string FPS_text{ "FPS: 00.00 - 0.00 ms" };
 
 extern GBCore gbCore;
 
-constexpr float FADE_DURATION = 0.8f;
+constexpr float FADE_DURATION = 0.9f;
 bool fadeEffectActive { false };
 float fadeTime { 0.0f };
 
@@ -560,8 +560,14 @@ void renderImGUI()
 
             ImGui::EndMenu();
         }
+
+        static bool graphicsMenuWasOpen { false };
+        static bool showPaletteSelection{ false };
+
         if (ImGui::BeginMenu("Graphics"))
         {
+            graphicsMenuWasOpen = true;
+
             if (emulationRunning())
                 ImGui::SeparatorText(FPS_text.c_str());;
 
@@ -629,8 +635,6 @@ void renderImGUI()
 
             ImGui::Spacing();
 
-            static bool showPaletteSelection { false };
-
             if (ImGui::ArrowButton("##3", ImGuiDir_Right))
                 showPaletteSelection = !showPaletteSelection;
 
@@ -687,6 +691,14 @@ void renderImGUI()
             }
 
             ImGui::EndMenu();
+        }
+        else
+        {
+            if (graphicsMenuWasOpen)
+			{
+                showPaletteSelection = false;
+				graphicsMenuWasOpen = false;
+			}
         }
         if (ImGui::BeginMenu("Audio"))
         {
@@ -1010,9 +1022,15 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
     if (key == KeyBindManager::getBind(MegaBoyKey::FastForward))
     {
         if (action == GLFW_PRESS)
-			fastForwarding = true;
-		else if (action == GLFW_RELEASE)
-			fastForwarding = false;
+        {
+            fastForwarding = true;
+            gbCore.enableFastForward(FAST_FORWARD_SPEED);
+        }
+        else if (action == GLFW_RELEASE)
+        {
+            fastForwarding = false;
+            gbCore.disableFastForward();
+        }
     }
 
     gbCore.input.update(key, action);
@@ -1239,14 +1257,23 @@ void setImGUI()
 void mainLoop()
 {
     constexpr double MAX_DELTA_TIME = 0.1;
-
     double currentFrameTime = glfwGetTime();
-    double deltaTime = currentFrameTime - lastFrameTime;
 
+    const bool waitEvents = (gbCore.emulationPaused && !fadeEffectActive) || !gbCore.cartridge.ROMLoaded;
+
+    if (waitEvents)
+    {
+        glfwWaitEvents();
+        lastFrameTime = currentFrameTime;
+    }
+
+    const double deltaTime = std::clamp(currentFrameTime - lastFrameTime, 0.0, MAX_DELTA_TIME);
     secondsTimer += deltaTime;
-    gbTimer += std::clamp(deltaTime, 0.0, MAX_DELTA_TIME);
+    gbTimer += deltaTime;
 
-    if (appConfig::vsync || gbTimer >= GBCore::FRAME_RATE)
+    const bool shouldRender = appConfig::vsync || gbTimer >= GBCore::FRAME_RATE || waitEvents;
+
+    if (shouldRender)
     {
         glfwPollEvents();
 
@@ -1254,7 +1281,7 @@ void mainLoop()
         {
             const uint32_t cycles = appConfig::vsync ? GBCore::calculateCycles(gbTimer) : GBCore::CYCLES_PER_FRAME;
             const auto execStart = glfwGetTime();
-            gbCore.update(cycles * (fastForwarding ? FAST_FORWARD_SPEED : 1));
+            gbCore.update(cycles);
 
             executeTimes += (glfwGetTime() - execStart);
             cycleCount += cycles;
@@ -1298,12 +1325,6 @@ void mainLoop()
         frameCount = 0;
         executeTimes = 0;
         secondsTimer = 0;
-    }
-
-    if ((gbCore.emulationPaused && !fadeEffectActive) || !gbCore.cartridge.ROMLoaded)
-    {
-        glfwWaitEvents(); // To reduce CPU usage when paused.
-        lastFrameTime = glfwGetTime();
     }
 }
 

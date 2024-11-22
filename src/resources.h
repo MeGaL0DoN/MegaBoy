@@ -69,7 +69,7 @@ uniform float fadeAmount;
 in vec4 TEX0;
 out vec4 FragColor;
 
-#define BRIGHTEN_SCANLINES 16.0
+#define BRIGHTEN_SCANLINES 12.0
 #define BRIGHTEN_LCD 12.0
 
 // Magic Numbers

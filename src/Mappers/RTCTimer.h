@@ -46,6 +46,7 @@ public:
 
 	static constexpr uint32_t CYCLES_PER_SECOND = 1048576 * 4;
 	void addRTCcycles(uint32_t cycles);
+
 	void adjustRTC();
 
 	constexpr void setReg(uint8_t reg) { s.reg = reg; }
@@ -55,6 +56,8 @@ public:
 	void saveBattery(std::ofstream& st) const;
 
 	inline void reset() { s = {}; lastUnixTime = unix_time(); }
+
+	int slowDownFactor { 1 };
 private:
 	void incrementDay();
 
