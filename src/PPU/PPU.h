@@ -2,7 +2,7 @@
 
 #include <cstdint>
 #include <array>
-#include <fstream>
+#include <iostream>
 #include <memory>
 
 #include "../defines.h"
@@ -95,7 +95,7 @@ struct PixelFIFO
 		clear();
 	}
 
-	inline void saveState(std::ofstream& st)
+	inline void saveState(std::ostream& st)
 	{
 		ST_WRITE(s);
 		ST_WRITE(front);
@@ -103,7 +103,7 @@ struct PixelFIFO
 		ST_WRITE(size);
 		ST_WRITE_ARR(data);
 	}
-	inline void loadState(std::ifstream& st)
+	inline void loadState(std::istream& st)
 	{
 		ST_READ(s);
 		ST_READ(front);
@@ -174,13 +174,13 @@ struct ppuGBCPaletteData
 		regValue = autoIncrement ? ((regValue + 1) & 0x3F) : regValue;
 	}
 
-	inline void loadState(std::ifstream& st)
+	inline void loadState(std::istream& st)
 	{
 		ST_READ_ARR(paletteRAM);
 		ST_READ(regValue);
 		ST_READ(autoIncrement);
 	}
-	inline void saveState(std::ofstream& st) const
+	inline void saveState(std::ostream& st) const
 	{
 		ST_WRITE_ARR(paletteRAM);
 		ST_WRITE(regValue);
@@ -243,8 +243,8 @@ public:
 
 	virtual void setLCDEnable(bool val) = 0;
 
-	virtual void saveState(std::ofstream& st) = 0;
-	virtual void loadState(std::ifstream& st) = 0;
+	virtual void saveState(std::ostream& st) = 0;
+	virtual void loadState(std::istream& st) = 0;
 
 	virtual void refreshDMGScreenColors(const std::array<color, 4>& newColorPalette) = 0;
 
@@ -253,7 +253,7 @@ public:
 	virtual void renderWindowTileMap(uint8_t* buffer) = 0;
 
 	constexpr const uint8_t* getFrameBuffer() const { return framebuffer.data(); }
-	void (*drawCallback)(const uint8_t* framebuffer) { nullptr };
+	void (*drawCallback)(const uint8_t* framebuffer, bool clearedBuffer) { nullptr };
 
 	inline uint8_t* oamFramebuffer() { return debugOAMFramebuffer.get(); }
 	inline uint8_t* bgFramebuffer() { return debugBGFramebuffer.get(); }

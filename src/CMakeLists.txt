@@ -68,7 +68,7 @@ add_executable(MegaBoy
         "Utils/pixelOps.h"
         "Utils/fileUtils.h"
         "Utils/Shader.cpp"
-        "Utils/Shader.h" )
+        "Utils/Shader.h"  "Utils/memstream.h")
 
 include(CheckIPOSupported)
 check_ipo_supported(RESULT supported OUTPUT error)
@@ -110,5 +110,6 @@ else ()
     target_link_libraries(MegaBoy glfw glad nfd)
 endif()
 
+add_subdirectory("Libs/miniz")
 add_subdirectory("Libs/ImGUI")
-target_link_libraries(MegaBoy imgui)
+target_link_libraries(MegaBoy imgui miniz)

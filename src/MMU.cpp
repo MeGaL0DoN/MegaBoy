@@ -25,7 +25,7 @@ void MMU::updateFunctionPointers()
 	}
 }
 
-void MMU::saveState(std::ofstream& st) const
+void MMU::saveState(std::ostream& st) const
 {
 	ST_WRITE(s);
 
@@ -38,7 +38,7 @@ void MMU::saveState(std::ofstream& st) const
 	ST_WRITE_ARR(HRAM);
 }
 
-void MMU::loadState(std::ifstream& st)
+void MMU::loadState(std::istream& st)
 {
 	ST_READ(s);
 
@@ -147,8 +147,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 	}
 	else if (addr <= 0x9FFF)
 	{
-		if (gbCore.ppu->canAccessVRAM)
-			gbCore.ppu->VRAM[addr - 0x8000] = val;
+		gbCore.ppu->VRAM[addr - 0x8000] = val;
 	}
 	else if (addr <= 0xBFFF)
 	{
@@ -171,8 +170,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 	}
 	else if (addr <= 0xFE9F)
 	{
-		if (gbCore.ppu->canAccessOAM)
-			gbCore.ppu->OAM[addr - 0xFE00] = val;
+		gbCore.ppu->OAM[addr - 0xFE00] = val;
 	}
 	else if (addr <= 0xFEFF)
 	{

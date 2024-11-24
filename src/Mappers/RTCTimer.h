@@ -1,8 +1,9 @@
 #pragma once
-#include <cassert>
+
 #include <cstdint>
-#include <fstream>
+#include <iostream>
 #include <chrono>
+#include "../defines.h"
 
 struct RTCRegs
 {
@@ -23,8 +24,7 @@ struct RTCRegs
 			case 0x0C: return DH & 0xC1;
 		}
 
-		assert(false);
-		return 0x00;
+		UNREACHABLE();
 	}
 };
 
@@ -52,8 +52,8 @@ public:
 	constexpr void setReg(uint8_t reg) { s.reg = reg; }
 	void writeReg(uint8_t val);
 
-	void loadBattery(std::ifstream& st);
-	void saveBattery(std::ofstream& st) const;
+	void loadBattery(std::istream& st);
+	void saveBattery(std::ostream& st) const;
 
 	inline void reset() { s = {}; lastUnixTime = unix_time(); }
 

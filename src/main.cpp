@@ -59,14 +59,14 @@ bool fileDialogOpen { false };
 #define STR(s) s
 #endif
 
-constexpr nfdnfilteritem_t openFilterItem[] = { {STR("Game ROM/Save"), STR("gb,gbc,sav,mbs")} };
+constexpr nfdnfilteritem_t openFilterItem[] = { {STR("Game ROM/Save"), STR("gb,gbc,zip,sav,mbs")} };
 constexpr nfdnfilteritem_t saveStateFilterItem[] = { {STR("Save State"), STR("mbs")} };
 constexpr nfdnfilteritem_t batterySaveFilterItem[] = { {STR("Battery Save"), STR("sav")} };
 constexpr nfdnfilteritem_t audioSaveFilterItem[] = { {STR("WAV File"), STR("wav")} };
 
 #undef STR
 #else
-constexpr const char* openFilterItem = ".gb,.gbc,.sav,.mbs";
+constexpr const char* openFilterItem = ".gb,.gbc,.zip,.sav,.mbs";
 #endif
 
 const char* popupTitle = "";
@@ -76,7 +76,7 @@ std::string FPS_text{ "FPS: 00.00 - 0.00 ms" };
 
 extern GBCore gbCore;
 
-constexpr float FADE_DURATION = 0.9f;
+constexpr float FADE_DURATION = 0.85f;
 bool fadeEffectActive { false };
 float fadeTime { 0.0f };
 
@@ -98,7 +98,7 @@ inline void updateWindowTitle()
 {
     std::string title = (gbCore.gameTitle.empty() ? "MegaBoy" : "MegaBoy - " + gbCore.gameTitle);
 #ifndef EMSCRIPTEN
-    if (gbCore.cartridge.ROMLoaded) title += !gbCore.emulationPaused ? (" (" + FPS_text + ")") : "";
+    if (gbCore.cartridge.ROMLoaded()) title += !gbCore.emulationPaused ? (" (" + FPS_text + ")") : "";
 #endif
     glfwSetWindowTitle(window, title.c_str());
 }
@@ -109,7 +109,7 @@ inline void setEmulationPaused(bool val)
     updateWindowTitle();
 }
 
-inline bool emulationRunning() { return !gbCore.emulationPaused && gbCore.cartridge.ROMLoaded; }
+inline bool emulationRunning() { return !gbCore.emulationPaused && gbCore.cartridge.ROMLoaded() && !gbCore.breakpointHit; }
 
 void handleBootROMLoad(std::string& destRomPath, const std::filesystem::path& filePath)
 {
@@ -213,10 +213,15 @@ void resetFade()
     fadeEffectActive = false; 
 }
 
-void drawCallback(const uint8_t* framebuffer)
+void drawCallback(const uint8_t* framebuffer, bool clearedBuffer)
 {
     OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
-    std::swap(gbFramebufferTextures[0], gbFramebufferTextures[1]);
+
+    if (clearedBuffer)
+        OpenGL::updateTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
+    else
+        std::swap(gbFramebufferTextures[0], gbFramebufferTextures[1]);
+
     debugUI::signalVBlank();
 }
 
@@ -465,7 +470,7 @@ void renderImGUI()
                     loadFile(result.value());
 #endif
             }
-            if (gbCore.cartridge.ROMLoaded)
+            if (gbCore.cartridge.ROMLoaded())
             {
                 if (ImGui::MenuItem("Export State"))
                 {
@@ -729,7 +734,7 @@ void renderImGUI()
         }
         if (ImGui::BeginMenu("Emulation"))
         {
-            if (gbCore.cartridge.ROMLoaded)
+            if (gbCore.cartridge.ROMLoaded())
             {
                 const auto formatKeyBind = [](MegaBoyKey key) { return "(" + std::string(KeyBindManager::getKeyName(KeyBindManager::getBind(key))) + ")"; };
 
@@ -759,7 +764,12 @@ void renderImGUI()
 
         debugUI::updateMenu();
 
-        if (gbCore.emulationPaused)
+        if (gbCore.breakpointHit)
+        {
+            ImGui::Separator();
+			ImGui::Text("Breakpoint Hit!");
+        }
+        else if (gbCore.emulationPaused)
         {
             ImGui::Separator();
             ImGui::Text("Emulation Paused");
@@ -769,7 +779,7 @@ void renderImGUI()
 			ImGui::Separator();
 			ImGui::Text("Fast Forward...");
         }
-        else if (gbCore.cartridge.ROMLoaded && gbCore.getSaveNum() != 0)
+        else if (gbCore.cartridge.ROMLoaded() && gbCore.getSaveNum() != 0)
         {
             const std::string saveText = "Save: " + std::to_string(gbCore.getSaveNum());
             ImGui::Separator();
@@ -1015,7 +1025,7 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
         return;
     }
 
-    if (!gbCore.cartridge.ROMLoaded) return;
+    if (!gbCore.cartridge.ROMLoaded()) return;
 
     if (action == GLFW_PRESS)
     {
@@ -1296,7 +1306,7 @@ void mainLoop()
     constexpr double MAX_DELTA_TIME = 0.1;
     double currentFrameTime = glfwGetTime();
 
-    const bool waitEvents = (gbCore.emulationPaused && !fadeEffectActive) || !gbCore.cartridge.ROMLoaded;
+    const bool waitEvents = (gbCore.emulationPaused && !fadeEffectActive) || !gbCore.cartridge.ROMLoaded();
 
     if (waitEvents)
     {

@@ -18,7 +18,7 @@ void CPU::reset()
 	tCyclesPerM = 4;
 }
 
-void CPU::saveState(std::ofstream& st) const
+void CPU::saveState(std::ostream& st) const
 {
 	ST_WRITE(s);
 	ST_WRITE(registers.AF.val);
@@ -27,7 +27,7 @@ void CPU::saveState(std::ofstream& st) const
 	ST_WRITE(registers.HL.val);
 }
 
-void CPU::loadState(std::ifstream& st)
+void CPU::loadState(std::istream& st)
 {
 	ST_READ(s);
 	ST_READ(registers.AF.val);

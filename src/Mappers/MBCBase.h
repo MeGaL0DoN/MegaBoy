@@ -1,21 +1,21 @@
 #pragma once
 #include <cstdint>
-#include <fstream>
+#include <iostream>
 
 struct MBCBase
 {
 	virtual ~MBCBase() {}
 
-	bool sramDirty { false };
-
 	virtual uint8_t read(uint16_t addr) const = 0;
 	virtual void write(uint16_t addr, uint8_t val) = 0;
 
-	virtual void saveState(std::ofstream& st) const = 0;
-	virtual void loadState(std::ifstream& st) = 0;
+	virtual void saveState(std::ostream& st) const = 0;
+	virtual void loadState(std::istream& st) = 0;
 
-	virtual void saveBattery(std::ofstream& st) const = 0;
-	virtual void loadBattery(std::ifstream& st) = 0;
+	virtual void saveBattery(std::ostream& st) const = 0;
+	virtual void loadBattery(std::istream& st) = 0;
 
 	virtual void reset(bool resetBattery) = 0;
+
+	bool sramDirty { false };
 };

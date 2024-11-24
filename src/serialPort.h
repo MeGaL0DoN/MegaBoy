@@ -1,6 +1,8 @@
 #pragma once
+
+#include <iostream>
 #include "CPU/CPU.h"
-#include <fstream>
+#include "defines.h"
 
 class serialPort
 {
@@ -13,9 +15,8 @@ public:
 
 	constexpr void reset() { s = {}; }
 
-	void saveState(std::ofstream& st) const;
-	void loadState(std::ifstream& st);
-
+	void saveState(std::ostream& st) const { ST_WRITE(s);}
+	void loadState(std::istream& st) { ST_READ(s); }
 private:
 	CPU& cpu;
 	static constexpr uint16_t SERIAL_TRANSFER_CYCLES = 128;

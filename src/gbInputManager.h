@@ -1,8 +1,7 @@
 #pragma once
 
-#include <fstream>
 #include <cstdint>
-#include <map>
+#include <iostream>
 #include "defines.h"
 
 class CPU;
@@ -19,8 +18,8 @@ public:
 	uint8_t readJoypadReg() const;
 	void setJoypadReg(uint8_t val);
 
-	inline void saveState(std::ofstream& st) const { ST_WRITE(readButtons), ST_WRITE(readDpad); }
-	inline void loadState(std::ifstream& st) { ST_READ(readButtons), ST_READ(readDpad); }
+	inline void saveState(std::ostream& st) const { ST_WRITE(readButtons), ST_WRITE(readDpad); }
+	inline void loadState(std::istream& st) { ST_READ(readButtons), ST_READ(readDpad); }
 private:
 	CPU& cpu;
 

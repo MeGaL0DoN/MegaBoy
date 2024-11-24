@@ -70,7 +70,7 @@ void debugUI::disassembleRom()
     {
         std::string disasm = to_hex_str(addr).append(": ").append(gbCore.cpu.disassemble(addr, [](uint16_t addr) 
         {
-            return gbCore.cartridge.getRom()[(dissasmRomBank * 0x4000) + (addr - (dissasmRomBank == 0 ? 0 : 0x4000))];
+            return gbCore.cartridge.rom[(dissasmRomBank * 0x4000) + (addr - (dissasmRomBank == 0 ? 0 : 0x4000))];
         }, &instrLen));
 
         romDisassembly.push_back(disasm);
@@ -288,7 +288,7 @@ void debugUI::updateWindows(float scaleFactor)
 
             if (ImGui::InputInt("##rombank", &memoryRomBank, 1, 1, ImGuiInputTextFlags_CharsDecimal))
             {
-                if (gbCore.cartridge.ROMLoaded)
+                if (gbCore.cartridge.ROMLoaded())
                     memoryRomBank = std::clamp(memoryRomBank, 0, static_cast<int>(gbCore.cartridge.romBanks - 1));
                 else
                     memoryRomBank = 0;
@@ -324,7 +324,7 @@ void debugUI::updateWindows(float scaleFactor)
                 {
                     memoryData = "0x" + to_hex_str(static_cast<uint16_t>(viewStartAddr + i * 16)) + " ";
 
-                    if (gbCore.cartridge.ROMLoaded)
+                    if (gbCore.cartridge.ROMLoaded())
                     {
                         std::array<uint8_t, 16> data{};
 
@@ -353,7 +353,7 @@ void debugUI::updateWindows(float scaleFactor)
         if (romMemoryView)
         {
             clipper.Begin(1024);
-            printMem(memoryRomBank == 0 ? 0 : 0x4000, [](uint16_t addr) { return gbCore.cartridge.getRom()[(memoryRomBank * 0x4000) + addr]; });
+            printMem(memoryRomBank == 0 ? 0 : 0x4000, [](uint16_t addr) { return gbCore.cartridge.rom[(memoryRomBank * 0x4000) + addr]; });
         }
         else
         {
@@ -479,7 +479,7 @@ void debugUI::updateWindows(float scaleFactor)
 
             ImGui::SameLine();
 
-            if (!gbCore.breakpoints[breakpointAddr])
+            if (std::find(breakpoints.begin(), breakpoints.end(), breakpointAddr) == breakpoints.end())
             {
                 ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.4f, 0.8f, 1.0f));
                 ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.5f, 0.9f, 1.0f));
@@ -514,31 +514,56 @@ void debugUI::updateWindows(float scaleFactor)
 
             if (showBreakpoints)
             {
-                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
-
                 if (ImGui::BeginChild("Breakpoint List", ImVec2(0, 100 * scaleFactor), true))
                 {
                     for (auto it = breakpoints.begin(); it != breakpoints.end(); )
                     {
+                        bool incrementIt = true;
                         ImGui::PushID(*it);
 
                         ImGui::Text("0x%04X", *it);
                         ImGui::SameLine();
 
+                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
+                        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
+
                         if (ImGui::Button("Remove"))
                         {
                             gbCore.breakpoints[*it] = false;
                             it = breakpoints.erase(it); 
+                            incrementIt = false;
                         }
                         else
-                            ++it;  
+                        {
+                            const bool breakpointEnabled = gbCore.breakpoints[*it];
+                            ImGui::SameLine();
+
+                            if (breakpointEnabled)
+                            {
+                                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.15f, 0.6f, 0.15f, 1.0f));
+                                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.2f, 0.7f, 0.2f, 1.0f));
+                            }
+                            else
+                            {
+                                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.6f, 0.15f, 1.0f));
+                                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.7f, 0.7f, 0.2f, 1.0f));
+                            }
+
+                            if (ImGui::Button(breakpointEnabled ? "Enabled" : "Disabled"))
+                                gbCore.breakpoints[*it] = !breakpointEnabled;
+
+                            ImGui::PopStyleColor(2);
+                        }
+
+                        ImGui::PopStyleColor(2);
+
+                        if (incrementIt)
+                            it++;
 
                         ImGui::PopID();
                     }
                 }
 
-                ImGui::PopStyleColor(2);
                 ImGui::EndChild();
             }
         }
@@ -551,7 +576,7 @@ void debugUI::updateWindows(float scaleFactor)
 
             if (ImGui::InputInt("##rombank", &dissasmRomBank, 1, 1, ImGuiInputTextFlags_CharsDecimal))
             {
-                if (gbCore.cartridge.ROMLoaded)
+                if (gbCore.cartridge.ROMLoaded())
                 {
                     dissasmRomBank = std::clamp(dissasmRomBank, 0, static_cast<int>(gbCore.cartridge.romBanks - 1));
                     romDisassembly.resize(0);
@@ -562,12 +587,12 @@ void debugUI::updateWindows(float scaleFactor)
 
             ImGui::PopItemWidth();
 
-            if (romDisassembly.empty() && gbCore.cartridge.ROMLoaded)
+            if (romDisassembly.empty() && gbCore.cartridge.ROMLoaded())
                 disassembleRom();
         }
 
         ImGui::SeparatorText("Disassembly");
-        if (ImGui::BeginChild("Disassembly") && gbCore.cartridge.ROMLoaded) 
+        if (ImGui::BeginChild("Disassembly") && gbCore.cartridge.ROMLoaded()) 
         {
             ImGuiListClipper clipper;
 

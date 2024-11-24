@@ -1,7 +1,6 @@
 #pragma once
 #include <cstdint>
 #include <vector>
-#include <fstream>
 #include "MBCBase.h"
 #include "../defines.h"
 #include "../Cartridge.h"
@@ -17,20 +16,15 @@ template <typename T>
 class MBC : public MBCBase
 {
 public:
-	MBC(Cartridge& cartridge) : cartridge(cartridge), rom(cartridge.getRom())
-	{
-		cartridge.hasRAM = cartridge.ramBanks != 0;
+	MBC(Cartridge& cartridge) : cartridge(cartridge), rom(cartridge.rom), ram(cartridge.ram)
+	{ }
 
-		if (cartridge.hasRAM)
-			ram.resize(0x2000 * cartridge.ramBanks);
-	}
-
-	virtual void saveBattery(std::ofstream& st) const override
+	virtual void saveBattery(std::ostream& st) const override
 	{
 		if (cartridge.hasRAM)
 			st.write(reinterpret_cast<const char*>(ram.data()), ram.size());
 	}
-	virtual void loadBattery(std::ifstream& st) override
+	virtual void loadBattery(std::istream& st) override
 	{
 		if (cartridge.hasRAM)
 		{
@@ -39,13 +33,13 @@ public:
 		}
 	}
 
-	void saveState(std::ofstream& st) const override
+	void saveState(std::ostream& st) const override
 	{
 		ST_WRITE(s);
 		saveBattery(st);
 	}
 
-	void loadState(std::ifstream& st) override
+	void loadState(std::istream& st) override
 	{
 		ST_READ(s);
 		loadBattery(st);
@@ -60,8 +54,7 @@ protected:
 	Cartridge& cartridge;
 
 	const std::vector<uint8_t>& rom;
-	std::vector<uint8_t> ram;
-
+	std::vector<uint8_t>& ram;
 	T s;
 
 	virtual void resetBatteryState()

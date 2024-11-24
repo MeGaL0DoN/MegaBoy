@@ -1,5 +1,4 @@
 #include "serialPort.h"
-#include "defines.h"
 
 void serialPort::writeSerialControl(uint8_t val)
 {
@@ -32,14 +31,4 @@ void serialPort::execute()
             }
         }
     }
-}
-
-void serialPort::saveState(std::ofstream& st) const
-{
-    ST_WRITE(s);
-}
-
-void serialPort::loadState(std::ifstream& st)
-{
-    ST_READ(s);
 }

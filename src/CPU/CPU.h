@@ -5,7 +5,6 @@
 #include <memory>
 #include "registers.h"
 #include "../Utils/bitOps.h"
-#include <cassert>
 
 enum class Interrupt : uint8_t
 {
@@ -55,8 +54,8 @@ public:
 		executingBootROM = false;
 	}
 
-	void saveState(std::ofstream& st) const;
-	void loadState(std::ifstream& st);
+	void saveState(std::ostream& st) const;
+	void loadState(std::istream& st);
 private:
 	GBCore& gbCore;
 

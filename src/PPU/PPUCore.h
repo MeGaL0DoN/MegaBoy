@@ -15,8 +15,8 @@ public:
 	void execute(uint8_t cycles) override;
 	void reset() override;
 
-	void saveState(std::ofstream& st) override;
-	void loadState(std::ifstream& st) override;
+	void saveState(std::ostream& st) override;
+	void loadState(std::istream& st) override;
 
 	void refreshDMGScreenColors(const std::array<color, 4>& newColors) override;
 
@@ -31,12 +31,12 @@ private:
 	static constexpr uint16_t OAM_SCAN_CYCLES = 20 * 4;
 	static constexpr uint16_t DEFAULT_VBLANK_CYCLES = 114 * 4;
 
-	constexpr void invokeDrawCallback() const { if (drawCallback != nullptr) drawCallback(framebuffer.data()); }
+	constexpr void invokeDrawCallback(bool clearedBuffer) const { if (drawCallback != nullptr) drawCallback(framebuffer.data(), clearedBuffer); }
 
 	inline void clearBuffer()
 	{
 		PixelOps::clearBuffer(framebuffer.data(), SCR_WIDTH, SCR_HEIGHT, sys == GBSystem::DMG ? PPU::ColorPalette[0] : color { 255, 255, 255 });
-		invokeDrawCallback();
+		invokeDrawCallback(true);
 	}
 
 	void renderTileMap(uint8_t* buffer, uint16_t tileMapAddr);

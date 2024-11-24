@@ -1,4 +1,3 @@
-#include <iostream>
 #include <algorithm>
 
 #include "GBCore.h"
@@ -15,57 +14,123 @@
 
 Cartridge::Cartridge(GBCore& gbCore) : gbCore(gbCore) { }
 
-bool Cartridge::loadROM(std::ifstream& ifs)
+bool Cartridge::loadROM(std::istream& is)
 {
-	ifs.seekg(0, std::ios::end);
-	std::ifstream::pos_type size = ifs.tellg();
-	if (size < MIN_ROM_SIZE || size > MAX_ROM_SIZE) return false;
-
-	std::vector<uint8_t> fileBuffer;
-	fileBuffer.resize(size);
-
-	ifs.seekg(0, std::ios::beg);
-	ifs.read(reinterpret_cast<char*>(&fileBuffer[0]), size);
-
-	if (!proccessCartridgeHeader(fileBuffer))
+	is.seekg(0, std::ios::end);
+	const uint32_t size = is.tellg();
+	
+	if (!romSizeValid(size))
 		return false;
 
-	ROMLoaded = true;
-	rom = std::move(fileBuffer);
+	if (!proccessCartridgeHeader(is, size))
+		return false;
 
+	rom.resize(size);
+	rom.shrink_to_fit();
+
+	is.seekg(0, std::ios::beg);
+	is.read(reinterpret_cast<char*>(rom.data()), size);
+
+	romLoaded = true;
 	return true;
 }
 
-struct importGuard
+uint8_t Cartridge::calculateHeaderChecksum(std::istream& is) const
 {
-	Cartridge& cartridge;
-	uint16_t backupRomBanks;
-	uint16_t backupRamBanks;
+	uint8_t checksum = 0;
+	is.seekg(0x134, std::ios::beg);
 
-	importGuard(Cartridge& cartridge) : cartridge(cartridge), backupRomBanks(cartridge.romBanks), backupRamBanks(cartridge.ramBanks)
-	{ }
-
-	~importGuard()
+	for (size_t i = 0x134; i <= 0x14C; i++)
 	{
-		if (!cartridge.readSuccessfully)
-		{
-			cartridge.romBanks = backupRomBanks;
-			cartridge.ramBanks = backupRamBanks;
-		}
+		uint8_t byte;
+		is.read(reinterpret_cast<char*>(&byte), 1);
+		checksum = checksum - byte - 1;
 	}
-};
 
-bool Cartridge::proccessCartridgeHeader(const std::vector<uint8_t>& buffer)
+	return checksum;
+}
+
+bool Cartridge::proccessCartridgeHeader(std::istream& is, uint32_t fileSize)
 {
-	readSuccessfully = false;
-	importGuard guard{ *this };
+	auto readByte = [&is](uint16_t ind) -> uint8_t
+	{
+		uint8_t byte;
+		is.seekg(ind, std::ios::beg);
+		is.read(reinterpret_cast<char*>(&byte), 1);
+		return byte;
+	};
 
-	romBanks = 1 << (buffer[0x148] + 1);
-	if (romBanks == 0 || romBanks > buffer.size() / 0x4000) return false;
+	const uint8_t checksum = calculateHeaderChecksum(is);
+	const uint8_t storedChecksum = readByte(0x14D);
 
-	if (!verifyChecksum(buffer)) return false;
+	if (checksum != storedChecksum) 
+		return false;
 
-	switch (buffer[0x149])
+	const uint16_t romBanks = 1 << (readByte(0x148) + 1);
+
+	if (romBanks == 0 || romBanks > fileSize / 0x4000) 
+		return false;
+
+	switch (readByte(0x147)) // MBC Type
+	{
+	case 0x00:
+		mapper = std::make_unique<RomOnlyMBC>(*this);
+		break;
+	case 0x01:
+	case 0x02:
+		mapper = std::make_unique<MBC1>(*this);
+		break;
+	case 0x03:
+		hasBattery = true;
+		mapper = std::make_unique<MBC1>(*this);
+		break;
+	case 0x05:
+		mapper = std::make_unique<MBC2>(*this);
+		break;
+	case 0x06:
+		hasBattery = true;
+		mapper = std::make_unique<MBC2>(*this);
+		break;
+	case 0x0F:
+	case 0x10:
+		hasBattery = true; hasTimer = true;
+		mapper = std::make_unique<MBC3>(*this);
+		break;
+	case 0x11:
+	case 0x12:
+		mapper = std::make_unique<MBC3>(*this);
+		break;
+	case 0x13:
+		hasBattery = true;
+		mapper = std::make_unique<MBC3>(*this);
+		break;
+	case 0x19:
+	case 0x1A:
+		mapper = std::make_unique<MBC5>(*this, false);
+		break;
+	case 0x1B:
+		hasBattery = true;
+		mapper = std::make_unique<MBC5>(*this, false);
+		break;
+	case 0x1C:
+	case 0x1D:
+		mapper = std::make_unique<MBC5>(*this, true);
+		break;
+	case 0x1E:
+		hasBattery = true;
+		mapper = std::make_unique<MBC5>(*this, true);
+		break;
+	case 0xFF:
+		hasBattery = true;
+		mapper = std::make_unique<HuC1>(*this);
+		break;
+
+	default:
+		std::cout << "Unknown MBC! \n";
+		return false;
+	}
+
+	switch (readByte(0x149)) // RAM Size
 	{
 	case 0x02:
 		ramBanks = 1;
@@ -84,114 +149,39 @@ bool Cartridge::proccessCartridgeHeader(const std::vector<uint8_t>& buffer)
 		break;
 	}
 
-	hasBattery = false;
-	hasRAM = false; 
-	hasTimer = false;
+	this->romBanks = romBanks;
+	this->checksum = checksum;
 
-	switch (buffer[0x147]) // MBC type
-	{
-	case 0x00:
-		mapper = std::make_unique<RomOnlyMBC>(*this);
-		break;
-	case 0x01:
-		mapper = std::make_unique<MBC1>(*this);
-		break;
-	case 0x02:
-		mapper = std::make_unique<MBC1>(*this);
-		break;
-	case 0x03:
-		hasBattery = true;
-		mapper = std::make_unique<MBC1>(*this);
-		break;
-	case 0x05:
-		mapper = std::make_unique<MBC2>(*this);
-		break;
-	case 0x06:
-		hasBattery = true;
-		mapper = std::make_unique<MBC2>(*this);
-		break;
-	case 0x0F:
-		hasBattery = true; hasTimer = true;
-		mapper = std::make_unique<MBC3>(*this);
-		break;
-	case 0x10:
-		hasBattery = true; hasTimer = true;
-		mapper = std::make_unique<MBC3>(*this);
-		break;
-	case 0x11:
-		mapper = std::make_unique<MBC3>(*this);
-		break;
-	case 0x12:
-		mapper = std::make_unique<MBC3>(*this);
-		break;
-	case 0x13:
-		hasBattery = true;
-		mapper = std::make_unique<MBC3>(*this);
-		break;
-	case 0x19:
-		mapper = std::make_unique<MBC5>(*this, false);
-		break;
-	case 0x1A:
-		mapper = std::make_unique<MBC5>(*this, false);
-		break;
-	case 0x1B:
-		hasBattery = true;
-		mapper = std::make_unique<MBC5>(*this, false);
-		break;
-	case 0x1C:
-		mapper = std::make_unique<MBC5>(*this, true);
-		break;
-	case 0x1D:
-		mapper = std::make_unique<MBC5>(*this, true);
-		break;
-	case 0x1E:
-		hasBattery = true;
-		mapper = std::make_unique<MBC5>(*this, true);
-		break;
-	case 0xFF:
-		hasBattery = true;
-		mapper = std::make_unique<HuC1>(*this);
-		break;
+	hasRAM = ramBanks != 0;
+	if (hasRAM) ram.resize(0x2000 * ramBanks);
 
-	default:
-		std::cout << "Unknown MBC! \n";
-		return false;
-	}
-
-	if (hasTimer)
-		timer.reset();
-
-	gbCore.gameTitle = "";
-
-	uint16_t titleEnd = 0x143;
-
-	bool cbgMode { false };
+	GBSystem gbSystem { GBSystem::DMG };
 
 	if (appConfig::systemPreference != GBSystemPreference::ForceDMG)
 	{
-		if (buffer[titleEnd] == 0xC0)
-			cbgMode = true;
-		else if (buffer[titleEnd] == 0x80)
+		const uint8_t cgbFlag = readByte(0x143);
+
+		if (cgbFlag == 0xC0)
+			gbSystem = GBSystem::GBC;
+		else if (cgbFlag == 0x80)
 		{
 			if (appConfig::systemPreference == GBSystemPreference::PreferGBC)
-				cbgMode = true;
+				gbSystem = GBSystem::GBC;
 		}
 	}
 
-	if (cbgMode)
-	{
-		System::Set(GBSystem::GBC);
-		titleEnd--;
-	}
-	else
-		System::Set(GBSystem::DMG);
+	System::Set(gbSystem);
 
-	for (int i = 0x134; i <= titleEnd; i++)
+	gbCore.gameTitle = "";
+	is.seekg(0x134, std::ios::beg);
+	char titleVal;
+
+	for (int i = 0x134; i <= 0x143; i++)
 	{
-		if (buffer[i] == 0x00 || buffer[i] > 127) break; // If reached the end, or found illegal character
-		gbCore.gameTitle += buffer[i];
+		is.get(titleVal);
+		if (titleVal <= 0) break; // If reached the end, or found illegal character
+		gbCore.gameTitle += titleVal;
 	}
 
-	readSuccessfully = true;
 	return true;
 }

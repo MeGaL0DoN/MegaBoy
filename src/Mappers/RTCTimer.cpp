@@ -1,6 +1,5 @@
 #include "RTCTimer.h"
 #include "../Utils/bitOps.h"
-#include <fstream>
 
 void RTCTimer::incrementDay()
 {
@@ -123,7 +122,7 @@ void RTCTimer::writeReg(uint8_t val)
 	}
 }
 
-void RTCTimer::saveBattery(std::ofstream& st) const
+void RTCTimer::saveBattery(std::ostream& st) const
 {
 	auto WRITE_AS_INT = [&st](uint32_t var)
 	{
@@ -145,7 +144,7 @@ void RTCTimer::saveBattery(std::ofstream& st) const
 	st.write(reinterpret_cast<const char*>(&lastUnixTime), sizeof(lastUnixTime));
 }
 
-void RTCTimer::loadBattery(std::ifstream& st)
+void RTCTimer::loadBattery(std::istream& st)
 {
 	auto READ_AS_INT = [&st](uint8_t& var)
 	{

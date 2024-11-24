@@ -39,7 +39,7 @@ public:
 	void update(uint32_t cyclesToExecute);
 	void stepComponents();
 
-	inline void setDrawCallback(void (*callback)(const uint8_t*))
+	inline void setDrawCallback(void (*callback)(const uint8_t*, bool))
 	{
 		this->drawCallback = callback;
 	}
@@ -63,7 +63,7 @@ public:
 
 	inline void saveState(const std::filesystem::path& _filePath) const
 	{
-		if (!cartridge.ROMLoaded || cpu.isExecutingBootROM()) 
+		if (!cartridge.ROMLoaded() || cpu.isExecutingBootROM()) 
 			return;
 
 		std::ofstream st(_filePath, std::ios::out | std::ios::binary);
@@ -81,7 +81,7 @@ public:
 
 	inline void resetRom(bool fullReset)
 	{
-		if (!cartridge.ROMLoaded) return;;
+		if (!cartridge.ROMLoaded()) return;;
 		if (fullReset) backupBatteryFile();
 		reset(fullReset);
 		loadBootROM();
@@ -90,7 +90,9 @@ public:
 	constexpr void enableFastForward(int factor) { speedFactor = factor; cartridge.timer.slowDownFactor = factor; }
 	constexpr void disableFastForward() { speedFactor = 1; cartridge.timer.slowDownFactor = 1; }
 
+	bool breakpointHit{ false };
 	bool emulationPaused { false };
+
 ;	std::string gameTitle { };
 
 	MMU mmu { *this };
@@ -101,7 +103,7 @@ public:
 	serialPort serial { cpu };
 	Cartridge cartridge { *this };
 private:
-	void (*drawCallback)(const uint8_t* framebuffer) { nullptr };
+	void (*drawCallback)(const uint8_t* framebuffer, bool clearedBuffer) { nullptr };
 	bool ppuDebugEnable { false };
 
 	uint64_t cycleCounter { 0 };
@@ -115,8 +117,7 @@ private:
 
 	int currentSave{ 0 };
 
-	std::array<bool, 0x10000> breakpoints{};
-	bool breakpointHit{ false };
+	std::array<bool, 0x10000> breakpoints {};
 
 	inline void setPPUDebugEnable(bool val)
 	{
@@ -124,10 +125,10 @@ private:
 		if (ppu) ppu->setDebugEnable(val);
 	}
 
-	inline std::filesystem::path getBatteryFilePath(const std::filesystem::path& romPath) const
+	inline std::filesystem::path getBatteryFilePath() const
 	{
-		return customBatterySavePath.empty() ? FileUtils::replaceExtension(romPath, ".sav") 
-											 : customBatterySavePath / std::to_string(cartridge.checksum);
+		return customBatterySavePath.empty() ? FileUtils::replaceExtension(romFilePath, ".sav") 
+											 : customBatterySavePath / std::to_string(cartridge.getChecksum());
 	}
 
 	inline std::filesystem::path getSaveStateFilePath(int saveNum) const
@@ -141,6 +142,8 @@ private:
 		appConfig::updateConfigFile();
 	}
 
+	void reset(bool resetBattery);
+
 	inline void updatePPUSystem()
 	{
 		ppu = System::Current() == GBSystem::DMG ? std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::DMG>>(mmu, cpu) } :
@@ -150,23 +153,25 @@ private:
 		ppu->drawCallback = this->drawCallback;
 	}
 
-	void reset(bool resetBattery);
+	FileLoadResult loadFile(std::istream& st);
 
-	inline bool loadROM(std::ifstream& st, const std::filesystem::path& filePath)
+	bool loadROMFromStream(std::istream& st);
+	bool loadROMFromZipStream(std::istream& st);
+
+	inline bool loadROM(std::istream& is, const std::filesystem::path& filePath)
 	{
-		if (cartridge.loadROM(st))
+		auto loadRomFunc = filePath.extension() == ".zip" ? &GBCore::loadROMFromZipStream : &GBCore::loadROMFromStream;
+
+		if ((this->*loadRomFunc)(is))
 		{
-			updatePPUSystem();
-			reset(true);
 			romFilePath = filePath;
-			currentSave = 0;
+			loadBootROM();
 			return true;
 		}
 
 		return false;
 	}
-
-	inline void loadBattery(std::ifstream& st)
+	inline void loadBattery(std::istream& st) const
 	{
 		if (cartridge.hasBattery)
 		{
@@ -176,11 +181,10 @@ private:
 	}
 
 	static constexpr std::string_view SAVE_STATE_SIGNATURE = "MegaBoy Emulator Save State";
-	static bool isSaveStateFile(std::ifstream& st);
+	static bool isSaveStateFile(std::istream& st);
 
-	void saveState(std::ofstream& st) const;
-	bool loadState(std::ifstream& st);
-	FileLoadResult loadFile(std::ifstream& st);
+	void saveState(std::ostream& st) const;
+	bool loadState(std::istream& st);
 
 	void loadBootROM();
 };

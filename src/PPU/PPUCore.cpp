@@ -52,7 +52,7 @@ void PPUCore<sys>::setLCDEnable(bool val)
 }
 
 template <GBSystem sys>
-void PPUCore<sys>::saveState(std::ofstream& st)
+void PPUCore<sys>::saveState(std::ostream& st)
 {
 	ST_WRITE(regs);
 	ST_WRITE(s);
@@ -79,7 +79,7 @@ void PPUCore<sys>::saveState(std::ofstream& st)
 }
 
 template <GBSystem sys>
-void PPUCore<sys>::loadState(std::ifstream& st)
+void PPUCore<sys>::loadState(std::istream& st)
 {
 	ST_READ(regs);
 	ST_READ(s);
@@ -270,7 +270,7 @@ void PPUCore<sys>::handleHBlank()
 				clearBuffer();
 			}
 			else
-				invokeDrawCallback();
+				invokeDrawCallback(false);
 		}
 		else
 			SetPPUMode(PPUMode::OAMSearch);

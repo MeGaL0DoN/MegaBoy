@@ -1,7 +1,7 @@
 #pragma once
-#include <fstream>
 #include <cstdint>
 #include <array>
+#include <iostream>
 #include "gbSystem.h"
 
 class GBCore;
@@ -34,8 +34,8 @@ public:
 		updateFunctionPointers();
 	}
 
-	void saveState(std::ofstream& st) const;
-	void loadState(std::ifstream& st);
+	void saveState(std::ostream& st) const;
+	void loadState(std::istream& st);
 
 	bool gbcDoubleSpeed() const;
 

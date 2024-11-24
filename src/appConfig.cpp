@@ -125,7 +125,7 @@ void appConfig::updateConfigFile()
 	config["audio"]["enable"] = to_string(enableAudio);
 
 #ifndef EMSCRIPTEN
-	if (gbCore.cartridge.ROMLoaded)
+	if (gbCore.cartridge.ROMLoaded())
 	{
 		config["gameState"]["romPath"] = FileUtils::pathToUTF8(gbCore.getROMPath());
 		config["gameState"]["saveStateNum"] = std::to_string(gbCore.getSaveNum());

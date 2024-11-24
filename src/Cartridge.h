@@ -1,5 +1,6 @@
 #pragma once
-#include <fstream>
+
+#include <iostream>
 #include <memory>
 #include <vector>
 #include "Mappers/MBCBase.h"
@@ -10,41 +11,42 @@ class GBCore;
 class Cartridge
 {
 public:
-	constexpr const std::vector<uint8_t>& getRom() const { return rom; }
-	inline MBCBase* getMapper() const { return mapper.get(); }
+	static constexpr int MIN_ROM_SIZE = 0x8000;
+	static constexpr int MAX_ROM_SIZE = 0x800000;
+
+	static constexpr bool romSizeValid(uint32_t size) { return size >= MIN_ROM_SIZE && size <= MAX_ROM_SIZE; }
+	static inline bool romSizeValid(std::istream& is)
+	{
+		is.seekg(0, std::ios::end);
+		const uint32_t size = is.tellg();
+		return romSizeValid(size);
+	}
 
 	explicit Cartridge(GBCore& gbCore);
 
-	uint8_t checksum { 0 };
-	bool ROMLoaded { false };
-	bool readSuccessfully { false };
+	inline MBCBase* getMapper() const { return mapper.get(); }
+	constexpr bool ROMLoaded() const { return romLoaded; }
+	constexpr uint8_t getChecksum() const { return checksum; }
 
-	bool hasRAM{ false };
+	bool hasRAM { false };
 	bool hasBattery { false };
 	uint16_t romBanks { 0 };
 	uint16_t ramBanks { 0 };
 
 	bool hasTimer { false };
-	RTCTimer timer{};
+	RTCTimer timer { };
 
-	bool loadROM(std::ifstream& ifs);
+	std::vector<uint8_t> rom { };
+	std::vector<uint8_t> ram { };
+
+	uint8_t calculateHeaderChecksum(std::istream& is) const;
+	bool loadROM(std::istream& is);
 private:
-	bool verifyChecksum(const std::vector<uint8_t>& buffer)
-	{
-		checksum = 0;
-
-		for (size_t i = 0x134; i <= 0x14C; i++)
-			checksum = checksum - buffer[i] - 1;
-
-		return checksum == buffer[0x14D];
-	}
-
-	bool proccessCartridgeHeader(const std::vector<uint8_t>& buffer);
+	bool proccessCartridgeHeader(std::istream& is, uint32_t fileSize);
 
 	std::unique_ptr<MBCBase> mapper { nullptr };
 	GBCore& gbCore;
-	std::vector<uint8_t> rom{};
 
-	static constexpr int MIN_ROM_SIZE = 0x8000;
-	static constexpr int MAX_ROM_SIZE = 0x800000;
+	bool romLoaded{ false };
+	uint8_t checksum{ 0 };
 };

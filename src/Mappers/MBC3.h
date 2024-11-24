@@ -16,7 +16,7 @@ public:
 	uint8_t read(uint16_t addr) const override;
 	void write(uint16_t addr, uint8_t val) override;
 
-	void saveBattery(std::ofstream& st) const override
+	void saveBattery(std::ostream& st) const override
 	{
 		MBC::saveBattery(st);
 
@@ -24,7 +24,7 @@ public:
 			cartridge.timer.saveBattery(st);
 	}
 
-	void loadBattery(std::ifstream& st) override
+	void loadBattery(std::istream& st) override
 	{
 		MBC::loadBattery(st);
 
