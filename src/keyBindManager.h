@@ -20,15 +20,16 @@ enum class MegaBoyKey
     LoadQuickSave = 12,
     ScaleUp = 13,
     ScaleDown = 14,
-    SaveStateModifier = 15,
-    LoadStateModifier = 16
+    Screenshot = 15,
+    SaveStateModifier = 16,
+    LoadStateModifier = 17
 };
 
 class KeyBindManager
 {
 public:
-    static constexpr int TOTAL_BINDS = 17;
-    static constexpr int TOTAL_KEYS = 17 - 2; // 2 are modifiers
+    static constexpr int TOTAL_BINDS = 18;
+    static constexpr int TOTAL_KEYS = TOTAL_BINDS - 2; // 2 are modifiers
 
     static inline std::array<int, TOTAL_BINDS> defaultKeyBinds()
     {
@@ -49,6 +50,7 @@ public:
             GLFW_KEY_GRAVE_ACCENT, // LoadQuickSave
             GLFW_KEY_PAGE_UP,      // ScaleUp
             GLFW_KEY_PAGE_DOWN,    // ScaleDown
+            GLFW_KEY_T,            // Screenshot
 
             GLFW_MOD_ALT,          // SaveStateModifier
             GLFW_MOD_SHIFT         // LoadStateModifier
@@ -85,6 +87,7 @@ public:
             case MegaBoyKey::LoadQuickSave: return "Load Quick";
             case MegaBoyKey::ScaleUp: return "Scale Up";
             case MegaBoyKey::ScaleDown: return "Scale Down";
+            case MegaBoyKey::Screenshot: return "Screenshot";
             case MegaBoyKey::SaveStateModifier: return "Save State (... + 1-9)";
             case MegaBoyKey::LoadStateModifier : return "Load State (... + 1-9)";
         }

@@ -63,12 +63,13 @@ add_executable(MegaBoy
         "Mappers/MBC5.h"
         "Mappers/RTCTimer.cpp"
         "Mappers/RTCTimer.h"
+        "Utils/memstream.h"
         "Utils/glFunctions.cpp"
         "Utils/bitOps.h"
         "Utils/pixelOps.h"
         "Utils/fileUtils.h"
         "Utils/Shader.cpp"
-        "Utils/Shader.h"  "Utils/memstream.h")
+        "Utils/Shader.h" )
 
 include(CheckIPOSupported)
 check_ipo_supported(RESULT supported OUTPUT error)

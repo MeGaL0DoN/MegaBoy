@@ -10,11 +10,12 @@
 #else
 #include <glad/glad.h>
 #include <nfd.hpp>
+#include <thread>
 #endif
 
 #include <GLFW/glfw3.h>
+#include <miniz/miniz.h>
 
-#include <thread>
 #include <iostream>
 #include <filesystem>
 
@@ -46,7 +47,7 @@ double devicePixelRatio{};
 Shader regularShader;
 Shader scalingShader;
 Shader lcdShader;
-std::array<uint32_t, 2> gbFramebufferTextures;
+std::array<uint32_t, 2> gbFramebufferTextures {};
 
 Shader* currentShader{ };
 
@@ -174,6 +175,51 @@ inline bool loadFile(const std::filesystem::path& filePath)
     return false;
 }
 
+void takeScreenshot()
+{
+    constexpr int channels = 4;
+    auto framebuffer = std::make_shared<std::vector<uint8_t>>(viewport_width * viewport_height * channels);
+    glReadPixels(viewport_xOffset, viewport_yOffset, viewport_width, viewport_height, GL_RGBA, GL_UNSIGNED_BYTE, framebuffer->data());
+
+    auto writePng = [framebuffer]()
+    {
+        void* pngBuffer = nullptr;
+        size_t pngDataSize = 0;
+
+        pngBuffer = tdefl_write_image_to_png_file_in_memory_ex(framebuffer->data(), viewport_width, viewport_height, channels, &pngDataSize, 3, true);
+
+        if (!pngBuffer)
+            return;
+
+#ifdef EMSCRIPTEN
+        const std::string fileName = gbCore.gameTitle + " - Screenshot.png";
+        emscripten_browser_file::download(fileName.c_str(), "image/png", pngBuffer, pngDataSize);
+#else
+        const auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+        std::tm* now_tm = std::localtime(&now);
+
+        std::stringstream ss;
+        ss << std::put_time(now_tm, "%H-%M-%S");
+
+        const std::string fileName = gbCore.gameTitle + " - Screenshot (" + ss.str() + ").png";
+        const auto screenshotsFolder = FileUtils::executableFolderPath / "screenshots";
+                
+        if (!std::filesystem::exists(screenshotsFolder))
+            std::filesystem::create_directory(screenshotsFolder);
+
+        std::ofstream st(screenshotsFolder / fileName, std::ios::binary);
+        st.write(reinterpret_cast<const char*>(pngBuffer), pngDataSize);
+#endif
+        mz_free(pngBuffer);
+    };
+
+#ifdef EMSCRIPTEN
+    writePng();
+#else
+    std::thread(writePng).detach();
+#endif
+}
+
 void updateSelectedFilter()
 {
     if (fadeEffectActive)
@@ -213,11 +259,11 @@ void resetFade()
     fadeEffectActive = false; 
 }
 
-void drawCallback(const uint8_t* framebuffer, bool clearedBuffer)
+void drawCallback(const uint8_t* framebuffer, bool firstFrame)
 {
     OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
 
-    if (clearedBuffer)
+    if (firstFrame)
         OpenGL::updateTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
     else
         std::swap(gbFramebufferTextures[0], gbFramebufferTextures[1]);
@@ -247,39 +293,8 @@ void updateSelectedPalette()
 
 void setOpenGL()
 {
-    unsigned int VAO, VBO, EBO;
-
-    constexpr unsigned int indices[] =
-    {
-        0, 1, 3,
-        1, 2, 3
-    };
-    constexpr float vertices[] =
-    {
-        1.0f,  1.0f, 0.0f,  1.0f,  0.0f,  // top right     
-        1.0f, -1.0f, 0.0f,  1.0f,  1.0f,  // bottom right
-       -1.0f, -1.0f, 0.0f,  0.0f,  1.0f,  // bottom left
-       -1.0f,  1.0f, 0.0f,  0.0f,  0.0f   // top left 
-    };
-
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    glGenBuffers(1, &EBO);
-
-    glBindVertexArray(VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), nullptr);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), reinterpret_cast<void*>(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
-
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    uint32_t VAO, VBO, EBO;
+    OpenGL::createQuad(VAO, VBO, EBO);
 
     const std::vector<uint8_t> whiteBG(PPU::FRAMEBUFFER_SIZE, 255);
 
@@ -290,6 +305,9 @@ void setOpenGL()
     updateSelectedPalette(); 
 
     gbCore.setDrawCallback(drawCallback);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
 int getResolutionX()
@@ -740,9 +758,13 @@ void renderImGUI()
 
                 const std::string pauseKeyStr = formatKeyBind(MegaBoyKey::Pause);
                 const std::string resetKeyStr = formatKeyBind(MegaBoyKey::Reset);
+                const std::string screenshotKeyStr = formatKeyBind(MegaBoyKey::Screenshot);
 
                 if (ImGui::MenuItem(gbCore.emulationPaused ? "Resume" : "Pause", pauseKeyStr.c_str()))
                     setEmulationPaused(!gbCore.emulationPaused);
+
+                if (ImGui::MenuItem("Take Screenshot", screenshotKeyStr.c_str()))
+                    takeScreenshot();
 
                 if (gbCore.cartridge.hasBattery)
                 {
@@ -1056,6 +1078,12 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
             loadFile(gbCore.getSaveStateFolderPath() / "quicksave.mbs");
             return;
         }
+
+        if (key == KeyBindManager::getBind(MegaBoyKey::Screenshot))
+        {
+            takeScreenshot();
+            return;
+        }
     }
 
     if (key == KeyBindManager::getBind(MegaBoyKey::Reset))
@@ -1064,6 +1092,8 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
             fadeEffectActive = true;
         else if (action == GLFW_RELEASE)
             resetFade();
+
+        return;
     }
 
     if (key == KeyBindManager::getBind(MegaBoyKey::FastForward))
@@ -1078,6 +1108,8 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
             fastForwarding = false;
             gbCore.disableFastForward();
         }
+
+        return;
     }
 
     gbCore.input.update(key, action);

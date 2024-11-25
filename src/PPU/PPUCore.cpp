@@ -25,7 +25,7 @@ void PPUCore<sys>::reset()
 	s = {};
 	regs = {};
 
-	clearBuffer();
+	clearBuffer(true);
 	SetPPUMode(PPUMode::VBlank);
 	s.LY = 144;
 }

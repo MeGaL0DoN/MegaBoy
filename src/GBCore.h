@@ -103,7 +103,7 @@ public:
 	serialPort serial { cpu };
 	Cartridge cartridge { *this };
 private:
-	void (*drawCallback)(const uint8_t* framebuffer, bool clearedBuffer) { nullptr };
+	void (*drawCallback)(const uint8_t* framebuffer, bool firstFrame) { nullptr };
 	bool ppuDebugEnable { false };
 
 	uint64_t cycleCounter { 0 };

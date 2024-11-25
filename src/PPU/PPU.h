@@ -253,7 +253,7 @@ public:
 	virtual void renderWindowTileMap(uint8_t* buffer) = 0;
 
 	constexpr const uint8_t* getFrameBuffer() const { return framebuffer.data(); }
-	void (*drawCallback)(const uint8_t* framebuffer, bool clearedBuffer) { nullptr };
+	void (*drawCallback)(const uint8_t* framebuffer, bool firstFrame) { nullptr };
 
 	inline uint8_t* oamFramebuffer() { return debugOAMFramebuffer.get(); }
 	inline uint8_t* bgFramebuffer() { return debugBGFramebuffer.get(); }

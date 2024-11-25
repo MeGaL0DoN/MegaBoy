@@ -31,12 +31,12 @@ private:
 	static constexpr uint16_t OAM_SCAN_CYCLES = 20 * 4;
 	static constexpr uint16_t DEFAULT_VBLANK_CYCLES = 114 * 4;
 
-	constexpr void invokeDrawCallback(bool clearedBuffer) const { if (drawCallback != nullptr) drawCallback(framebuffer.data(), clearedBuffer); }
+	constexpr void invokeDrawCallback(bool firstFrame = false) const { if (drawCallback != nullptr) drawCallback(framebuffer.data(), firstFrame); }
 
-	inline void clearBuffer()
+	inline void clearBuffer(bool firstFrame = false)
 	{
 		PixelOps::clearBuffer(framebuffer.data(), SCR_WIDTH, SCR_HEIGHT, sys == GBSystem::DMG ? PPU::ColorPalette[0] : color { 255, 255, 255 });
-		invokeDrawCallback(true);
+		invokeDrawCallback(firstFrame);
 	}
 
 	void renderTileMap(uint8_t* buffer, uint16_t tileMapAddr);
