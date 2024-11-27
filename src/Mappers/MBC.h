@@ -19,6 +19,16 @@ public:
 	MBC(Cartridge& cartridge) : cartridge(cartridge), rom(cartridge.rom), ram(cartridge.ram)
 	{ }
 
+	uint16_t getCurrentRomBank() override
+	{
+		if constexpr (requires(T t) { t.romBank; }) 
+		{
+			return s.romBank;
+		}
+
+		return 1;
+	}
+
 	virtual void saveBattery(std::ostream& st) const override
 	{
 		if (cartridge.hasRAM)

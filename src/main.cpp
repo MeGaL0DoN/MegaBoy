@@ -51,6 +51,8 @@ std::array<uint32_t, 2> gbFramebufferTextures {};
 
 Shader* currentShader{ };
 
+bool screenshotRequested { false };
+
 bool fileDialogOpen { false };
 
 #ifndef EMSCRIPTEN
@@ -177,16 +179,22 @@ inline bool loadFile(const std::filesystem::path& filePath)
 
 void takeScreenshot()
 {
-    constexpr int channels = 4;
-    auto framebuffer = std::make_shared<std::vector<uint8_t>>(viewport_width * viewport_height * channels);
-    glReadPixels(viewport_xOffset, viewport_yOffset, viewport_width, viewport_height, GL_RGBA, GL_UNSIGNED_BYTE, framebuffer->data());
+#ifdef EMSCRIPTEN // Emscripten only supports RGBA format
+    constexpr int CHANNELS = 4;
+    constexpr int GL_FORMAT = GL_RGBA;
+#else
+    constexpr int CHANNELS = 3;
+    constexpr int GL_FORMAT = GL_RGB;
+#endif
+    auto framebuffer = std::make_shared<std::vector<uint8_t>>(viewport_width * viewport_height * CHANNELS);
+    glReadPixels(viewport_xOffset, viewport_yOffset, viewport_width, viewport_height, GL_FORMAT, GL_UNSIGNED_BYTE, framebuffer->data());
 
     auto writePng = [framebuffer]()
     {
         void* pngBuffer = nullptr;
         size_t pngDataSize = 0;
 
-        pngBuffer = tdefl_write_image_to_png_file_in_memory_ex(framebuffer->data(), viewport_width, viewport_height, channels, &pngDataSize, 3, true);
+        pngBuffer = tdefl_write_image_to_png_file_in_memory_ex(framebuffer->data(), viewport_width, viewport_height, CHANNELS, &pngDataSize, 3, true);
 
         if (!pngBuffer)
             return;
@@ -201,7 +209,7 @@ void takeScreenshot()
         std::stringstream ss;
         ss << std::put_time(now_tm, "%H-%M-%S");
 
-        const std::string fileName = gbCore.gameTitle + " - Screenshot (" + ss.str() + ").png";
+        const std::string fileName = gbCore.gameTitle + " (" + ss.str() + ").png";
         const auto screenshotsFolder = FileUtils::executableFolderPath / "screenshots";
                 
         if (!std::filesystem::exists(screenshotsFolder))
@@ -1012,6 +1020,11 @@ void render(double deltaTime)
         setIntegerScale(newIntegerScale);
         newIntegerScale = -1;
     }
+    if (screenshotRequested)
+    {
+        takeScreenshot();
+        screenshotRequested = false;
+    }
 }
 
 void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mods)
@@ -1066,6 +1079,8 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
 
             else if (mods & KeyBindManager::getBind(MegaBoyKey::LoadStateModifier))
                 gbCore.loadState(key - 48);
+
+            return;
         }
 
         if (key == KeyBindManager::getBind(MegaBoyKey::QuickSave))
@@ -1081,7 +1096,8 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
 
         if (key == KeyBindManager::getBind(MegaBoyKey::Screenshot))
         {
-            takeScreenshot();
+            // For some reason files can't be downloaded from key callback on emscripten, so setting flag to download later in main loop
+            screenshotRequested = true;
             return;
         }
     }

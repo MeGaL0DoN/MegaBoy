@@ -17,5 +17,7 @@ struct MBCBase
 
 	virtual void reset(bool resetBattery) = 0;
 
+	virtual uint16_t getCurrentRomBank() = 0;
+
 	bool sramDirty { false };
 };

@@ -16,24 +16,8 @@ public:
 	uint8_t read(uint16_t addr) const override;
 	void write(uint16_t addr, uint8_t val) override;
 
-	void saveBattery(std::ostream& st) const override
-	{
-		MBC::saveBattery(st);
-
-		if (cartridge.hasTimer)
-			cartridge.timer.saveBattery(st);
-	}
-
-	void loadBattery(std::istream& st) override
-	{
-		MBC::loadBattery(st);
-
-		if (cartridge.hasTimer)
-		{
-			lastRTCAccessCycles = 0;
-			cartridge.timer.loadBattery(st);
-		}
-	}
+	void saveBattery(std::ostream& st) const override;
+	void loadBattery(std::istream& st) override;
 
 	void reset(bool resetBattery) override
 	{

@@ -73,7 +73,7 @@ void debugUI::disassembleRom()
             return gbCore.cartridge.rom[(dissasmRomBank * 0x4000) + (addr - (dissasmRomBank == 0 ? 0 : 0x4000))];
         }, &instrLen));
 
-        romDisassembly.push_back(disasm);
+        romDisassembly.push_back(instructionDisasmEntry { addr, instrLen, {}, disasm });
         addr += instrLen;
     }
 }
@@ -192,9 +192,9 @@ void debugUI::extendBreakpointDisasmWindow()
         for (int i = 0; i < instrLen; i++)
             data[i] = gbCore.mmu.read8(addr + i);
 
-        return instructionHistoryEntry{ addr, instrLen, data, disasm };
+        return instructionDisasmEntry{ addr, instrLen, data, disasm };
     };
-    auto isModified = [](const instructionHistoryEntry& entry) // Handle self-modifying code
+    auto isModified = [](const instructionDisasmEntry& entry) // Handle self-modifying code
     {
         for (int i = 0; i < entry.length; i++)
         {
@@ -591,6 +591,16 @@ void debugUI::updateWindows(float scaleFactor)
                 disassembleRom();
         }
 
+        const auto displayDisasm = [](uint16_t instrAddr, const std::string& disasm)
+        {
+            if (instrAddr == gbCore.cpu.s.PC) [[unlikely]]
+                ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "%s", disasm.c_str());
+            else if (gbCore.breakpoints[instrAddr]) [[unlikely]]
+                ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%s", disasm.c_str());
+            else [[likely]]
+                ImGui::Text("%s", disasm.c_str());
+        };
+
         ImGui::SeparatorText("Disassembly");
         if (ImGui::BeginChild("Disassembly") && gbCore.cartridge.ROMLoaded()) 
         {
@@ -603,32 +613,27 @@ void debugUI::updateWindows(float scaleFactor)
                 while (clipper.Step())
                 {
                     for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++)
-                        ImGui::Text("%s", romDisassembly[i].c_str());
+                    {
+                        const auto& disasm = romDisassembly[i];
+                        const bool isPcInBank = dissasmRomBank == 0 || dissasmRomBank == gbCore.cartridge.getMapper()->getCurrentRomBank();
+
+                        if (isPcInBank)
+                            displayDisasm(disasm.addr, disasm.str);
+                        else
+                            ImGui::Text("%s", disasm.str.c_str());
+                    }
                 }
             }
             else
             {
-                uint32_t instrAddr = 0;
-
-                auto displayDisasm = [&instrAddr]()
-                {
-                    uint8_t instrLen;
-                    std::string disasm = disassemble(static_cast<uint16_t>(instrAddr), &instrLen);
-
-                    if (instrAddr == gbCore.cpu.s.PC) [[unlikely]]
-                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "%s", disasm.c_str());
-                    else if (gbCore.breakpoints[instrAddr]) [[unlikely]]
-                        ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%s", disasm.c_str());
-                    else [[likely]]
-                        ImGui::Text("%s", disasm.c_str());
-
-                    instrAddr += instrLen;
-                };
+                uint32_t instrAddr {0};
+                uint8_t instrLen {0};
 
                 clipper.Begin(0x10000);
                 clipper.Step();
 
-                displayDisasm();
+                displayDisasm(static_cast<uint16_t>(instrAddr), disassemble(instrAddr, &instrLen));
+                instrAddr += instrLen;
 
                 while (clipper.Step())
                 {
@@ -638,7 +643,8 @@ void debugUI::updateWindows(float scaleFactor)
                     for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++)
                     {
                         if (instrAddr > 0xFFFF) break;
-                        displayDisasm();
+                        displayDisasm(static_cast<uint16_t>(instrAddr), disassemble(instrAddr, &instrLen));
+                        instrAddr += instrLen;
                     }
                 }
             }
@@ -707,7 +713,7 @@ void debugUI::updateWindows(float scaleFactor)
 
             if (ImGui::Button("Step Over"))
             {
-                if (breakpointDisassembly[breakpointDisasmLine].disasm.find("CALL") != std::string::npos)
+                if (breakpointDisassembly[breakpointDisasmLine].str.find("CALL") != std::string::npos)
                 {
                     gbCore.breakpointHit = false;
                     setTempBreakpoint(gbCore.cpu.s.PC + 3);
@@ -795,9 +801,9 @@ void debugUI::updateWindows(float scaleFactor)
 					for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++)
 					{
                         if (breakpointDisassembly[i].addr == gbCore.cpu.s.PC)
-                            ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "%s", breakpointDisassembly[i].disasm.c_str());
+                            ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "%s", breakpointDisassembly[i].str.c_str());
 						else
-							ImGui::Text("%s", breakpointDisassembly[i].disasm.c_str());
+							ImGui::Text("%s", breakpointDisassembly[i].str.c_str());
 					}
 				}
             }

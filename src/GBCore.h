@@ -61,12 +61,9 @@ public:
 	inline void setBatterySaveFolder(const std::filesystem::path& path) { customBatterySavePath = path; }
 	inline std::filesystem::path getBatterySaveFolder() const { return customBatterySavePath; }
 
-	inline void saveState(const std::filesystem::path& _filePath) const
+	inline void saveState(const std::filesystem::path& path) const
 	{
-		if (!cartridge.ROMLoaded() || cpu.isExecutingBootROM()) 
-			return;
-
-		std::ofstream st(_filePath, std::ios::out | std::ios::binary);
+		std::ofstream st(path, std::ios::out | std::ios::binary);
 		saveState(st);
 	}
 
@@ -185,6 +182,9 @@ private:
 
 	void saveState(std::ostream& st) const;
 	bool loadState(std::istream& st);
+
+	void saveGBState(std::ostream& st) const;
+	void loadGBState(std::istream& st);
 
 	void loadBootROM();
 };

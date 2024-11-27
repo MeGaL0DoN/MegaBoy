@@ -325,26 +325,41 @@ void GBCore::saveState(int num)
 
 void GBCore::saveState(std::ostream& st) const
 {
+	if (!cartridge.ROMLoaded() || cpu.isExecutingBootROM())
+		return;
+
+	std::ostringstream ss { };
+	saveGBState(ss);
+
+	const uint64_t uncompressedSize = ss.tellp();
+	const auto uncompressedData = ss.view().data();
+
+	mz_ulong compressedSize = mz_compressBound(uncompressedSize);
+	std::vector<uint8_t> compressedBuffer(compressedSize);
+
+	int status = mz_compress(compressedBuffer.data(), &compressedSize, reinterpret_cast<const unsigned char*>(uncompressedData), uncompressedSize);
+	const bool isCompressed = status == MZ_OK;
+
 	st << SAVE_STATE_SIGNATURE;
 
-	const auto romFilePathStr { FileUtils::pathToUTF8(romFilePath) };
+	const auto romFilePathStr{ FileUtils::pathToUTF8(romFilePath) };
+	const uint16_t filePathLen{ static_cast<uint16_t>(romFilePathStr.length()) };
 
-	const uint16_t filePathLen { static_cast<uint16_t>(romFilePathStr.length()) };
 	ST_WRITE(filePathLen);
 	st << romFilePathStr;
 
 	const auto checksum { cartridge.getChecksum() };
 	ST_WRITE(checksum);
 
-	const auto system { System::Current() };
-	ST_WRITE(system);
+	ST_WRITE(isCompressed);
 
-	mmu.saveState(st);
-	cpu.saveState(st);
-	ppu->saveState(st);
-	serial.saveState(st);
-	input.saveState(st);
-	cartridge.getMapper()->saveState(st);
+	if (isCompressed)
+	{
+		ST_WRITE(uncompressedSize);
+		st.write(reinterpret_cast<const char*>(compressedBuffer.data()), compressedSize);
+	}
+	else
+		st.write(uncompressedData, uncompressedSize);
 }
 
 bool GBCore::loadState(std::istream& st)
@@ -358,12 +373,9 @@ bool GBCore::loadState(std::istream& st)
 	uint8_t saveStateChecksum;
 	ST_READ(saveStateChecksum);
 
-	GBSystem system;
-	ST_READ(system);
-
 	if (!cartridge.ROMLoaded() || cartridge.getChecksum() != saveStateChecksum)
 	{
-		const auto newRomPath = std::filesystem::path { FileUtils::nativePath(romPath) };
+		const auto newRomPath = std::filesystem::path{ FileUtils::nativePath(romPath) };
 		std::ifstream romStream(newRomPath, std::ios::in | std::ios::binary);
 
 		if (!romStream || !Cartridge::romSizeValid(romStream))
@@ -379,9 +391,60 @@ bool GBCore::loadState(std::istream& st)
 		currentSave = 0;
 	}
 
+	bool isCompressed;
+	ST_READ(isCompressed);
+
+	if (!isCompressed)
+		loadGBState(st);
+	else
+	{
+		uint64_t uncompressedSize;
+		ST_READ(uncompressedSize);
+
+		auto currentPos = st.tellg();
+		st.seekg(0, std::ios::end);
+		const mz_ulong compressedSize = st.tellg() - currentPos;
+		st.seekg(currentPos);
+
+		std::vector<uint8_t> compressedBuffer(compressedSize);
+		st.read(reinterpret_cast<char*>(compressedBuffer.data()), compressedSize);
+
+		std::vector<uint8_t> buffer(uncompressedSize);
+		int status = mz_uncompress(reinterpret_cast<unsigned char*>(buffer.data()), reinterpret_cast<mz_ulong*>(&uncompressedSize), compressedBuffer.data(), compressedSize);
+
+		if (status != MZ_OK)
+			return false;
+
+		memstream ms { buffer.data(), buffer.data() + buffer.size() };
+		loadGBState(ms);
+	}
+
+	return true;
+}
+
+void GBCore::saveGBState(std::ostream& st) const
+{
+	const auto system { System::Current() };
+	ST_WRITE(system);
+	ST_WRITE(cycleCounter);
+
+	mmu.saveState(st);
+	cpu.saveState(st);
+	ppu->saveState(st);
+	serial.saveState(st);
+	input.saveState(st);
+	cartridge.getMapper()->saveState(st);
+}
+void GBCore::loadGBState(std::istream& st)
+{
+	GBSystem system;
+	ST_READ(system);
+
 	System::Set(system);
 	updatePPUSystem();
 	reset(true);
+
+	ST_READ(cycleCounter);
 
 	cpu.disableBootROM();
 
@@ -391,6 +454,4 @@ bool GBCore::loadState(std::istream& st)
 	serial.loadState(st);
 	input.loadState(st);
 	cartridge.getMapper()->loadState(st);
-
-	return true;
 }

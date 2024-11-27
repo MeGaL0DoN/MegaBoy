@@ -26,12 +26,12 @@ private:
 		WindowMap,
 		PPUOutput
 	};
-	struct instructionHistoryEntry
+	struct instructionDisasmEntry
 	{
 		uint16_t addr;
 		uint8_t length;
 		std::array<uint8_t, 3> data;
-		std::string disasm;
+		std::string str;
 
 		bool operator < (uint16_t addr) const
 		{
@@ -67,8 +67,8 @@ private:
 	static inline int memoryRomBank{ 0 };
 
 	static inline std::vector<uint16_t> breakpoints{};
-	static inline std::vector<std::string> romDisassembly;
-	static inline std::vector<instructionHistoryEntry> breakpointDisassembly;
+	static inline std::vector<instructionDisasmEntry> romDisassembly;
+	static inline std::vector<instructionDisasmEntry> breakpointDisassembly;
 
 	static inline int breakpointDisasmLine { 0 };
 	static inline bool showBreakpointHitWindow { false };

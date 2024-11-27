@@ -76,6 +76,9 @@ void PPUCore<sys>::saveState(std::ostream& st)
 		ST_WRITE(objCount);
 		st.write(reinterpret_cast<const char*>(selectedObjects.data()), sizeof(selectedObjects[0]) * objCount);
 	}
+
+	if (LCDEnabled())
+		ST_WRITE_ARR(framebuffer);
 }
 
 template <GBSystem sys>
@@ -113,7 +116,12 @@ void PPUCore<sys>::loadState(std::istream& st)
 	}
 
 	if (!LCDEnabled())
-		clearBuffer();
+		clearBuffer(true);
+	else
+	{
+		ST_READ_ARR(framebuffer);
+		invokeDrawCallback(true);
+	}
 }
 
 template <GBSystem sys>
@@ -270,7 +278,7 @@ void PPUCore<sys>::handleHBlank()
 				clearBuffer();
 			}
 			else
-				invokeDrawCallback(false);
+				invokeDrawCallback();
 		}
 		else
 			SetPPUMode(PPUMode::OAMSearch);
