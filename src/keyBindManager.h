@@ -16,11 +16,11 @@ enum class MegaBoyKey
     Pause = 8,
     Reset = 9,
     FastForward = 10,
-    QuickSave = 11,
-    LoadQuickSave = 12,
-    ScaleUp = 13,
-    ScaleDown = 14,
-    Screenshot = 15,
+    ScaleUp = 11,
+    ScaleDown = 12,
+    Screenshot = 13,
+    QuickSave = 14,
+    LoadQuickSave = 15,
     SaveStateModifier = 16,
     LoadStateModifier = 17
 };
@@ -46,11 +46,11 @@ public:
             GLFW_KEY_TAB,          // Pause
             GLFW_KEY_R,            // Reset
             GLFW_KEY_SPACE,        // FastForward
-            GLFW_KEY_Q,		       // QuikSave
-            GLFW_KEY_GRAVE_ACCENT, // LoadQuickSave
             GLFW_KEY_PAGE_UP,      // ScaleUp
             GLFW_KEY_PAGE_DOWN,    // ScaleDown
             GLFW_KEY_T,            // Screenshot
+            GLFW_KEY_Q,		       // QuikSave
+            GLFW_KEY_GRAVE_ACCENT, // LoadQuickSave
 
             GLFW_MOD_ALT,          // SaveStateModifier
             GLFW_MOD_SHIFT         // LoadStateModifier

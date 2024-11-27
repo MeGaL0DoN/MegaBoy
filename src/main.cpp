@@ -51,7 +51,7 @@ std::array<uint32_t, 2> gbFramebufferTextures {};
 
 Shader* currentShader{ };
 
-bool screenshotRequested { false };
+bool glScreenshotRequested { false };
 
 bool fileDialogOpen { false };
 
@@ -177,24 +177,34 @@ inline bool loadFile(const std::filesystem::path& filePath)
     return false;
 }
 
-void takeScreenshot()
+void takeScreenshot(bool captureOpenGL)
 {
-#ifdef EMSCRIPTEN // Emscripten only supports RGBA format
-    constexpr int CHANNELS = 4;
+#ifdef EMSCRIPTEN // Emscripten only supports RGBA format for glReadPixels
+    const int CHANNELS = captureOpenGL ? 4 : 3;
     constexpr int GL_FORMAT = GL_RGBA;
 #else
     constexpr int CHANNELS = 3;
     constexpr int GL_FORMAT = GL_RGB;
 #endif
-    auto framebuffer = std::make_shared<std::vector<uint8_t>>(viewport_width * viewport_height * CHANNELS);
-    glReadPixels(viewport_xOffset, viewport_yOffset, viewport_width, viewport_height, GL_FORMAT, GL_UNSIGNED_BYTE, framebuffer->data());
 
-    auto writePng = [framebuffer]()
+    std::shared_ptr<uint8_t[]> glFramebuffer;
+
+    if (captureOpenGL)
+    {
+        glFramebuffer = std::make_shared<uint8_t[]>(viewport_width * viewport_height * CHANNELS);
+		glReadPixels(viewport_xOffset, viewport_yOffset, viewport_width, viewport_height, GL_FORMAT, GL_UNSIGNED_BYTE, glFramebuffer.get());
+    }
+
+    auto writePng = [=]()
     {
         void* pngBuffer = nullptr;
         size_t pngDataSize = 0;
 
-        pngBuffer = tdefl_write_image_to_png_file_in_memory_ex(framebuffer->data(), viewport_width, viewport_height, CHANNELS, &pngDataSize, 3, true);
+        const int width = captureOpenGL ? viewport_width : PPU::SCR_WIDTH;
+        const int height = captureOpenGL ? viewport_height : PPU::SCR_HEIGHT;
+        const uint8_t* framebuffer = captureOpenGL ? glFramebuffer.get() : gbCore.ppu->getFrameBuffer();
+
+        pngBuffer = tdefl_write_image_to_png_file_in_memory_ex(framebuffer, width, height, CHANNELS, &pngDataSize, 3, captureOpenGL);
 
         if (!pngBuffer)
             return;
@@ -224,7 +234,10 @@ void takeScreenshot()
 #ifdef EMSCRIPTEN
     writePng();
 #else
-    std::thread(writePng).detach();
+    if (captureOpenGL) 
+        std::thread(writePng).detach();
+    else // Don't create a new thread for GB screenshot, because framebuffer can be modified while writing the PNG.
+        writePng();
 #endif
 }
 
@@ -538,18 +551,29 @@ void renderImGUI()
             if (ImGui::Checkbox("Load last ROM on Startup", &appConfig::loadLastROM))
                 appConfig::updateConfigFile();
 #endif
-            static bool bootRomsExist{ false };
+            static bool dmgBootExists { false };
+            static bool cgbBootExists { false };
 
             if (ImGui::IsWindowAppearing())
-                bootRomsExist = std::filesystem::exists(FileUtils::nativePath(appConfig::dmgBootRomPath)) || std::filesystem::exists(FileUtils::nativePath(appConfig::cgbBootRomPath));
+            {
+                dmgBootExists = std::filesystem::exists(FileUtils::nativePath(appConfig::dmgBootRomPath));
+                cgbBootExists = std::filesystem::exists(FileUtils::nativePath(appConfig::cgbBootRomPath));
+            }
+
+            bool bootRomsExist = gbCore.cartridge.ROMLoaded() ? 
+                                 (System::Current() == GBSystem::DMG ? dmgBootExists : cgbBootExists) : (dmgBootExists || cgbBootExists);
 
             if (!bootRomsExist)
             {
+                const std::string tooltipText = gbCore.cartridge.ROMLoaded() ? 
+                                                (System::Current() == GBSystem::DMG ? "Drop 'dmg_boot.bin'" : "Drop 'cgb_boot.bin'") :
+                                                "Drop 'dmg_boot.bin' or 'cgb_boot.bin'";
+
                 ImGui::BeginDisabled();
-                ImGui::Checkbox("Boot ROMs not Loaded!", &bootRomsExist);
+                ImGui::Checkbox("Boot ROM not Loaded!", &bootRomsExist);
 
                 if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-                    ImGui::SetTooltip("Drop 'dmg_boot.bin' or 'cgb_boot.bin'");
+                    ImGui::SetTooltip(tooltipText.c_str());
 
                 ImGui::EndDisabled();
             }
@@ -570,7 +594,7 @@ void renderImGUI()
             ImGui::SeparatorText("Controls");
 
             if (ImGui::Button("Key Binding"))
-                keyConfigWindowOpen = true;
+                keyConfigWindowOpen = !keyConfigWindowOpen;
 
             ImGui::SeparatorText("Emulated System");
 
@@ -771,9 +795,6 @@ void renderImGUI()
                 if (ImGui::MenuItem(gbCore.emulationPaused ? "Resume" : "Pause", pauseKeyStr.c_str()))
                     setEmulationPaused(!gbCore.emulationPaused);
 
-                if (ImGui::MenuItem("Take Screenshot", screenshotKeyStr.c_str()))
-                    takeScreenshot();
-
                 if (gbCore.cartridge.hasBattery)
                 {
                     if (ImGui::MenuItem("Reset to Battery", resetKeyStr.c_str()))
@@ -787,6 +808,12 @@ void renderImGUI()
                     if (ImGui::MenuItem("Reset", resetKeyStr.c_str()))
                         gbCore.resetRom(true);
                 }
+
+                if (ImGui::MenuItem("Take Screenshot", screenshotKeyStr.c_str()))
+                    takeScreenshot(true);
+
+                if (ImGui::MenuItem("Take 160x144 Screenshot"))
+                    takeScreenshot(false);
             }
 
             ImGui::EndMenu();
@@ -1020,10 +1047,10 @@ void render(double deltaTime)
         setIntegerScale(newIntegerScale);
         newIntegerScale = -1;
     }
-    if (screenshotRequested)
+    if (glScreenshotRequested)
     {
-        takeScreenshot();
-        screenshotRequested = false;
+        takeScreenshot(true);
+        glScreenshotRequested = false;
     }
 }
 
@@ -1096,8 +1123,8 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
 
         if (key == KeyBindManager::getBind(MegaBoyKey::Screenshot))
         {
-            // For some reason files can't be downloaded from key callback on emscripten, so setting flag to download later in main loop
-            screenshotRequested = true;
+            // For some reason glReadPixels doesn't work from key callback on emscripten, so setting flag to take screenshot later in main loop.
+            glScreenshotRequested = true;
             return;
         }
     }
