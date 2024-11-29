@@ -95,7 +95,7 @@ struct PixelFIFO
 		clear();
 	}
 
-	inline void saveState(std::ostream& st)
+	inline void saveState(std::ostream& st) const
 	{
 		ST_WRITE(s);
 		ST_WRITE(front);
@@ -243,7 +243,7 @@ public:
 
 	virtual void setLCDEnable(bool val) = 0;
 
-	virtual void saveState(std::ostream& st) = 0;
+	virtual void saveState(std::ostream& st) const = 0;
 	virtual void loadState(std::istream& st) = 0;
 
 	virtual void refreshDMGScreenColors(const std::array<color, 4>& newColorPalette) = 0;
@@ -252,7 +252,7 @@ public:
 	virtual void renderBGTileMap(uint8_t* buffer) = 0;
 	virtual void renderWindowTileMap(uint8_t* buffer) = 0;
 
-	constexpr const uint8_t* getFrameBuffer() const { return framebuffer.data(); }
+	constexpr const uint8_t* getFrameBuffer() { return framebuffer.data(); }
 	void (*drawCallback)(const uint8_t* framebuffer, bool firstFrame) { nullptr };
 
 	inline uint8_t* oamFramebuffer() { return debugOAMFramebuffer.get(); }

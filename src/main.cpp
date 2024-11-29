@@ -52,7 +52,6 @@ std::array<uint32_t, 2> gbFramebufferTextures {};
 Shader* currentShader{ };
 
 bool glScreenshotRequested { false };
-
 bool fileDialogOpen { false };
 
 #ifndef EMSCRIPTEN
@@ -85,13 +84,6 @@ float fadeTime { 0.0f };
 
 bool fastForwarding { false };
 constexpr int FAST_FORWARD_SPEED = 5;
-
-double lastFrameTime = glfwGetTime();
-double secondsTimer{};
-double gbTimer{};
-uint32_t frameCount{};
-uint32_t cycleCount{};
-double executeTimes{};
 
 bool lockVSyncSetting { false };
 
@@ -130,44 +122,43 @@ void handleBootROMLoad(std::string& destRomPath, const std::filesystem::path& fi
 
 inline bool loadFile(const std::filesystem::path& filePath)
 {
-    if (std::ifstream ifs { filePath })
+    if (!std::filesystem::exists(filePath))
+        return false;
+
+    if (filePath.filename() == GBCore::DMG_BOOTROM_NAME)
     {
-        ifs.close();
+        handleBootROMLoad(appConfig::dmgBootRomPath, filePath);
+        return true;
+    }
+    if (filePath.filename() == GBCore::CGB_BOOTROM_NAME)
+    {
+        handleBootROMLoad(appConfig::cgbBootRomPath, filePath);
+        return true;
+    }
 
-        if (filePath.filename() == GBCore::DMG_BOOTROM_NAME)
-        {
-            handleBootROMLoad(appConfig::dmgBootRomPath, filePath);
-            return true;
-        }
-        if (filePath.filename() == GBCore::CGB_BOOTROM_NAME)
-        {
-            handleBootROMLoad(appConfig::cgbBootRomPath, filePath);
-            return true;
-        }
+    const auto result = gbCore.loadFile(filePath);
 
-        switch (gbCore.loadFile(filePath))
-        {
-        case FileLoadResult::InvalidROM:
-            popupTitle = "Error Loading the ROM!";
-            showPopUp = true;
-            break;
-        case FileLoadResult::SaveStateROMNotFound:
-            popupTitle = "ROM not found! Load the ROM first.";
-            showPopUp = true;
-            break;
-        case FileLoadResult::Success:
-        {
-            if (filePath.filename() != GBCore::DMG_BOOTROM_NAME && filePath.filename() != GBCore::CGB_BOOTROM_NAME)
-            {
-                debugUI::signalROMLoaded();
+    switch (result)
+    {
+    case FileLoadResult::InvalidROM:
+        popupTitle = "Error Loading the ROM!";
+        showPopUp = true;
+        break;
+    case FileLoadResult::SaveStateROMNotFound:
+        popupTitle = "ROM not found! Load the ROM first.";
+        showPopUp = true;
+        break;
+    case FileLoadResult::SuccessROM:
+    case FileLoadResult::SuccessSaveState:
+    {
+        debugUI::signalROMLoaded();
 #ifdef EMSCRIPTEN
-                std::filesystem::remove(filePath);
+        if (result == FileLoadResult::SuccessROM) // Don't remove save state files from memfs.
+            std::filesystem::remove(filePath);
 #endif
-            }
-            updateWindowTitle();
-            return true;
-        }
-        }
+        updateWindowTitle();
+        return true;
+    }
     }
 
 #ifdef EMSCRIPTEN
@@ -434,8 +425,6 @@ inline void updateImGUIViewports()
     }
 }
 
-inline bool isBootROMFile(const std::string& fileName) { return fileName == GBCore::DMG_BOOTROM_NAME || fileName == GBCore::CGB_BOOTROM_NAME; }
-
 #ifndef EMSCRIPTEN
 std::optional<std::filesystem::path> saveFileDialog(const std::string& defaultName, const nfdnfilteritem_t* filter)
 {
@@ -573,7 +562,7 @@ void renderImGUI()
                 ImGui::Checkbox("Boot ROM not Loaded!", &bootRomsExist);
 
                 if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-                    ImGui::SetTooltip(tooltipText.c_str());
+                    ImGui::SetTooltip("%s", tooltipText.c_str());
 
                 ImGui::EndDisabled();
             }
@@ -623,12 +612,19 @@ void renderImGUI()
             {
                 glfwSwapInterval(appConfig::vsync ? 1 : 0);
                 appConfig::updateConfigFile();
+
+#ifdef _WIN32
+                if (appConfig::vsync)
+                    timeEndPeriod(1);
+                else
+                    timeBeginPeriod(1);
+#endif
             }
 
             if (lockVSyncSetting)
             {
                 if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-                    ImGui::SetTooltip("Forced in GPU driver settings");
+                    ImGui::SetTooltip("Forced in GPU driver settings!");
 
                 ImGui::EndDisabled();
             }               
@@ -1261,7 +1257,10 @@ void checkVSyncStatus()
 			lockVSyncSetting = true;
         }
         else if (!appConfig::vsync)
-			glfwSwapInterval(0);
+			glfwSwapInterval(0); // If user has vsync disabled in preferences and it is not forced on, then disable it.
+
+        if (!appConfig::vsync)
+			timeBeginPeriod(1);
     }
 #else
     glfwSwapInterval(appConfig::vsync ? 1 : 0);
@@ -1379,71 +1378,93 @@ void setImGUI()
 void mainLoop()
 {
     constexpr double MAX_DELTA_TIME = 0.1;
-    double currentFrameTime = glfwGetTime();
+
+    static double lastFrameTime{ glfwGetTime() };
+    static double lastRenderTime { lastFrameTime };
+    static double gbTimer { 0.0 };
+    static double secondsTimer { 0.0 };
+    static double executeTimes { 0.0 };
+    static int frameCount{ 0 };
+    static int gbFrameCount{ 0 };
 
     const bool waitEvents = (gbCore.emulationPaused && !fadeEffectActive) || !gbCore.cartridge.ROMLoaded();
+
+    const double currentTime = glfwGetTime();
 
     if (waitEvents)
     {
         glfwWaitEvents();
-        lastFrameTime = currentFrameTime;
+        lastFrameTime = currentTime;
     }
 
-    const double deltaTime = std::clamp(currentFrameTime - lastFrameTime, 0.0, MAX_DELTA_TIME);
+    const double deltaTime = std::clamp(currentTime - lastFrameTime, 0.0, MAX_DELTA_TIME);
+    lastFrameTime = currentTime;
+
     secondsTimer += deltaTime;
     gbTimer += deltaTime;
 
     const bool shouldRender = appConfig::vsync || gbTimer >= GBCore::FRAME_RATE || waitEvents;
 
     if (shouldRender)
-    {
         glfwPollEvents();
-
-        if (emulationRunning())
+    else
+    {
+#ifndef EMSCRIPTEN
+        if (!appConfig::vsync)
         {
-            const uint32_t cycles = appConfig::vsync ? GBCore::calculateCycles(gbTimer) : GBCore::CYCLES_PER_FRAME;
+            const double remainder = GBCore::FRAME_RATE - gbTimer;
+
+            if (remainder >= 0.002)
+            {
+#ifdef _WIN32
+                const auto sleepTime = remainder <= 0.004 ? std::chrono::milliseconds(1) : std::chrono::duration<double>(remainder / 2.0);
+#else
+                const auto sleepTime = std::chrono::duration<double>(remainder / 2.0);
+#endif
+                std::this_thread::sleep_for(sleepTime);
+            }
+        }
+#endif
+    }
+    while (gbTimer >= GBCore::FRAME_RATE)
+    {
+        if (emulationRunning())
+		{
             const auto execStart = glfwGetTime();
-            gbCore.update(cycles);
+            gbCore.update(GBCore::CYCLES_PER_FRAME);
 
             executeTimes += (glfwGetTime() - execStart);
-            cycleCount += cycles;
-            frameCount++;
-        }
+            gbFrameCount++;
+		}
 
-        render(deltaTime);
-        gbTimer = appConfig::vsync ? 0 : gbTimer - GBCore::FRAME_RATE;
-        lastFrameTime = currentFrameTime;
+        gbTimer -= GBCore::FRAME_RATE;
     }
 
-#ifndef EMSCRIPTEN
-    if (!appConfig::vsync)
+    if (shouldRender)
     {
-        const double remainder = GBCore::FRAME_RATE - gbTimer;
-
-        if (remainder >= 0.002f)
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        render(currentTime - lastRenderTime);
+        lastRenderTime = currentTime;
+        frameCount++;
     }
-#endif
 
     if (secondsTimer >= 1.0)
     {
         if (emulationRunning())
         {
-            const double totalGBFrames = static_cast<double>(cycleCount) / GBCore::CYCLES_PER_FRAME;
-            const double avgGBExecuteTime = (executeTimes / totalGBFrames) * 1000;
+            const double avgExecuteTime = (executeTimes / gbFrameCount) * 1000;
             const double fps = frameCount / secondsTimer;
 
             std::ostringstream oss;
-            oss << "FPS: " << std::fixed << std::setprecision(2) << fps << " - " << avgGBExecuteTime << " ms";
+            oss << "FPS: " << std::fixed << std::setprecision(2) << fps << " - " << avgExecuteTime << " ms";
             FPS_text = oss.str();
 
-#ifndef  EMSCRIPTEN
+#ifndef EMSCRIPTEN
             updateWindowTitle();
-#endif 
+#endif
             gbCore.autoSave();
         }
 
-        cycleCount = 0;
+        gbFrameCount = 0;
         frameCount = 0;
         executeTimes = 0;
         secondsTimer = 0;
@@ -1516,7 +1537,6 @@ int main(int argc, char* argv[])
     runApp(argc, argv);
 
     gbCore.autoSave();
-    appConfig::updateConfigFile();
 
     NFD_Quit();
     ImGui_ImplOpenGL3_Shutdown();

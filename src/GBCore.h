@@ -13,7 +13,8 @@
 
 enum class FileLoadResult
 {
-	Success,
+	SuccessROM,
+	SuccessSaveState,
 	InvalidROM,
 	SaveStateROMNotFound
 };
@@ -181,6 +182,7 @@ private:
 	static bool isSaveStateFile(std::istream& st);
 
 	void saveState(std::ostream& st) const;
+	void saveFrameBuffer(std::ostream& st) const;
 	bool loadState(std::istream& st);
 
 	void saveGBState(std::ostream& st) const;

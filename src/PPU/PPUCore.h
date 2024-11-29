@@ -15,7 +15,7 @@ public:
 	void execute(uint8_t cycles) override;
 	void reset() override;
 
-	void saveState(std::ostream& st) override;
+	void saveState(std::ostream& st) const override;
 	void loadState(std::istream& st) override;
 
 	void refreshDMGScreenColors(const std::array<color, 4>& newColors) override;

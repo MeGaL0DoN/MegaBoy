@@ -130,11 +130,14 @@ bool GBCore::isSaveStateFile(std::istream& st)
 FileLoadResult GBCore::loadFile(std::istream& st)
 {
 	autoSave();
+	bool isSaveState { false };
 
 	if (isSaveStateFile(st))
 	{
 		if (!loadState(st))
 			return FileLoadResult::SaveStateROMNotFound;
+
+		isSaveState = true;
 	}
 	else
 	{
@@ -187,8 +190,12 @@ FileLoadResult GBCore::loadFile(std::istream& st)
 	}
 
 	saveStateFolderPath = FileUtils::executableFolderPath / "saves" / (gameTitle + " (" + std::to_string(cartridge.getChecksum()) + ")");
+
+	if (!std::filesystem::exists(saveStateFolderPath))
+		std::filesystem::create_directories(saveStateFolderPath);
+
 	appConfig::updateConfigFile();
-	return FileLoadResult::Success;
+	return isSaveState ? FileLoadResult::SuccessSaveState : FileLoadResult::SuccessROM;
 }
 
 bool GBCore::loadROMFromStream(std::istream& st)
@@ -263,12 +270,7 @@ bool GBCore::loadROMFromZipStream(std::istream& st)
 void GBCore::autoSave() const 
 {
 	if (currentSave != 0 && appConfig::autosaveState)
-	{
-		if (!std::filesystem::exists(saveStateFolderPath))
-			std::filesystem::create_directories(saveStateFolderPath);
-
 		saveState(getSaveStateFilePath(currentSave));
-	}
 
 	if (!cartridge.hasBattery || !appConfig::batterySaves) 
 		return;
@@ -351,6 +353,8 @@ void GBCore::saveState(std::ostream& st) const
 	const auto checksum { cartridge.getChecksum() };
 	ST_WRITE(checksum);
 
+	saveFrameBuffer(st); // Save frame buffer first to easily locate for thumbnails.
+
 	ST_WRITE(isCompressed);
 
 	if (isCompressed)
@@ -360,6 +364,26 @@ void GBCore::saveState(std::ostream& st) const
 	}
 	else
 		st.write(uncompressedData, uncompressedSize);
+}
+
+void GBCore::saveFrameBuffer(std::ostream& st) const
+{
+	mz_ulong compressedSize = mz_compressBound(PPU::FRAMEBUFFER_SIZE);
+	std::vector<uint8_t> compressedBuffer(compressedSize);
+
+	int status = mz_compress(compressedBuffer.data(), &compressedSize, reinterpret_cast<const unsigned char*>(ppu->getFrameBuffer()), PPU::FRAMEBUFFER_SIZE);
+	const bool isCompressed = status == MZ_OK;
+
+	ST_WRITE(isCompressed);
+	
+	if (isCompressed)
+	{
+		uint32_t compressedSize32 = static_cast<uint32_t>(compressedSize);
+		ST_WRITE(compressedSize32);
+		st.write(reinterpret_cast<const char*>(compressedBuffer.data()), compressedSize);
+	}
+	else
+		st.write(reinterpret_cast<const char*>(ppu->getFrameBuffer()), PPU::FRAMEBUFFER_SIZE);
 }
 
 bool GBCore::loadState(std::istream& st)
@@ -391,10 +415,36 @@ bool GBCore::loadState(std::istream& st)
 		currentSave = 0;
 	}
 
-	bool isCompressed;
-	ST_READ(isCompressed);
+	std::array<uint8_t, PPU::FRAMEBUFFER_SIZE> frameBuffer;
+	bool isFrameBufferCompressed;
+	ST_READ(isFrameBufferCompressed);
 
-	if (!isCompressed)
+	if (!isFrameBufferCompressed)
+	{
+		st.read(reinterpret_cast<char*>(frameBuffer.data()), PPU::FRAMEBUFFER_SIZE);
+
+		//if (drawCallback != nullptr)
+		//	drawCallback(frameBuffer.data(), true);
+	}
+	else
+	{
+		uint32_t compressedSize;
+		ST_READ(compressedSize);
+
+		std::vector<uint8_t> compressedBuffer(compressedSize);
+		st.read(reinterpret_cast<char*>(compressedBuffer.data()), compressedSize);
+
+		mz_ulong uncompressedSize { PPU::FRAMEBUFFER_SIZE };
+		int status = mz_uncompress(reinterpret_cast<unsigned char*>(frameBuffer.data()), &uncompressedSize, compressedBuffer.data(), compressedSize);
+
+		//if (status == MZ_OK && drawCallback != nullptr)
+			//drawCallback(frameBuffer.data(), true);
+	}
+
+	bool isStateCompressed;
+	ST_READ(isStateCompressed);
+
+	if (!isStateCompressed)
 		loadGBState(st);
 	else
 	{
@@ -428,30 +478,30 @@ void GBCore::saveGBState(std::ostream& st) const
 	ST_WRITE(system);
 	ST_WRITE(cycleCounter);
 
-	mmu.saveState(st);
 	cpu.saveState(st);
 	ppu->saveState(st);
+	mmu.saveState(st);
 	serial.saveState(st);
 	input.saveState(st);
-	cartridge.getMapper()->saveState(st);
+	cartridge.getMapper()->saveState(st); // Mapper must be saved last.
 }
 void GBCore::loadGBState(std::istream& st)
 {
 	GBSystem system;
 	ST_READ(system);
+	ST_READ(cycleCounter);
 
 	System::Set(system);
 	updatePPUSystem();
-	reset(true);
-
-	ST_READ(cycleCounter);
-
 	cpu.disableBootROM();
 
-	mmu.loadState(st);
 	cpu.loadState(st);
 	ppu->loadState(st);
+	mmu.loadState(st);
 	serial.loadState(st);
 	input.loadState(st);
 	cartridge.getMapper()->loadState(st);
+
+	emulationPaused = false;
+	breakpointHit = false;
 }

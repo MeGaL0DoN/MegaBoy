@@ -108,6 +108,11 @@ else ()
     add_subdirectory("Libs/GLFW")
     add_subdirectory("Libs/glad")
     add_subdirectory("Libs/nativefiledialog-extended")
+
+    if(WIN32)
+        target_link_libraries(MegaBoy winmm) # for timeBeginPeriod(1)
+    endif()
+
     target_link_libraries(MegaBoy glfw glad nfd)
 endif()
 
