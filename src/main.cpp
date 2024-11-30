@@ -475,13 +475,149 @@ void openFileDialog(const char* filter)
 }
 #endif
 
+bool keyConfigWindowOpen { false };
+
+void renderKeyConfigGUI()
+{
+    if (ImGui::Begin("Key Configuration", &keyConfigWindowOpen, ImGuiWindowFlags_NoResize))
+    {
+        constexpr int totalItems = KeyBindManager::TOTAL_KEYS;
+        constexpr int itemsPerColumn = (totalItems + 1) / 2;
+        const float padding = ImGui::GetStyle().FramePadding.x * 2;
+
+        const auto calculateColumnWidths = [&]()
+        {
+            float widths[2] = { 0.0f, 0.0f };
+            for (int i = 0; i < totalItems; i++)
+            {
+                const char* keyName = KeyBindManager::getMegaBoyKeyName(static_cast<MegaBoyKey>(i));
+                float width = ImGui::CalcTextSize(keyName).x;
+                widths[i >= itemsPerColumn] = std::max(widths[i >= itemsPerColumn], width);
+            }
+
+            return std::make_pair(widths[0] + padding, widths[1] + padding);
+        };
+
+        const auto [maxWidthCol1, maxWidthCol2] = calculateColumnWidths();
+
+        if (ImGui::BeginTable("KeyBindTable", 2, ImGuiTableFlags_NoKeepColumnsVisible | ImGuiTableFlags_SizingFixedFit))
+        {
+            ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, maxWidthCol1 + 130 * scaleFactor + padding);
+            ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, maxWidthCol2 + 130 * scaleFactor);
+
+            const auto renderKeyBinding = [&](int index, float maxWidth)
+            {
+                if (index >= totalItems) return;
+
+                ImGui::PushID(index);
+                const char* keyName = KeyBindManager::getMegaBoyKeyName(static_cast<MegaBoyKey>(index));
+                ImGui::Text("%s", keyName);
+
+                float currentTextWidth = ImGui::CalcTextSize(keyName).x;
+                float offsetX = maxWidth - currentTextWidth;
+                ImGui::SameLine(0.0f, offsetX);
+
+                const char* currentKey = KeyBindManager::getKeyName(KeyBindManager::keyBinds[index]);
+                std::string buttonLabel = awaitingKeyBind == index ? "Press any key..." : currentKey;
+
+                const bool yellowText = KeyBindManager::keyBinds[index] == GLFW_KEY_UNKNOWN || index == awaitingKeyBind;
+                if (yellowText) ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 255, 0, 255));
+
+                if (ImGui::Button(buttonLabel.c_str(), ImVec2(130 * scaleFactor, 0)))
+                    awaitingKeyBind = index;
+
+                if (yellowText) ImGui::PopStyleColor();
+                ImGui::PopID();
+            };
+
+            for (int i = 0; i < itemsPerColumn; i++)
+            {
+                ImGui::TableNextRow();
+                ImGui::TableSetColumnIndex(0);
+                renderKeyBinding(i, maxWidthCol1);
+
+                ImGui::TableSetColumnIndex(1);
+                renderKeyBinding(i + itemsPerColumn, maxWidthCol2);
+            }
+
+            ImGui::EndTable();
+        }
+
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        const auto renderModifierSelection = []<MegaBoyKey modifier, MegaBoyKey otherModifier>()
+        {
+            constexpr const char* comboLabel = KeyBindManager::getMegaBoyKeyName(modifier);
+            const int selectedModifier = KeyBindManager::getBind(modifier);
+            const char* modifierLabel = [&]()
+            {
+                switch (selectedModifier)
+                {
+                case GLFW_MOD_SHIFT: return "Shift";
+                case GLFW_MOD_CONTROL: return "Ctrl";
+                case GLFW_MOD_ALT: return "Alt";
+                default: return "None";
+                }
+            }();
+
+            ImGui::Text("%s", comboLabel);
+            ImGui::SameLine();
+            ImGui::PushItemWidth(140 * scaleFactor);
+
+            constexpr std::pair<int, const char*> modifiers[] = { { GLFW_MOD_SHIFT, "Shift" }, { GLFW_MOD_CONTROL, "Ctrl" }, { GLFW_MOD_ALT, "Alt" } };
+
+            if (ImGui::BeginCombo((std::string("##") + comboLabel).c_str(), modifierLabel))
+            {
+                for (const auto& [modValue, modName] : modifiers)
+                {
+                    if (modValue == KeyBindManager::getBind(otherModifier)) continue;
+
+                    const bool isSelected = selectedModifier == modValue;
+
+                    if (ImGui::Selectable(modName, isSelected))
+                        KeyBindManager::setBind(modifier, modValue);
+
+                    if (isSelected) ImGui::SetItemDefaultFocus();
+                }
+
+                ImGui::EndCombo();
+            }
+            ImGui::PopItemWidth();
+        };
+
+        renderModifierSelection.operator() < MegaBoyKey::SaveStateModifier, MegaBoyKey::LoadStateModifier > ();
+        renderModifierSelection.operator() < MegaBoyKey::LoadStateModifier, MegaBoyKey::SaveStateModifier > ();
+
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        if (ImGui::Button("Reset to Defaults"))
+        {
+            KeyBindManager::keyBinds = KeyBindManager::defaultKeyBinds();
+            awaitingKeyBind = -1;
+            appConfig::updateConfigFile();
+        }
+        if (!keyConfigWindowOpen)
+            awaitingKeyBind = -1;
+    }
+    ImGui::End();
+}
+
+bool saveStatesWindowOpen { false };
+
+void renderSaveStatesGUI()
+{
+    // TODO
+}
+
 void renderImGUI()
 {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-
-    static bool keyConfigWindowOpen { false };
 
     if (ImGui::BeginMainMenuBar())
     {
@@ -500,6 +636,9 @@ void renderImGUI()
             }
             if (gbCore.cartridge.ROMLoaded())
             {
+                if (ImGui::MenuItem("View Save States"))
+                    saveStatesWindowOpen = true;
+
                 if (ImGui::MenuItem("Export State"))
                 {
                     const std::string fileName = gbCore.gameTitle + " - Save State.mbs";
@@ -868,132 +1007,10 @@ void renderImGUI()
     }
 
     if (keyConfigWindowOpen)
-    {
-        if (ImGui::Begin("Key Configuration", &keyConfigWindowOpen, ImGuiWindowFlags_NoResize))
-        {
-            constexpr int totalItems = KeyBindManager::TOTAL_KEYS;
-            constexpr int itemsPerColumn = (totalItems + 1) / 2;
-            const float padding = ImGui::GetStyle().FramePadding.x * 2;
+        renderKeyConfigGUI();
 
-            const auto calculateColumnWidths = [&]()
-            {
-                float widths[2] = { 0.0f, 0.0f };
-                for (int i = 0; i < totalItems; i++)
-                {
-                    const char* keyName = KeyBindManager::getMegaBoyKeyName(static_cast<MegaBoyKey>(i));
-                    float width = ImGui::CalcTextSize(keyName).x;
-                    widths[i >= itemsPerColumn] = std::max(widths[i >= itemsPerColumn], width);
-                }
-
-                return std::make_pair(widths[0] + padding, widths[1] + padding);
-            };
-
-            const auto [maxWidthCol1, maxWidthCol2] = calculateColumnWidths();
-
-            if (ImGui::BeginTable("KeyBindTable", 2, ImGuiTableFlags_NoKeepColumnsVisible | ImGuiTableFlags_SizingFixedFit))
-            {
-                ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, maxWidthCol1 + 130 * scaleFactor + padding);
-                ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, maxWidthCol2 + 130 * scaleFactor);
-
-                const auto renderKeyBinding = [&](int index, float maxWidth)
-                {
-                    if (index >= totalItems) return;
-
-                    ImGui::PushID(index);
-                    const char* keyName = KeyBindManager::getMegaBoyKeyName(static_cast<MegaBoyKey>(index));
-                    ImGui::Text("%s", keyName);
-
-                    float currentTextWidth = ImGui::CalcTextSize(keyName).x;
-                    float offsetX = maxWidth - currentTextWidth;
-                    ImGui::SameLine(0.0f, offsetX);
-
-                    const char* currentKey = KeyBindManager::getKeyName(KeyBindManager::keyBinds[index]);
-                    std::string buttonLabel = awaitingKeyBind == index ? "Press any key..." : currentKey;
-
-                    const bool yellowText = KeyBindManager::keyBinds[index] == GLFW_KEY_UNKNOWN || index == awaitingKeyBind;
-                    if (yellowText) ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 255, 0, 255));
-
-                    if (ImGui::Button(buttonLabel.c_str(), ImVec2(130 * scaleFactor, 0)))
-                        awaitingKeyBind = index;
-
-                    if (yellowText) ImGui::PopStyleColor();
-                    ImGui::PopID();
-                };
-
-                for (int i = 0; i < itemsPerColumn; i++)
-                {
-                    ImGui::TableNextRow();
-                    ImGui::TableSetColumnIndex(0);
-                    renderKeyBinding(i, maxWidthCol1);
-
-                    ImGui::TableSetColumnIndex(1);
-                    renderKeyBinding(i + itemsPerColumn, maxWidthCol2);
-                }
-
-                ImGui::EndTable();
-            }
-
-            ImGui::Spacing();
-            ImGui::Separator();
-            ImGui::Spacing();
-
-            const auto renderModifierSelection = []<MegaBoyKey modifier, MegaBoyKey otherModifier>() 
-            {
-                constexpr const char* comboLabel = KeyBindManager::getMegaBoyKeyName(modifier);
-                const int selectedModifier = KeyBindManager::getBind(modifier);
-                const char* modifierLabel = [&]()
-                {
-                    switch (selectedModifier) {
-                        case GLFW_MOD_SHIFT: return "Shift";
-                        case GLFW_MOD_CONTROL: return "Ctrl";
-                        case GLFW_MOD_ALT: return "Alt";
-                        default: return "None";
-                    }
-                }();
-
-                ImGui::Text("%s", comboLabel);
-                ImGui::SameLine();
-                ImGui::PushItemWidth(140 * scaleFactor);
-
-                constexpr std::pair<int, const char*> modifiers[] = { { GLFW_MOD_SHIFT, "Shift" }, { GLFW_MOD_CONTROL, "Ctrl" }, { GLFW_MOD_ALT, "Alt" } };
-
-                if (ImGui::BeginCombo((std::string("##") + comboLabel).c_str(), modifierLabel))
-                {
-                    for (const auto& [modValue, modName] : modifiers) 
-                    {
-                        if (modValue == KeyBindManager::getBind(otherModifier)) continue;
-
-                        const bool isSelected = selectedModifier == modValue;
-
-                        if (ImGui::Selectable(modName, isSelected))
-                            KeyBindManager::setBind(modifier, modValue);
-
-                        if (isSelected) ImGui::SetItemDefaultFocus();
-                    }
-
-                    ImGui::EndCombo();
-                }
-                ImGui::PopItemWidth();
-            };
-
-            renderModifierSelection.operator()<MegaBoyKey::SaveStateModifier, MegaBoyKey::LoadStateModifier>();
-            renderModifierSelection.operator()<MegaBoyKey::LoadStateModifier, MegaBoyKey::SaveStateModifier>();
-
-            ImGui::Spacing();
-            ImGui::Separator();
-            ImGui::Spacing();
-
-            if (ImGui::Button("Reset to Defaults"))
-            {
-                KeyBindManager::keyBinds = KeyBindManager::defaultKeyBinds();
-                awaitingKeyBind = -1;
-                appConfig::updateConfigFile();
-            }
-            if (!keyConfigWindowOpen)
-                awaitingKeyBind = -1;
-        }
-        ImGui::End();
-    }
+    if (saveStatesWindowOpen)
+        renderSaveStatesGUI();
 
     debugUI::updateWindows(scaleFactor);
 
@@ -1414,14 +1431,22 @@ void mainLoop()
         {
             const double remainder = GBCore::FRAME_RATE - gbTimer;
 
-            if (remainder >= 0.002)
+            constexpr double SLEEP_THRESHOLD = 
+#ifdef _WIN32
+                0.0025; 
+#else
+                0.001;
+#endif
+            if (remainder >= SLEEP_THRESHOLD) 
             {
                 // Sleep on windows is less precise than linux/macos, even with timeBeginPeriod(1). So need to sleep less time.
-#ifdef _WIN32 
-                const auto sleepTime = remainder <= 0.004 ? std::chrono::milliseconds(1) : std::chrono::duration<double>(remainder / 2.0);
+                std::chrono::duration<double> sleepTime (
+#ifdef _WIN32
+                    remainder <= (SLEEP_THRESHOLD * 2) ? 0.001 : remainder / 1.6
 #else
-                const auto sleepTime = std::chrono::duration<double>(remainder / 1.5);
+                    remainder / 1.5
 #endif
+                );
                 std::this_thread::sleep_for(sleepTime);
             }
         }
@@ -1484,6 +1509,7 @@ void runApp(int argc, char* argv[])
     setOpenGL();
     setImGUI();
     setWindowSize();
+
 #ifndef EMSCRIPTEN
     checkVSyncStatus();
     NFD_Init();
