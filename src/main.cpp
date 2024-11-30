@@ -193,7 +193,7 @@ void takeScreenshot(bool captureOpenGL)
 
         const int width = captureOpenGL ? viewport_width : PPU::SCR_WIDTH;
         const int height = captureOpenGL ? viewport_height : PPU::SCR_HEIGHT;
-        const uint8_t* framebuffer = captureOpenGL ? glFramebuffer.get() : gbCore.ppu->getFrameBuffer();
+        const uint8_t* framebuffer = captureOpenGL ? glFramebuffer.get() : gbCore.ppu->framebufferPtr();
 
         pngBuffer = tdefl_write_image_to_png_file_in_memory_ex(framebuffer, width, height, CHANNELS, &pngDataSize, 3, captureOpenGL);
 
@@ -285,8 +285,8 @@ void drawCallback(const uint8_t* framebuffer, bool firstFrame)
 
 void refreshGBTextures()
 {
-    OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu->getFrameBuffer());
-    OpenGL::updateTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu->getFrameBuffer());
+    OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu->framebufferPtr());
+    OpenGL::updateTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu->framebufferPtr());
 }
 
 void updateSelectedPalette()
@@ -1416,10 +1416,11 @@ void mainLoop()
 
             if (remainder >= 0.002)
             {
-#ifdef _WIN32
+                // Sleep on windows is less precise than linux/macos, even with timeBeginPeriod(1). So need to sleep less time.
+#ifdef _WIN32 
                 const auto sleepTime = remainder <= 0.004 ? std::chrono::milliseconds(1) : std::chrono::duration<double>(remainder / 2.0);
 #else
-                const auto sleepTime = std::chrono::duration<double>(remainder / 2.0);
+                const auto sleepTime = std::chrono::duration<double>(remainder / 1.5);
 #endif
                 std::this_thread::sleep_for(sleepTime);
             }

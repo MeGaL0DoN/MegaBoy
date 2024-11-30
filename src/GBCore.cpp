@@ -10,13 +10,18 @@
 
 GBCore gbCore{};
 
-void GBCore::reset(bool resetBattery)
+void GBCore::reset(bool resetBattery, bool clearBuf, bool updateSystem)
 {
-	input.reset();
-	serial.reset();
+	if (updateSystem)
+		cartridge.updateSystem(); // If dmg or cgb preference has changed.
+
+	updatePPUSystem();
+	ppu->reset(clearBuf);
+
 	cpu.reset();
-	ppu->reset();
 	mmu.reset();
+	serial.reset();
+	input.reset();
 	apu.reset();
 	cartridge.getMapper()->reset(resetBattery);
 
@@ -49,8 +54,6 @@ bool GBCore::isBootROMValid(const std::filesystem::path& path)
 
 void GBCore::loadBootROM()
 {
-	cpu.disableBootROM();
-
 	if (appConfig::runBootROM) 
 	{
 		const std::filesystem::path romPath = FileUtils::nativePath(System::Current() == GBSystem::DMG ? appConfig::dmgBootRomPath : appConfig::cgbBootRomPath);
@@ -327,9 +330,6 @@ void GBCore::saveState(int num)
 
 void GBCore::saveState(std::ostream& st) const
 {
-	if (!cartridge.ROMLoaded() || cpu.isExecutingBootROM())
-		return;
-
 	std::ostringstream ss { };
 	saveGBState(ss);
 
@@ -371,7 +371,7 @@ void GBCore::saveFrameBuffer(std::ostream& st) const
 	mz_ulong compressedSize = mz_compressBound(PPU::FRAMEBUFFER_SIZE);
 	std::vector<uint8_t> compressedBuffer(compressedSize);
 
-	int status = mz_compress(compressedBuffer.data(), &compressedSize, reinterpret_cast<const unsigned char*>(ppu->getFrameBuffer()), PPU::FRAMEBUFFER_SIZE);
+	int status = mz_compress(compressedBuffer.data(), &compressedSize, reinterpret_cast<const unsigned char*>(ppu->framebufferPtr()), PPU::FRAMEBUFFER_SIZE);
 	const bool isCompressed = status == MZ_OK;
 
 	ST_WRITE(isCompressed);
@@ -383,7 +383,26 @@ void GBCore::saveFrameBuffer(std::ostream& st) const
 		st.write(reinterpret_cast<const char*>(compressedBuffer.data()), compressedSize);
 	}
 	else
-		st.write(reinterpret_cast<const char*>(ppu->getFrameBuffer()), PPU::FRAMEBUFFER_SIZE);
+		st.write(reinterpret_cast<const char*>(ppu->framebufferPtr()), PPU::FRAMEBUFFER_SIZE);
+}
+void GBCore::loadFrameBuffer(std::istream& st, uint8_t* framebuffer)
+{
+	bool isCompressed;
+	ST_READ(isCompressed);
+
+	if (!isCompressed)
+		st.read(reinterpret_cast<char*>(framebuffer), PPU::FRAMEBUFFER_SIZE);
+	else
+	{
+		uint32_t compressedSize;
+		ST_READ(compressedSize);
+
+		std::vector<uint8_t> compressedBuffer(compressedSize);
+		st.read(reinterpret_cast<char*>(compressedBuffer.data()), compressedSize);
+
+		mz_ulong uncompressedSize{ PPU::FRAMEBUFFER_SIZE };
+		mz_uncompress(reinterpret_cast<unsigned char*>(framebuffer), &uncompressedSize, compressedBuffer.data(), compressedSize);
+	}
 }
 
 bool GBCore::loadState(std::istream& st)
@@ -415,31 +434,19 @@ bool GBCore::loadState(std::istream& st)
 		currentSave = 0;
 	}
 
-	std::array<uint8_t, PPU::FRAMEBUFFER_SIZE> frameBuffer;
-	bool isFrameBufferCompressed;
-	ST_READ(isFrameBufferCompressed);
+	uint32_t framebufDataOffset = st.tellg();
 
-	if (!isFrameBufferCompressed)
-	{
-		st.read(reinterpret_cast<char*>(frameBuffer.data()), PPU::FRAMEBUFFER_SIZE);
+	bool isFramebufCompressed;
+	ST_READ(isFramebufCompressed);
 
-		//if (drawCallback != nullptr)
-		//	drawCallback(frameBuffer.data(), true);
-	}
-	else
+	if (isFramebufCompressed)
 	{
 		uint32_t compressedSize;
 		ST_READ(compressedSize);
-
-		std::vector<uint8_t> compressedBuffer(compressedSize);
-		st.read(reinterpret_cast<char*>(compressedBuffer.data()), compressedSize);
-
-		mz_ulong uncompressedSize { PPU::FRAMEBUFFER_SIZE };
-		int status = mz_uncompress(reinterpret_cast<unsigned char*>(frameBuffer.data()), &uncompressedSize, compressedBuffer.data(), compressedSize);
-
-		//if (status == MZ_OK && drawCallback != nullptr)
-			//drawCallback(frameBuffer.data(), true);
+		st.seekg(compressedSize, std::ios::cur);
 	}
+	else
+		st.seekg(PPU::FRAMEBUFFER_SIZE, std::ios::cur); 
 
 	bool isStateCompressed;
 	ST_READ(isStateCompressed);
@@ -469,6 +476,13 @@ bool GBCore::loadState(std::istream& st)
 		loadGBState(ms);
 	}
 
+	// For the first frame not to be as teared.
+	st.seekg(framebufDataOffset, std::ios::beg);
+	loadFrameBuffer(st, ppu->backbufferPtr());
+
+	if (drawCallback != nullptr)
+		drawCallback(ppu->backbufferPtr(), true);
+
 	return true;
 }
 
@@ -489,11 +503,11 @@ void GBCore::loadGBState(std::istream& st)
 {
 	GBSystem system;
 	ST_READ(system);
-	ST_READ(cycleCounter);
 
 	System::Set(system);
-	updatePPUSystem();
-	cpu.disableBootROM();
+	reset(true, false, false);
+
+	ST_READ(cycleCounter);
 
 	cpu.loadState(st);
 	ppu->loadState(st);
@@ -501,7 +515,4 @@ void GBCore::loadGBState(std::istream& st)
 	serial.loadState(st);
 	input.loadState(st);
 	cartridge.getMapper()->loadState(st);
-
-	emulationPaused = false;
-	breakpointHit = false;
 }

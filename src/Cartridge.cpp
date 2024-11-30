@@ -50,6 +50,24 @@ uint8_t Cartridge::calculateHeaderChecksum(std::istream& is) const
 	return checksum;
 }
 
+void Cartridge::updateSystem(uint8_t cgbFlag)
+{
+	GBSystem gbSystem{ GBSystem::DMG };
+
+	if (appConfig::systemPreference != GBSystemPreference::ForceDMG)
+	{
+		if (cgbFlag == 0xC0)
+			gbSystem = GBSystem::GBC;
+		else if (cgbFlag == 0x80)
+		{
+			if (appConfig::systemPreference == GBSystemPreference::PreferGBC)
+				gbSystem = GBSystem::GBC;
+		}
+	}
+
+	System::Set(gbSystem);
+}
+
 bool Cartridge::proccessCartridgeHeader(std::istream& is, uint32_t fileSize)
 {
 	auto readByte = [&is](uint16_t ind) -> uint8_t
@@ -155,23 +173,6 @@ bool Cartridge::proccessCartridgeHeader(std::istream& is, uint32_t fileSize)
 	hasRAM = ramBanks != 0;
 	if (hasRAM) ram.resize(0x2000 * ramBanks);
 
-	GBSystem gbSystem { GBSystem::DMG };
-
-	if (appConfig::systemPreference != GBSystemPreference::ForceDMG)
-	{
-		const uint8_t cgbFlag = readByte(0x143);
-
-		if (cgbFlag == 0xC0)
-			gbSystem = GBSystem::GBC;
-		else if (cgbFlag == 0x80)
-		{
-			if (appConfig::systemPreference == GBSystemPreference::PreferGBC)
-				gbSystem = GBSystem::GBC;
-		}
-	}
-
-	System::Set(gbSystem);
-
 	gbCore.gameTitle = "";
 	is.seekg(0x134, std::ios::beg);
 	char titleVal;
@@ -183,5 +184,6 @@ bool Cartridge::proccessCartridgeHeader(std::istream& is, uint32_t fileSize)
 		gbCore.gameTitle += titleVal;
 	}
 
+	updateSystem(readByte(0x143));
 	return true;
 }

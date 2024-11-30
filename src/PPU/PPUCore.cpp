@@ -8,7 +8,7 @@ template class PPUCore<GBSystem::DMG>;
 template class PPUCore<GBSystem::GBC>;
 
 template <GBSystem sys>
-void PPUCore<sys>::reset()
+void PPUCore<sys>::reset(bool clearBuf)
 {
 	std::memset(OAM.data(), 0, sizeof(OAM));
 	std::memset(VRAM_BANK0.data(), 0, sizeof(VRAM_BANK0));
@@ -19,13 +19,15 @@ void PPUCore<sys>::reset()
 		std::memset(VRAM_BANK1.data(), 0, sizeof(VRAM_BANK1));
 		gbcRegs = {};
 	}
-	else if constexpr (sys == GBSystem::DMG)
+	if constexpr (sys == GBSystem::DMG)
 		updatePalette(regs.BGP, BGpalette);
 
 	s = {};
 	regs = {};
 
-	clearBuffer(true);
+	if (clearBuf)
+		clearBuffer(true);
+
 	SetPPUMode(PPUMode::VBlank);
 	s.LY = 144;
 }
@@ -119,13 +121,13 @@ void PPUCore<sys>::refreshDMGScreenColors(const std::array<color, 4>& newColorPa
 	if constexpr (sys != GBSystem::DMG) 
 		return;
 
-	for (uint8_t x = 0; x < SCR_WIDTH; x++)
+	for (uint8_t y = 0; y < SCR_HEIGHT; y++)
 	{
-		for (uint8_t y = 0; y < SCR_HEIGHT; y++)
+		for (uint8_t x = 0; x < SCR_WIDTH; x++)
 		{
 			color pixel = getPixel(x, y);
 			uint8_t pixelInd { static_cast<uint8_t>(std::find(PPU::ColorPalette, PPU::ColorPalette + 4, pixel) - PPU::ColorPalette) };
-			setPixel(x, y, newColorPalette[pixelInd]);
+			PixelOps::setPixel(framebuffer.get(), SCR_WIDTH, x, y, newColorPalette[pixelInd]);
 		}
 	}
 }
@@ -645,7 +647,7 @@ void PPUCore<sys>::renderFIFOs()
 			PixelOps::setPixel(framebuffer, SCR_WIDTH, s.xPosCounter, s.LY, getColor<false>(bg.color, bg.palette));
 		}
 
-		PixelOps::setPixel(framebuffer.data(), SCR_WIDTH, s.xPosCounter, s.LY, outputColor);
+		setPixel(s.xPosCounter, s.LY, outputColor);
 		s.xPosCounter++;
 
 		if (s.xPosCounter == SCR_WIDTH) [[unlikely]]

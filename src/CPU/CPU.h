@@ -49,10 +49,6 @@ public:
 		s.PC = 0x0;
 		executingBootROM = true;
 	}
-	constexpr void disableBootROM()
-	{
-		executingBootROM = false;
-	}
 
 	void saveState(std::ostream& st) const;
 	void loadState(std::istream& st);

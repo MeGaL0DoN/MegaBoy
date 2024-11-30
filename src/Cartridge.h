@@ -39,10 +39,19 @@ public:
 	std::vector<uint8_t> rom { };
 	std::vector<uint8_t> ram { };
 
-	uint8_t calculateHeaderChecksum(std::istream& is) const;
 	bool loadROM(std::istream& is);
+	uint8_t calculateHeaderChecksum(std::istream& is) const;
+
+	inline void updateSystem()
+	{
+		if (!romLoaded)
+			return;
+
+		updateSystem(rom[0x143]);
+	}
 private:
 	bool proccessCartridgeHeader(std::istream& is, uint32_t fileSize);
+	void updateSystem(uint8_t cgbFlag);
 
 	std::unique_ptr<MBCBase> mapper { nullptr };
 	GBCore& gbCore;

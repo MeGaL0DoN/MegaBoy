@@ -64,6 +64,9 @@ public:
 
 	inline void saveState(const std::filesystem::path& path) const
 	{
+		if (!cartridge.ROMLoaded() || cpu.isExecutingBootROM())
+			return;
+
 		std::ofstream st(path, std::ios::out | std::ios::binary);
 		saveState(st);
 	}
@@ -79,7 +82,7 @@ public:
 
 	inline void resetRom(bool fullReset)
 	{
-		if (!cartridge.ROMLoaded()) return;;
+		if (!cartridge.ROMLoaded()) return;
 		if (fullReset) backupBatteryFile();
 		reset(fullReset);
 		loadBootROM();
@@ -140,12 +143,12 @@ private:
 		appConfig::updateConfigFile();
 	}
 
-	void reset(bool resetBattery);
+	void reset(bool resetBattery, bool clearBuf = true, bool updateSystem = true);
 
 	inline void updatePPUSystem()
 	{
-		ppu = System::Current() == GBSystem::DMG ? std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::DMG>>(mmu, cpu) } :
-												   std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::GBC>>(mmu, cpu) };
+		ppu = System::Current() == GBSystem::DMG ? std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::DMG>>(mmu, cpu) } 
+												 : std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::GBC>>(mmu, cpu) };
 
 		ppu->setDebugEnable(ppuDebugEnable);
 		ppu->drawCallback = this->drawCallback;
@@ -183,7 +186,9 @@ private:
 
 	void saveState(std::ostream& st) const;
 	void saveFrameBuffer(std::ostream& st) const;
+
 	bool loadState(std::istream& st);
+	void loadFrameBuffer(std::istream& st, uint8_t* framebuffer);
 
 	void saveGBState(std::ostream& st) const;
 	void loadGBState(std::istream& st);

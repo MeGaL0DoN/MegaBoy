@@ -13,7 +13,7 @@ public:
 	PPUCore(MMU& mmu, CPU& cpu) : mmu(mmu), cpu(cpu) { }
 
 	void execute(uint8_t cycles) override;
-	void reset() override;
+	void reset(bool clearBuf) override;
 
 	void saveState(std::ostream& st) const override;
 	void loadState(std::istream& st) override;
@@ -31,11 +31,17 @@ private:
 	static constexpr uint16_t OAM_SCAN_CYCLES = 20 * 4;
 	static constexpr uint16_t DEFAULT_VBLANK_CYCLES = 114 * 4;
 
-	constexpr void invokeDrawCallback(bool firstFrame = false) const { if (drawCallback != nullptr) drawCallback(framebuffer.data(), firstFrame); }
+	inline void invokeDrawCallback(bool firstFrame = false) 
+	{
+		std::swap(framebuffer, backbuffer);
+
+		if (drawCallback != nullptr)
+			drawCallback(framebuffer.get(), firstFrame);
+	}
 
 	inline void clearBuffer(bool firstFrame = false)
 	{
-		PixelOps::clearBuffer(framebuffer.data(), SCR_WIDTH, SCR_HEIGHT, sys == GBSystem::DMG ? PPU::ColorPalette[0] : color { 255, 255, 255 });
+		PixelOps::clearBuffer(backbuffer.get(), SCR_WIDTH, SCR_HEIGHT, sys == GBSystem::DMG ? PPU::ColorPalette[0] : color { 255, 255, 255 });
 		invokeDrawCallback(firstFrame);
 	}
 
@@ -60,8 +66,8 @@ private:
 	void executeObjFetcher();
 	void renderFIFOs();
 
-	constexpr color getPixel(uint8_t x, uint8_t y) const { return PixelOps::getPixel(framebuffer.data(), SCR_WIDTH, x, y); }
-	constexpr void setPixel(uint8_t x, uint8_t y, color c) { PixelOps::setPixel(framebuffer.data(), SCR_WIDTH, x, y, c); }
+	constexpr color getPixel(uint8_t x, uint8_t y) const { return PixelOps::getPixel(framebuffer.get(), SCR_WIDTH, x, y); }
+	constexpr void setPixel(uint8_t x, uint8_t y, color c) { PixelOps::setPixel(backbuffer.get(), SCR_WIDTH, x, y, c); }
 
 	constexpr uint8_t getColorID(uint8_t tileLow, uint8_t tileHigh, uint8_t ind) const
 	{

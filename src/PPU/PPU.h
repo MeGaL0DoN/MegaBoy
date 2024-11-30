@@ -239,7 +239,7 @@ public:
 	virtual ~PPU() = default;
 
 	virtual void execute(uint8_t cycles) = 0;
-	virtual void reset() = 0;
+	virtual void reset(bool clearBuf) = 0;
 
 	virtual void setLCDEnable(bool val) = 0;
 
@@ -252,7 +252,9 @@ public:
 	virtual void renderBGTileMap(uint8_t* buffer) = 0;
 	virtual void renderWindowTileMap(uint8_t* buffer) = 0;
 
-	constexpr const uint8_t* getFrameBuffer() { return framebuffer.data(); }
+	inline uint8_t* framebufferPtr() { return framebuffer.get(); }
+	inline uint8_t* backbufferPtr() { return backbuffer.get(); }
+
 	void (*drawCallback)(const uint8_t* framebuffer, bool firstFrame) { nullptr };
 
 	inline uint8_t* oamFramebuffer() { return debugOAMFramebuffer.get(); }
@@ -271,7 +273,8 @@ public:
 		}
 	}
 protected:
-	std::array<uint8_t, FRAMEBUFFER_SIZE> framebuffer{};
+	std::unique_ptr<uint8_t[]> framebuffer { std::make_unique<uint8_t[]>(FRAMEBUFFER_SIZE) };
+	std::unique_ptr<uint8_t[]> backbuffer { std::make_unique<uint8_t[]>(FRAMEBUFFER_SIZE) };
 
 	std::array<uint8_t, 160> OAM{};
 	std::array<uint8_t, 8192> VRAM_BANK0{};
