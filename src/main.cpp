@@ -89,8 +89,6 @@ bool lockVSyncSetting { false };
 
 int awaitingKeyBind { -1 };
 
-void mainLoop();
-
 inline void updateWindowTitle()
 {
     std::string title = (gbCore.gameTitle.empty() ? "MegaBoy" : "MegaBoy - " + gbCore.gameTitle);
@@ -768,8 +766,9 @@ void renderImGUI()
             {
                 appConfig::updateConfigFile();
 #ifdef EMSCRIPTEN
-                emscripten_cancel_main_loop();
-                emscripten_set_main_loop(mainLoop, appConfig::vsync ? 0 : 60, false);
+                const int newMode = appConfig::vsync ? EM_TIMING_RAF : EM_TIMING_SETTIMEOUT;
+                const int newVal = appConfig::vsync ? 1 : 16; // Swap interval 1 with vsync, or 16 ms interval when no vsync.
+                emscripten_set_main_loop_timing(newMode, newVal);
 #else
                 glfwSwapInterval(appConfig::vsync ? 1 : 0);
 #ifdef _WIN32
@@ -1315,7 +1314,7 @@ void checkVSyncStatus()
 			lockVSyncSetting = true;
         }
         else if (!appConfig::vsync)
-			glfwSwapInterval(0); // If user has vsync disabled in preferences and it is not forced on, then disable it.
+			glfwSwapInterval(0); // Set back to 0 if its in config.
 
         if (!appConfig::vsync)
 			timeBeginPeriod(1);
@@ -1483,7 +1482,7 @@ void mainLoop()
                 // Sleep on windows is less precise than linux/macos, even with timeBeginPeriod(1). So need to sleep less time.
                 std::chrono::duration<double> sleepTime (
 #ifdef _WIN32
-                    remainder <= (SLEEP_THRESHOLD * 2) ? 0.001 : remainder / 1.6
+                    remainder <= 0.004 ? 0.001 : remainder <= 0.006 ? 0.002 : remainder / 1.6
 #else
                     remainder / 1.5
 #endif

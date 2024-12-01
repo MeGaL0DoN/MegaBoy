@@ -89,6 +89,12 @@ bool Cartridge::proccessCartridgeHeader(std::istream& is, uint32_t fileSize)
 	if (romBanks == 0 || romBanks > fileSize / 0x4000) 
 		return false;
 
+	const bool initialHasBattery = hasBattery;
+	const bool initialHasTimer = hasTimer;
+
+	hasBattery = false;
+	hasTimer = false;
+
 	switch (readByte(0x147)) // MBC Type
 	{
 	case 0x00:
@@ -145,6 +151,8 @@ bool Cartridge::proccessCartridgeHeader(std::istream& is, uint32_t fileSize)
 
 	default:
 		std::cout << "Unknown MBC! \n";
+		hasBattery = initialHasBattery;  
+		hasTimer = initialHasTimer;
 		return false;
 	}
 
