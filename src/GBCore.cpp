@@ -486,6 +486,30 @@ bool GBCore::loadState(std::istream& st)
 	return true;
 }
 
+bool GBCore::loadSaveStateThumbnail(const std::filesystem::path& path, uint8_t* framebuffer)
+{
+	if (!cartridge.ROMLoaded())
+		return false;
+
+	std::ifstream st { path, std::ios::in | std::ios::binary };
+
+	if (!st || !isSaveStateFile(st))
+		return false;
+
+	uint16_t filePathLen{ 0 };
+	ST_READ(filePathLen);
+	st.seekg(filePathLen, std::ios::cur);
+
+	uint8_t saveStateChecksum;
+	ST_READ(saveStateChecksum);
+
+	if (cartridge.getChecksum() != saveStateChecksum)
+		return false;
+
+	loadFrameBuffer(st, framebuffer);
+	return true;
+}
+
 void GBCore::saveGBState(std::ostream& st) const
 {
 	const auto system { System::Current() };

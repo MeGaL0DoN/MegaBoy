@@ -1,7 +1,5 @@
 #pragma once
 #include <string>
-#include <array>
-#include "Utils/pixelOps.h"
 
 namespace appConfig
 {
@@ -25,8 +23,13 @@ namespace appConfig
 	inline std::string romPath{};
 	inline int saveStateNum{ 0 };
 
+#ifdef EMSCRIPTEN
+	constexpr const char* dmgBootRomPath { "bootroms/dmg_boot.bin" };
+	constexpr const char* cgbBootRomPath { "bootroms/cgb_boot.bin" };
+#else
 	inline std::string dmgBootRomPath{};
 	inline std::string cgbBootRomPath{};
+#endif
 
 	void loadConfigFile();
 	void updateConfigFile();

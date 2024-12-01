@@ -74,17 +74,16 @@ void appConfig::loadConfigFile()
 	}
 
 	to_bool(enableAudio, "audio", "enable");
+	to_bool(runBootROM, "bootroms", "runBootROM");
 
 #ifndef EMSCRIPTEN
 	romPath = config["gameState"]["romPath"];
 	to_int(saveStateNum, "gameState", "saveStateNum");
 
-	to_bool(runBootROM, "bootRoms", "runBootROM");
-
-	if (config.get("bootRoms").has("dmgBootRomPath"))
+	if (config.get("bootroms").has("dmgBootRomPath"))
 		dmgBootRomPath = config["bootRoms"]["dmgBootRomPath"];
 
-	if (config.get("bootRoms").has("cgbBootRomPath"))
+	if (config.get("bootroms").has("cgbBootRomPath"))
 		cgbBootRomPath = config["bootRoms"]["cgbBootRomPath"];
 #endif
 }
@@ -123,6 +122,7 @@ void appConfig::updateConfigFile()
 	}
 
 	config["audio"]["enable"] = to_string(enableAudio);
+	config["bootroms"]["runBootROM"] = to_string(runBootROM);
 
 #ifndef EMSCRIPTEN
 	if (gbCore.cartridge.ROMLoaded())
@@ -133,13 +133,11 @@ void appConfig::updateConfigFile()
 	else
 		config.remove("gameState");
 
-	config["bootRoms"]["runBootROM"] = to_string(runBootROM);
-
 	if (!dmgBootRomPath.empty())
-		config["bootRoms"]["dmgBootRomPath"] = FileUtils::pathToUTF8(dmgBootRomPath);
+		config["bootroms"]["dmgBootRomPath"] = FileUtils::pathToUTF8(dmgBootRomPath);
 
 	if (!cgbBootRomPath.empty())
-		config["bootRoms"]["cgbBootRomPath"] = FileUtils::pathToUTF8(cgbBootRomPath);
+		config["bootroms"]["cgbBootRomPath"] = FileUtils::pathToUTF8(cgbBootRomPath);
 #endif
 
 	(void)file.generate(config, true);

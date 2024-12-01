@@ -89,6 +89,8 @@ bool lockVSyncSetting { false };
 
 int awaitingKeyBind { -1 };
 
+void mainLoop();
+
 inline void updateWindowTitle()
 {
     std::string title = (gbCore.gameTitle.empty() ? "MegaBoy" : "MegaBoy - " + gbCore.gameTitle);
@@ -106,16 +108,26 @@ inline void setEmulationPaused(bool val)
 
 inline bool emulationRunning() { return !gbCore.emulationPaused && gbCore.cartridge.ROMLoaded() && !gbCore.breakpointHit; }
 
-void handleBootROMLoad(std::string& destRomPath, const std::filesystem::path& filePath)
+void handleBootROMLoad(GBSystem sys, const std::filesystem::path& filePath)
 {
     if (GBCore::isBootROMValid(filePath))
     {
-        destRomPath = filePath.string();
+#ifdef EMSCRIPTEN
+        const auto destPath = sys == GBSystem::DMG ? appConfig::dmgBootRomPath : appConfig::cgbBootRomPath;
+        std::filesystem::copy_file(filePath, destPath, std::filesystem::copy_options::overwrite_existing);
+#else
+        auto& destPath = sys == GBSystem::DMG ? appConfig::dmgBootRomPath : appConfig::cgbBootRomPath;
+        destPath = filePath.string();
         appConfig::updateConfigFile();
+#endif
         popupTitle = "Successfully Loaded Boot ROM!";
     }
     else
         popupTitle = "Invalid Boot ROM!";
+
+#ifdef EMSCRIPTEN
+    std::filesystem::remove(filePath);
+#endif
 
     showPopUp = true;
 }
@@ -127,12 +139,12 @@ inline bool loadFile(const std::filesystem::path& filePath)
 
     if (filePath.filename() == GBCore::DMG_BOOTROM_NAME)
     {
-        handleBootROMLoad(appConfig::dmgBootRomPath, filePath);
+        handleBootROMLoad(GBSystem::DMG, filePath);
         return true;
     }
     if (filePath.filename() == GBCore::CGB_BOOTROM_NAME)
     {
-        handleBootROMLoad(appConfig::cgbBootRomPath, filePath);
+        handleBootROMLoad(GBSystem::GBC, filePath);
         return true;
     }
 
@@ -289,17 +301,21 @@ void refreshGBTextures()
     OpenGL::updateTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu->framebufferPtr());
 }
 
+// So new palette is applied on screen even if emulation is paused.
+void refreshDMGPaletteColors(const std::array<color, 4>& newColors) 
+{
+    if (!gbCore.emulationPaused || System::Current() != GBSystem::DMG)
+        return;
+
+    gbCore.ppu->refreshDMGScreenColors(newColors);
+    refreshGBTextures();
+}
 void updateSelectedPalette()
 {
     const auto& newColors = appConfig::palette == 0 ? PPU::BGB_GREEN_PALETTE : appConfig::palette == 1 ? PPU::GRAY_PALETTE :
                             appConfig::palette == 2 ? PPU::CLASSIC_PALETTE : PPU::CUSTOM_PALETTE;
 
-    if (gbCore.emulationPaused && System::Current() == GBSystem::DMG)
-    {
-        gbCore.ppu->refreshDMGScreenColors(newColors);
-        refreshGBTextures();
-    }
-
+    refreshDMGPaletteColors(newColors);
     PPU::ColorPalette = newColors.data();
 }
 
@@ -587,8 +603,8 @@ void renderKeyConfigGUI()
             ImGui::PopItemWidth();
         };
 
-        renderModifierSelection.operator() < MegaBoyKey::SaveStateModifier, MegaBoyKey::LoadStateModifier > ();
-        renderModifierSelection.operator() < MegaBoyKey::LoadStateModifier, MegaBoyKey::SaveStateModifier > ();
+        renderModifierSelection.operator()<MegaBoyKey::SaveStateModifier, MegaBoyKey::LoadStateModifier>();
+        renderModifierSelection.operator()<MegaBoyKey::LoadStateModifier, MegaBoyKey::SaveStateModifier>();
 
         ImGui::Spacing();
         ImGui::Separator();
@@ -639,20 +655,22 @@ void renderImGUI()
                 if (ImGui::MenuItem("View Save States"))
                     saveStatesWindowOpen = true;
 
-                if (ImGui::MenuItem("Export State"))
+                if (gbCore.canSaveStateNow())
                 {
-                    const std::string fileName = gbCore.gameTitle + " - Save State.mbs";
+                    if (ImGui::MenuItem("Export State"))
+                    {
+                        const std::string fileName = gbCore.gameTitle + " - Save State.mbs";
 #ifdef EMSCRIPTEN
-                    gbCore.saveState(fileName);
-                    downloadFile(fileName.c_str());
+                        gbCore.saveState(fileName);
+                        downloadFile(fileName.c_str());
 #else
-                    auto result = saveFileDialog(fileName, saveStateFilterItem);
+                        auto result = saveFileDialog(fileName, saveStateFilterItem);
 
-                    if (result.has_value())
-                        gbCore.saveState(result.value());
+                        if (result.has_value())
+                            gbCore.saveState(result.value());
 #endif
+                    }
                 }
-
                 if (gbCore.cartridge.hasBattery)
                 {
                     if (ImGui::MenuItem("Export Battery"))
@@ -744,30 +762,32 @@ void renderImGUI()
             if (emulationRunning())
                 ImGui::SeparatorText(FPS_text.c_str());;
 
-#ifndef EMSCRIPTEN
             if (lockVSyncSetting) ImGui::BeginDisabled();
 
             if (ImGui::Checkbox("VSync", &appConfig::vsync))
             {
-                glfwSwapInterval(appConfig::vsync ? 1 : 0);
                 appConfig::updateConfigFile();
-
+#ifdef EMSCRIPTEN
+                emscripten_cancel_main_loop();
+                emscripten_set_main_loop(mainLoop, appConfig::vsync ? 0 : 60, false);
+#else
+                glfwSwapInterval(appConfig::vsync ? 1 : 0);
 #ifdef _WIN32
                 if (appConfig::vsync)
                     timeEndPeriod(1);
                 else
                     timeBeginPeriod(1);
 #endif
+#endif
             }
-
             if (lockVSyncSetting)
             {
                 if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
                     ImGui::SetTooltip("Forced in GPU driver settings!");
 
                 ImGui::EndDisabled();
-            }               
-#endif
+            }
+
             if (ImGui::Checkbox("Screen Ghosting (Blending)", &appConfig::blending))
                 appConfig::updateConfigFile();
 
@@ -827,6 +847,15 @@ void renderImGUI()
 
                 static bool customPaletteOpen{ false };
                 static std::array<std::array<float, 3>, 4> colors{ };
+                static std::array<color, 4> tempCustomPalette{ };
+
+                const auto updateColors = []()
+				{
+                    for (int i = 0; i < 4; i++)
+                        colors[i] = { PPU::CUSTOM_PALETTE[i].R / 255.0f, PPU::CUSTOM_PALETTE[i].G / 255.0f, PPU::CUSTOM_PALETTE[i].B / 255.0f };
+
+                    tempCustomPalette = PPU::CUSTOM_PALETTE;
+				};
 
                 ImGui::Spacing();
 
@@ -834,9 +863,7 @@ void renderImGUI()
                 {
                     if (appConfig::palette == 3)
                     {
-                        for (int i = 0; i < 4; i++)
-                            colors[i] = { PPU::CUSTOM_PALETTE[i].R / 255.0f, PPU::CUSTOM_PALETTE[i].G / 255.0f, PPU::CUSTOM_PALETTE[i].B / 255.0f };
-
+                        updateColors();
                         customPaletteOpen = true;
                         ImGui::SetNextWindowSize(ImVec2(ImGui::CalcTextSize("Custom Palette").x * 2, -1.f));
                     }
@@ -855,15 +882,29 @@ void renderImGUI()
                     {
                         if (ImGui::ColorEdit3(("Color " + std::to_string(i)).c_str(), colors[i].data(), ImGuiColorEditFlags_NoInputs))
                         {
-                            PPU::CUSTOM_PALETTE[i] =
+                            tempCustomPalette[i] =
                             {
                                 static_cast<uint8_t>(colors[i][0] * 255),
                                 static_cast<uint8_t>(colors[i][1] * 255),
                                 static_cast<uint8_t>(colors[i][2] * 255)
                             };
 
+                            refreshDMGPaletteColors(tempCustomPalette);
+                            PPU::CUSTOM_PALETTE[i] = tempCustomPalette[i];
                             appConfig::updateConfigFile();
                         }
+                    }
+
+                    ImGui::Spacing();
+                    ImGui::Separator();
+                    ImGui::Spacing();
+
+                    if (ImGui::Button("Reset to Default"))
+                    {
+                        refreshDMGPaletteColors(PPU::DEFAULT_CUSTOM_PALETTE);
+                        PPU::CUSTOM_PALETTE = PPU::DEFAULT_CUSTOM_PALETTE;
+                        updateColors();
+                        appConfig::updateConfigFile();
                     }
 
                     ImGui::End();
@@ -1537,7 +1578,7 @@ void runApp(int argc, char* argv[])
 
     while (!glfwWindowShouldClose(window)) { mainLoop(); }
 #else
-    emscripten_set_main_loop(mainLoop, 0, 1);
+    emscripten_set_main_loop(mainLoop, appConfig::vsync ? 0 : 60, false);
 #endif
 }
 
@@ -1554,7 +1595,9 @@ int main(int argc, char* argv[])
             if (err != null) { console.log(err); }
 
             FS.mkdir('/batterySaves');
+            FS.mkdir('/bootroms');
             FS.mount(IDBFS, { autoPersist: true }, '/batterySaves');
+            FS.mount(IDBFS, { autoPersist: true }, '/bootroms');
             FS.syncfs(true, function(err) { if (err != null) { console.log(err); } });
 
             Module.ccall('runApp', null, [], []);

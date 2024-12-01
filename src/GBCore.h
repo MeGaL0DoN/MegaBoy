@@ -31,9 +31,9 @@ public:
 	static constexpr uint32_t CYCLES_PER_SECOND = 1048576 * 4;
 	static constexpr double FRAME_RATE = static_cast<double>(CYCLES_PER_FRAME) / CYCLES_PER_SECOND;
 
-	constexpr uint64_t totalCycles() const { return cycleCounter; }
-
 	static constexpr uint32_t calculateCycles(double deltaTime) { return static_cast<uint32_t>((CYCLES_PER_FRAME * (deltaTime / FRAME_RATE))); }
+
+	constexpr uint64_t totalCycles() const { return cycleCounter; }
 
 	static bool isBootROMValid(const std::filesystem::path& path);
 
@@ -52,6 +52,8 @@ public:
 		return loadFile(st);
 	}
 
+	bool loadSaveStateThumbnail(const std::filesystem::path& path, uint8_t* framebuffer);
+
 	void loadState(int num);
 	void saveState(int num);
 
@@ -62,11 +64,11 @@ public:
 	inline void setBatterySaveFolder(const std::filesystem::path& path) { customBatterySavePath = path; }
 	inline std::filesystem::path getBatterySaveFolder() const { return customBatterySavePath; }
 
+	constexpr bool canSaveStateNow() const { return cartridge.ROMLoaded() && !cpu.isExecutingBootROM(); }
+
 	inline void saveState(const std::filesystem::path& path) const
 	{
-		if (!cartridge.ROMLoaded() || cpu.isExecutingBootROM())
-			return;
-
+		if (!canSaveStateNow()) return;
 		std::ofstream st(path, std::ios::out | std::ios::binary);
 		saveState(st);
 	}
