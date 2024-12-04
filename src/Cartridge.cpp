@@ -86,7 +86,7 @@ bool Cartridge::proccessCartridgeHeader(std::istream& is, uint32_t fileSize)
 
 	const uint16_t romBanks = 1 << (readByte(0x148) + 1);
 
-	if (romBanks == 0 || romBanks > fileSize / 0x4000) 
+	if (romBanks == 0 || romBanks > fileSize / ROM_BANK_SIZE) 
 		return false;
 
 	const bool initialHasBattery = hasBattery;
@@ -179,7 +179,7 @@ bool Cartridge::proccessCartridgeHeader(std::istream& is, uint32_t fileSize)
 	this->checksum = checksum;
 
 	hasRAM = ramBanks != 0;
-	if (hasRAM) ram.resize(0x2000 * ramBanks);
+	if (hasRAM) ram.resize(RAM_BANK_SIZE * ramBanks);
 
 	gbCore.gameTitle = "";
 	is.seekg(0x134, std::ios::beg);

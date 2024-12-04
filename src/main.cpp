@@ -78,7 +78,7 @@ std::string FPS_text{ "FPS: 00.00 - 0.00 ms" };
 
 extern GBCore gbCore;
 
-constexpr float FADE_DURATION = 0.85f;
+constexpr float FADE_DURATION = 0.9f;
 bool fadeEffectActive { false };
 float fadeTime { 0.0f };
 
@@ -130,53 +130,62 @@ void handleBootROMLoad(GBSystem sys, const std::filesystem::path& filePath)
     showPopUp = true;
 }
 
-inline bool loadFile(const std::filesystem::path& filePath)
+bool loadFile(const std::filesystem::path& filePath) 
 {
-    if (!std::filesystem::exists(filePath))
-        return false;
+    static const std::map<std::string, GBSystem> bootRomMap = 
+    {
+        { GBCore::DMG_BOOTROM_NAME, GBSystem::DMG },
+        { GBCore::CGB_BOOTROM_NAME, GBSystem::GBC },
+    };
 
-    if (filePath.filename() == GBCore::DMG_BOOTROM_NAME)
+    if (auto it = bootRomMap.find(filePath.filename().string()); it != bootRomMap.end()) 
     {
-        handleBootROMLoad(GBSystem::DMG, filePath);
-        return true;
-    }
-    if (filePath.filename() == GBCore::CGB_BOOTROM_NAME)
-    {
-        handleBootROMLoad(GBSystem::GBC, filePath);
+        handleBootROMLoad(it->second, filePath);
         return true;
     }
 
     const auto result = gbCore.loadFile(filePath);
 
-    switch (result)
+    const auto handleFileError = [&](const char* errorMessage) -> bool
     {
-    case FileLoadResult::InvalidROM:
-        popupTitle = "Error Loading the ROM!";
+        popupTitle = errorMessage;
         showPopUp = true;
-        break;
-    case FileLoadResult::SaveStateROMNotFound:
-        popupTitle = "ROM not found! Load the ROM first.";
-        showPopUp = true;
-        break;
-    case FileLoadResult::SuccessROM:
-    case FileLoadResult::SuccessSaveState:
-    {
-        debugUI::signalROMLoaded();
 #ifdef EMSCRIPTEN
-        if (result == FileLoadResult::SuccessROM) // Don't remove save state files from memfs.
+        std::filesystem::remove(filePath); // Remove the file from memfs.
+#endif
+        return false;
+    };
+    const auto handleFileSuccess = [&]() -> bool
+    {
+        showPopUp = false;
+        debugUI::signalROMLoaded();
+        updateWindowTitle();
+
+#ifdef EMSCRIPTEN
+        if (result != FileLoadResult::SuccessSaveState) // Don't remove save state files from memfs.
             std::filesystem::remove(filePath);
 #endif
-        updateWindowTitle();
         return true;
-    }
-    }
+    };
 
-#ifdef EMSCRIPTEN
-    std::filesystem::remove(filePath);
-#endif
-
-    return false;
+    switch (result) 
+    {
+    case FileLoadResult::InvalidROM:      
+        return handleFileError("Error Loading the ROM!");
+    case FileLoadResult::InvalidBattery:   
+        return handleFileError("Error Loading the Battery Save!"); 
+    case FileLoadResult::CorruptSaveState: 
+        return handleFileError("Save State is Corrupt!"); 
+    case FileLoadResult::ROMNotFound:      
+        return handleFileError("ROM Not Found! Load the ROM First.");
+    case FileLoadResult::FileError:        
+        return handleFileError("Error Reading the File!");
+    case FileLoadResult::SuccessROM:
+    case FileLoadResult::SuccessSaveState:
+        return handleFileSuccess();
+    }
 }
+
 
 void takeScreenshot(bool captureOpenGL)
 {
@@ -196,7 +205,7 @@ void takeScreenshot(bool captureOpenGL)
 		glReadPixels(viewport_xOffset, viewport_yOffset, viewport_width, viewport_height, GL_FORMAT, GL_UNSIGNED_BYTE, glFramebuffer.get());
     }
 
-    auto writePng = [=]()
+    const auto writePng = [=]()
     {
         void* pngBuffer = nullptr;
         size_t pngDataSize = 0;
@@ -368,26 +377,25 @@ void updateGLViewport()
 
 void setIntegerScale(int newScale)
 {
-    if (newScale == 0)
+    if (newScale <= 0)
         return;
 
     int newWindowWidth = newScale * PPU::SCR_WIDTH;
     int newWindowHeight = newScale * PPU::SCR_HEIGHT + menuBarHeight;
 
 #ifndef EMSCRIPTEN
-    if (newWindowWidth > getResolutionX() || newWindowHeight > getResolutionY())
-        return;
-
-    if (!glfwGetWindowAttrib(window, GLFW_MAXIMIZED)) // if window is maximized, then just change the viewport size, don't change the window size.
+    if (!glfwGetWindowAttrib(window, GLFW_MAXIMIZED)) // Only resize window if its not maximized.
     {
-        glfwSetWindowSize(window, newWindowWidth, newWindowHeight);
-        currentIntegerScale = newScale;
+        if (newWindowWidth <= getResolutionX() && newWindowHeight <= getResolutionY())
+        {
+            glfwSetWindowSize(window, newWindowWidth, newWindowHeight);
+            currentIntegerScale = newScale;
+        }
         return;
     }
-#else
+#endif
     if (newWindowWidth > window_width || newWindowHeight > window_height)
         return;
-#endif
 
     viewport_width = newWindowWidth;
     viewport_height = newWindowHeight - menuBarHeight;
@@ -1021,27 +1029,34 @@ void renderImGUI()
         ImGui::EndMainMenuBar();
     }
 
-    if (showPopUp)
+    if (showPopUp && !ImGui::IsPopupOpen(popupTitle))
     {
         ImGui::OpenPopup(popupTitle);
-        showPopUp = false;
         ImGui::SetNextWindowSize(ImVec2(ImGui::CalcTextSize(popupTitle).x + (ImGui::GetStyle().WindowPadding.x * 2), -1.0f), ImGuiCond_Appearing);
     }
 
     if (ImGui::BeginPopupModal(popupTitle, nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize))
     {
-        ImVec2 viewportCenter = ImGui::GetMainViewport()->GetCenter();
-        ImVec2 windowSize = ImGui::GetWindowSize();
-
-        ImVec2 windowPos = ImVec2(viewportCenter.x - windowSize.x * 0.5f, viewportCenter.y - windowSize.y * 0.5f);
-        ImGui::SetWindowPos(windowPos);
-
-        const float buttonWidth = ImGui::GetContentRegionAvail().x * 0.4f;
-        const float windowWidth = ImGui::GetWindowSize().x;
-        ImGui::SetCursorPosX((windowWidth - buttonWidth) * 0.5f);
-
-        if (ImGui::Button("OK", ImVec2(buttonWidth, 0)))
+        if (!showPopUp)
             ImGui::CloseCurrentPopup();
+        else
+        {
+            ImVec2 viewportCenter = ImGui::GetMainViewport()->GetCenter();
+            ImVec2 windowSize = ImGui::GetWindowSize();
+
+            ImVec2 windowPos = ImVec2(viewportCenter.x - windowSize.x * 0.5f, viewportCenter.y - windowSize.y * 0.5f);
+            ImGui::SetWindowPos(windowPos);
+
+            const float buttonWidth = ImGui::GetContentRegionAvail().x * 0.4f;
+            const float windowWidth = ImGui::GetWindowSize().x;
+            ImGui::SetCursorPosX((windowWidth - buttonWidth) * 0.5f);
+
+            if (ImGui::Button("OK", ImVec2(buttonWidth, 0)))
+            {
+                ImGui::CloseCurrentPopup();
+                showPopUp = false;
+            }
+        }
 
         ImGui::EndPopup();
     }

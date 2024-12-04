@@ -17,7 +17,7 @@ public:
 	void write(uint16_t addr, uint8_t val) override;
 
 	void saveBattery(std::ostream& st) const override;
-	void loadBattery(std::istream& st) override;
+	bool loadBattery(std::istream& st) override;
 
 	void reset(bool resetBattery) override
 	{

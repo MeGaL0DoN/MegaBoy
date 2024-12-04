@@ -13,7 +13,7 @@ struct MBCBase
 	virtual void loadState(std::istream& st) = 0;
 
 	virtual void saveBattery(std::ostream& st) const = 0;
-	virtual void loadBattery(std::istream& st) = 0;
+	virtual bool loadBattery(std::istream& st) = 0;
 
 	virtual void reset(bool resetBattery) = 0;
 

@@ -45,27 +45,35 @@ public:
 	RTCState s{};
 
 	static constexpr uint32_t CYCLES_PER_SECOND = 1048576 * 4;
-	void addRTCcycles(uint32_t cycles);
-
-	void adjustRTC();
+	void addRTCcycles(uint64_t cycles);
 
 	constexpr void setReg(uint8_t reg) { s.reg = reg; }
 	void writeReg(uint8_t val);
 
-	void loadBattery(std::istream& st);
+	bool loadBattery(std::istream& st);
 	void saveBattery(std::ostream& st) const;
 
 	inline void reset() { s = {}; lastUnixTime = unix_time(); }
 
-	int slowDownFactor { 1 };
+	constexpr void fastForwardEnableEvent(int speedFactor) 
+	{
+		s.cycles *= speedFactor;
+		slowDownFactor = speedFactor;
+	}
+	constexpr void fastForwardDisableEvent() 
+	{
+		s.cycles /= slowDownFactor;
+		slowDownFactor = 1;
+	}
 private:
-	void incrementDay();
-
 	uint64_t lastUnixTime{};
-	bool wasHalted { false };
+	int slowDownFactor { 1 };
 
 	inline uint64_t unix_time() const
 	{
 		return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 	}
+
+	void adjustRTC();
+	void addDays(uint16_t days);
 };

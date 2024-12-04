@@ -3,6 +3,7 @@
 #include <vector>
 #include "MBCBase.h"
 #include "../defines.h"
+#include "../Utils/fileUtils.h"
 #include "../Cartridge.h"
 
 struct MBCstate
@@ -34,13 +35,20 @@ public:
 		if (cartridge.hasRAM)
 			st.write(reinterpret_cast<const char*>(ram.data()), ram.size());
 	}
-	virtual void loadBattery(std::istream& st) override
+	virtual bool loadBattery(std::istream& st) override
 	{
 		if (cartridge.hasRAM)
 		{
+			const uint32_t saveSize = FileUtils::getAvailableBytes(st);
+
+			if (saveSize < ram.size())
+				return false;
+
 			st.read(reinterpret_cast<char*>(ram.data()), ram.size());
 			sramDirty = true;
 		}
+
+		return true;
 	}
 
 	void saveState(std::ostream& st) const override

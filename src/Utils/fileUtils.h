@@ -1,5 +1,8 @@
 #pragma once
 
+#include <iostream>
+#include <filesystem>
+
 #ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -64,6 +67,28 @@ namespace FileUtils
         path.replace_extension(newExt);
         return path;
     }
+    inline std::filesystem::path removeFilenameSubstr(std::filesystem::path path, const std::string& substring)
+    {
+        std::string filename = path.filename().string();
+        const size_t pos = filename.find(substring);
+
+        if (pos != std::string::npos) 
+        {
+            filename.erase(pos, substring.length());
+            path.replace_filename(filename);
+        }
+
+        return path;
+    }
+
+    inline uint32_t getAvailableBytes(std::istream& st)
+	{
+		const auto pos = st.tellg();
+		st.seekg(0, std::ios::end);
+		const auto availableBytes = st.tellg() - pos;
+		st.seekg(pos, std::ios::beg);
+		return static_cast<uint32_t>(availableBytes);
+	}
 
 #ifndef EMSCRIPTEN
     inline std::filesystem::path getExecutablePath() 

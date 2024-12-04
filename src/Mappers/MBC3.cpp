@@ -11,15 +11,18 @@ void MBC3::updateRTC() const
 	lastRTCAccessCycles = gbCore.totalCycles();
 }
 
-void MBC3::loadBattery(std::istream& st) 
+bool MBC3::loadBattery(std::istream& st) 
 {
-	MBC::loadBattery(st);
+	if (!MBC::loadBattery(st))
+		return false;
 
 	if (cartridge.hasTimer)
 	{
 		lastRTCAccessCycles = gbCore.totalCycles();
 		cartridge.timer.loadBattery(st);
 	}
+
+	return true;
 }
 void MBC3::saveBattery(std::ostream & st) const 
 {

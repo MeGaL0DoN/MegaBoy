@@ -16,7 +16,10 @@ enum class FileLoadResult
 	SuccessROM,
 	SuccessSaveState,
 	InvalidROM,
-	SaveStateROMNotFound
+	InvalidBattery,
+	CorruptSaveState,
+	ROMNotFound,
+	FileError
 };
 
 class GBCore
@@ -90,8 +93,16 @@ public:
 		loadBootROM();
 	}
 
-	constexpr void enableFastForward(int factor) { speedFactor = factor; cartridge.timer.slowDownFactor = factor; }
-	constexpr void disableFastForward() { speedFactor = 1; cartridge.timer.slowDownFactor = 1; }
+	constexpr void enableFastForward(int factor) 
+	{ 
+		speedFactor = factor; 
+		cartridge.timer.fastForwardEnableEvent(factor); 
+	}
+	constexpr void disableFastForward() 
+	{ 
+		speedFactor = 1; 
+		cartridge.timer.fastForwardDisableEvent();
+	}
 
 	bool breakpointHit{ false };
 	bool emulationPaused { false };
@@ -158,29 +169,13 @@ private:
 
 	FileLoadResult loadFile(std::istream& st);
 
-	bool loadROMFromStream(std::istream& st);
-	bool loadROMFromZipStream(std::istream& st);
+	bool loadROM(std::istream& st, const std::filesystem::path& filePath);
+	std::vector<uint8_t> extractZippedROM(std::istream& st);
 
-	inline bool loadROM(std::istream& is, const std::filesystem::path& filePath)
+	inline bool loadBattery(std::istream& st) const
 	{
-		auto loadRomFunc = filePath.extension() == ".zip" ? &GBCore::loadROMFromZipStream : &GBCore::loadROMFromStream;
-
-		if ((this->*loadRomFunc)(is))
-		{
-			romFilePath = filePath;
-			loadBootROM();
-			return true;
-		}
-
-		return false;
-	}
-	inline void loadBattery(std::istream& st) const
-	{
-		if (cartridge.hasBattery)
-		{
-			backupBatteryFile();
-			cartridge.getMapper()->loadBattery(st);
-		}
+		backupBatteryFile();
+		return cartridge.getMapper()->loadBattery(st);
 	}
 
 	static constexpr std::string_view SAVE_STATE_SIGNATURE = "MegaBoy Emulator Save State";
@@ -189,8 +184,8 @@ private:
 	void saveState(std::ostream& st) const;
 	void saveFrameBuffer(std::ostream& st) const;
 
-	bool loadState(std::istream& st);
-	void loadFrameBuffer(std::istream& st, uint8_t* framebuffer);
+	FileLoadResult loadState(std::istream& st);
+	bool loadFrameBuffer(std::istream& st, uint8_t* framebuffer);
 
 	void saveGBState(std::ostream& st) const;
 	void loadGBState(std::istream& st);

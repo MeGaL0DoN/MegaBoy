@@ -11,8 +11,11 @@ class GBCore;
 class Cartridge
 {
 public:
-	static constexpr int MIN_ROM_SIZE = 0x8000;
-	static constexpr int MAX_ROM_SIZE = 0x800000;
+	static constexpr uint32_t MIN_ROM_SIZE = 0x8000;
+	static constexpr uint32_t MAX_ROM_SIZE = 0x800000;
+
+	static constexpr uint32_t ROM_BANK_SIZE = 0x4000;
+	static constexpr uint32_t RAM_BANK_SIZE = 0x2000;
 
 	static constexpr bool romSizeValid(uint32_t size) { return size >= MIN_ROM_SIZE && size <= MAX_ROM_SIZE; }
 	static inline bool romSizeValid(std::istream& is)
