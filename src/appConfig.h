@@ -1,5 +1,5 @@
 #pragma once
-#include <string>
+#include <filesystem>
 
 namespace appConfig
 {
@@ -20,15 +20,15 @@ namespace appConfig
 	inline int filter { 1 };
 	inline int palette { 0 };
 
-	inline std::string romPath{};
+	inline std::filesystem::path romPath{};
 	inline int saveStateNum{ 0 };
 
 #ifdef EMSCRIPTEN
 	constexpr const char* dmgBootRomPath { "bootroms/dmg_boot.bin" };
 	constexpr const char* cgbBootRomPath { "bootroms/cgb_boot.bin" };
 #else
-	inline std::string dmgBootRomPath{};
-	inline std::string cgbBootRomPath{};
+	inline std::filesystem::path dmgBootRomPath{};
+	inline std::filesystem::path cgbBootRomPath{};
 #endif
 
 	void loadConfigFile();

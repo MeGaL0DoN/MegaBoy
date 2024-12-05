@@ -22,9 +22,8 @@ struct RTCRegs
 			case 0x0A: return H & 0x1F;
 			case 0x0B: return DL;
 			case 0x0C: return DH & 0xC1;
+			default: UNREACHABLE();
 		}
-
-		UNREACHABLE();
 	}
 };
 

@@ -77,14 +77,14 @@ void appConfig::loadConfigFile()
 	to_bool(runBootROM, "bootroms", "runBootROM");
 
 #ifndef EMSCRIPTEN
-	romPath = config["gameState"]["romPath"];
+	romPath = FileUtils::nativePathFromUTF8(config["gameState"]["romPath"]);
 	to_int(saveStateNum, "gameState", "saveStateNum");
 
 	if (config.get("bootroms").has("dmgBootRomPath"))
-		dmgBootRomPath = config["bootRoms"]["dmgBootRomPath"];
+		dmgBootRomPath = FileUtils::nativePathFromUTF8(config["bootRoms"]["dmgBootRomPath"]);
 
 	if (config.get("bootroms").has("cgbBootRomPath"))
-		cgbBootRomPath = config["bootRoms"]["cgbBootRomPath"];
+		cgbBootRomPath = FileUtils::nativePathFromUTF8(config["bootRoms"]["cgbBootRomPath"]);
 #endif
 }
 

@@ -161,9 +161,9 @@ bool RTCTimer::loadBattery(std::istream& st)
 {
 	constexpr int MIN_RTC_SAVE_SIZE = 40;
 
-	uint32_t availableBytes = FileUtils::getAvailableBytes(st);
+	uint32_t remainingBytes = FileUtils::remainingBytes(st);
 
-	if (availableBytes < MIN_RTC_SAVE_SIZE)
+	if (remainingBytes < MIN_RTC_SAVE_SIZE)
 		return false;
 
 	auto READ_AS_32 = [&st](uint8_t& var)
@@ -185,12 +185,12 @@ bool RTCTimer::loadBattery(std::istream& st)
 	READ_AS_32(s.latchedRegs.DL);
 	READ_AS_32(s.latchedRegs.DH);
 
-	availableBytes -= MIN_RTC_SAVE_SIZE;
+	remainingBytes -= MIN_RTC_SAVE_SIZE;
 
-	if (availableBytes >= 4)
+	if (remainingBytes >= 4)
 	{
 		lastUnixTime = 0;
-		st.read(reinterpret_cast<char*>(&lastUnixTime), availableBytes <= sizeof(lastUnixTime) ? availableBytes : sizeof(lastUnixTime)); // Support both, 4 and 8 byte timestamps.
+		st.read(reinterpret_cast<char*>(&lastUnixTime), remainingBytes <= sizeof(lastUnixTime) ? remainingBytes : sizeof(lastUnixTime)); // Support both, 4 and 8 byte timestamps.
 		adjustRTC();
 	}
 	else

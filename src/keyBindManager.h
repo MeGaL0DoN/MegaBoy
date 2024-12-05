@@ -90,6 +90,7 @@ public:
             case MegaBoyKey::Screenshot: return "Screenshot";
             case MegaBoyKey::SaveStateModifier: return "Save State (... + 1-9)";
             case MegaBoyKey::LoadStateModifier : return "Load State (... + 1-9)";
+            default: UNREACHABLE();
         }
     }
 

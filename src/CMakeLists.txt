@@ -81,6 +81,8 @@ else()
     message(STATUS "IPO / LTO not supported: <${error}>")
 endif()
 
+set_property(TARGET MegaBoy PROPERTY COMPILE_WARNING_AS_ERROR ON)
+
 if (EMSCRIPTEN)
     target_link_options(MegaBoy PRIVATE -sUSE_GLFW=3 -sMIN_WEBGL_VERSION=2 -sMAX_WEBGL_VERSION=2
     -sALLOW_MEMORY_GROWTH=1 -sEXPORTED_FUNCTIONS=[_main,_malloc,_free] -sEXPORTED_RUNTIME_METHODS=[ccall])

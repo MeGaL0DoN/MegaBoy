@@ -30,69 +30,50 @@ void GBCore::reset(bool resetBattery, bool clearBuf, bool updateSystem)
 	cycleCounter = 0;
 }
 
+constexpr uint16_t DMG_BOOTROM_SIZE = sizeof(MMU::baseBootROM);
+constexpr uint16_t CGB_BOOTROM_SIZE = DMG_BOOTROM_SIZE + sizeof(MMU::cgbBootROM);
+
 bool GBCore::isBootROMValid(const std::filesystem::path& path)
 {
 	if (path.filename() == DMG_BOOTROM_NAME)
+		return std::filesystem::file_size(path) == DMG_BOOTROM_SIZE;
+
+	if (path.filename() == CGB_BOOTROM_NAME)
 	{
-		if (std::ifstream ifs{ path, std::ios::binary | std::ios::ate })
-		{
-			const std::ifstream::pos_type size = ifs.tellg();
-			return size == sizeof(mmu.base_bootROM);
-		}
-	}
-	else if (path.filename() == CGB_BOOTROM_NAME)
-	{
-		if (std::ifstream ifs{ path, std::ios::binary | std::ios::ate })
-		{
-			const std::ifstream::pos_type size = ifs.tellg();
-			return size == 2048 || size == 2304;
-		}
+		const auto fileSize = std::filesystem::file_size(path);
+		// There is 0x100 bytes gap between dmg and cgb boot. Some files may or may not include it.
+		return fileSize == CGB_BOOTROM_SIZE || fileSize == CGB_BOOTROM_SIZE + 0x100;
 	}
 
 	return false;
 }
-
-void GBCore::loadBootROM()
+void GBCore::loadBootROM() 
 {
-	if (appConfig::runBootROM) 
+	if (!appConfig::runBootROM) 
+		return;
+
+	const std::filesystem::path bootRomPath {
+		System::Current() == GBSystem::DMG ? appConfig::dmgBootRomPath : appConfig::cgbBootRomPath
+	};
+
+	if (!isBootROMValid(bootRomPath)) 
+		return;
+
+	std::ifstream st { bootRomPath, std::ios::binary };
+	if (!st) return;
+
+	ST_READ_ARR(mmu.baseBootROM);
+
+	if (System::Current() == GBSystem::GBC)
 	{
-		const std::filesystem::path romPath { FileUtils::nativePath(System::Current() == GBSystem::DMG ? appConfig::dmgBootRomPath : appConfig::cgbBootRomPath) };
+		if (FileUtils::remainingBytes(st) == CGB_BOOTROM_SIZE)
+			st.seekg(0x100, std::ios::cur);
 
-		if (std::ifstream ifs { romPath, std::ios::binary | std::ios::ate })
-		{
-			const std::ifstream::pos_type size = ifs.tellg();
-
-			if (System::Current() == GBSystem::DMG)
-			{
-				if (size == sizeof(mmu.base_bootROM))
-				{
-					ifs.seekg(0, std::ios::beg);
-					ifs.read(reinterpret_cast<char*>(&mmu.base_bootROM[0]), size);
-				}
-				else
-					return;
-			}
-			else if (System::Current() == GBSystem::GBC)
-			{
-				if (size != 2048 && size != 2304)
-					return;
-
-				ifs.seekg(0, std::ios::beg);
-				ifs.read(reinterpret_cast<char*>(&mmu.base_bootROM[0]), sizeof(mmu.base_bootROM));
-
-				if (size == 2048)
-					ifs.seekg(sizeof(mmu.base_bootROM), std::ios::beg);
-				else if (size == 2304)
-					ifs.seekg(0x200, std::ios::beg);
-
-				ifs.read(reinterpret_cast<char*>(&mmu.GBCbootROM[0]), sizeof(mmu.GBCbootROM));
-			}
-
-			// LCD is disabled on boot ROM start
-			ppu->setLCDEnable(false);
-			cpu.enableBootROM();
-		}
+		ST_READ_ARR(mmu.cgbBootROM);
 	}
+
+	ppu->setLCDEnable(false);
+	cpu.enableBootROM();
 }
 
 void GBCore::update(uint32_t cyclesToExecute)
@@ -151,24 +132,30 @@ FileLoadResult GBCore::loadFile(std::istream& st)
 	{
 		if (filePath.extension() == ".sav")
 		{
-			filePath = FileUtils::removeFilenameSubstr(filePath, " - BACKUP");
+			FileUtils::removeFilenameSubstr(filePath, STR(" - BACKUP"));
 			st.seekg(0, std::ios::beg);
 
 			constexpr std::array romExtensions = { ".gb", ".gbc", ".zip" };
 			bool romLoaded = false;
 
-			for (auto ext : romExtensions) 
+			if (romFilePath.stem() != filePath.stem())
 			{
-				const auto romPath = FileUtils::replaceExtension(filePath, ext);
-				std::ifstream ifs { romPath, std::ios::in | std::ios::binary };
-
-				if (loadROM(ifs, romPath)) 
+				for (auto ext : romExtensions)
 				{
-					if (cartridge.hasBattery) 
-						loadBattery(st);
+					const auto romPath = FileUtils::replaceExtension(filePath, ext);
+					std::ifstream ifs{ romPath, std::ios::in | std::ios::binary };
 
-					romLoaded = true;
-					break;
+					if (loadROM(ifs, romPath))
+					{
+						if (cartridge.hasBattery)
+						{
+							backupBatteryFile();
+							cartridge.getMapper()->loadBattery(st);
+						}
+
+						romLoaded = true;
+						break;
+					}
 				}
 			}
 
@@ -177,7 +164,7 @@ FileLoadResult GBCore::loadFile(std::istream& st)
 				if (!cartridge.ROMLoaded() || !cartridge.hasBattery)
 					return FileLoadResult::ROMNotFound;
 
-				if (!loadBattery(st))
+				if (!cartridge.getMapper()->loadBattery(st))
 					return FileLoadResult::InvalidBattery;
 
 				currentSave = 0;
@@ -194,7 +181,10 @@ FileLoadResult GBCore::loadFile(std::istream& st)
 			if (cartridge.hasBattery && appConfig::batterySaves)
 			{
 				if (std::ifstream ifs{ getBatteryFilePath(), std::ios::in | std::ios::binary })
-					loadBattery(ifs);
+				{
+					backupBatteryFile();
+					cartridge.getMapper()->loadBattery(ifs);
+				}
 			}
 
 			loadBootROM();
@@ -312,8 +302,11 @@ void GBCore::backupBatteryFile() const
 	
 	const auto batterySavePath{ getBatteryFilePath() };
 	auto batteryBackupPath { batterySavePath };
+	batteryBackupPath.replace_filename(FileUtils::getNativePathStr(batterySavePath.stem()) + STR(" - BACKUP.sav"));
 
-	batteryBackupPath.replace_filename(FileUtils::pathToUTF8(batterySavePath.stem()) + " - BACKUP.sav");
+#ifdef __MINGW32__
+	std::filesystem::remove(batteryBackupPath); // mingw bug, copy_file crashes if the file already exists, even with overwrite_existing.
+#endif
 	std::filesystem::copy_file(batterySavePath, batteryBackupPath, std::filesystem::copy_options::overwrite_existing);
 }
 
@@ -439,7 +432,7 @@ FileLoadResult GBCore::loadState(std::istream& st)
 
 	if (!cartridge.ROMLoaded() || cartridge.getChecksum() != saveStateChecksum)
 	{
-		const auto newRomPath = std::filesystem::path { FileUtils::nativePath(romPath) };
+		const std::filesystem::path newRomPath { FileUtils::nativePathFromUTF8(romPath) };
 		std::ifstream romStream { newRomPath, std::ios::in | std::ios::binary };
 
 		if (!romStream)
@@ -487,7 +480,7 @@ FileLoadResult GBCore::loadState(std::istream& st)
 		uint64_t uncompressedSize;
 		ST_READ(uncompressedSize);
 
-		const auto compressedSize { static_cast<mz_ulong>(FileUtils::getAvailableBytes(st)) };
+		const auto compressedSize { static_cast<mz_ulong>(FileUtils::remainingBytes(st)) };
 
 		std::vector<uint8_t> compressedBuffer(compressedSize);
 		st.read(reinterpret_cast<char*>(compressedBuffer.data()), compressedSize);

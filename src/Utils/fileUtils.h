@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <filesystem>
+#include <string_view>
 
 #ifdef _WIN32
 #ifndef NOMINMAX
@@ -19,57 +20,69 @@
 namespace FileUtils
 {
     #ifdef _WIN32
-    inline std::wstring toUTF16(const std::string& utf8Str)
+    inline std::wstring toUTF16(std::string_view utf8Str)
     {
-        const auto size = MultiByteToWideChar(CP_UTF8, 0, utf8Str.c_str(), utf8Str.length(), nullptr, 0);
+        const auto size = MultiByteToWideChar(CP_UTF8, 0, utf8Str.data(), utf8Str.length(), nullptr, 0);
 
         if (size <= 0)
             return L"";
 
         std::wstring result(size, 0);
-        MultiByteToWideChar(CP_UTF8, 0, utf8Str.c_str(), utf8Str.length(), result.data(), size);
+        MultiByteToWideChar(CP_UTF8, 0, utf8Str.data(), utf8Str.length(), result.data(), size);
         return result;
     }
-
-    inline std::string toUTF8(const std::wstring& utf16Str)
+    inline std::string toUTF8(std::wstring_view utf16Str)
     {
-        const auto size = WideCharToMultiByte(CP_UTF8, 0, utf16Str.c_str(), utf16Str.length(), nullptr, 0, nullptr, nullptr);
+        const auto size = WideCharToMultiByte(CP_UTF8, 0, utf16Str.data(), utf16Str.length(), nullptr, 0, nullptr, nullptr);
 
         if (size <= 0)
             return "";
 
         std::string result(size, 0);
-        WideCharToMultiByte(CP_UTF8, 0, utf16Str.c_str(), utf16Str.length(), result.data(), size, nullptr, nullptr);
+        WideCharToMultiByte(CP_UTF8, 0, utf16Str.data(), utf16Str.length(), result.data(), size, nullptr, nullptr);
         return result;
     }
     #endif
 
-    inline auto nativePath(const std::string& path)
+    inline std::filesystem::path nativePathFromUTF8(std::string_view utf8Str)
     {
         #ifdef _WIN32
-            return toUTF16(path);
+            return toUTF16(utf8Str);
         #else
-            return path;
+            return path.string();
         #endif
     }
-
-    inline std::string pathToUTF8(const std::filesystem::path& filePath)
+    inline std::string pathToUTF8(const std::filesystem::path& path)
     {
         #ifdef _WIN32
-            return toUTF8(filePath.wstring());
+            return toUTF8(path.wstring());
         #else
-            return filePath.string();
+            return path.string();
         #endif
     }
+    inline auto getNativePathStr(const std::filesystem::path& path)
+	{
+		#ifdef _WIN32
+			return path.wstring();
+		#else
+			return path.string();
+		#endif
+	}
 
     inline std::filesystem::path replaceExtension(std::filesystem::path path, const char* newExt)
     {
         path.replace_extension(newExt);
         return path;
     }
-    inline std::filesystem::path removeFilenameSubstr(std::filesystem::path path, const std::string& substring)
+    inline void removeFilenameSubstr(std::filesystem::path& path,
+#ifdef _WIN32
+        const std::wstring& substring
+#else
+        const std::string& substring
+#endif 
+)
     {
-        std::string filename = path.filename().string();
+        auto filename = getNativePathStr(path.filename());
         const size_t pos = filename.find(substring);
 
         if (pos != std::string::npos) 
@@ -77,11 +90,9 @@ namespace FileUtils
             filename.erase(pos, substring.length());
             path.replace_filename(filename);
         }
-
-        return path;
     }
 
-    inline uint32_t getAvailableBytes(std::istream& st)
+    inline uint32_t remainingBytes(std::istream& st)
 	{
 		const auto pos = st.tellg();
 		st.seekg(0, std::ios::end);
@@ -111,8 +122,8 @@ namespace FileUtils
         return path.parent_path();
     }
 
-    inline std::filesystem::path executableFolderPath { getExecutablePath() };
+    inline const std::filesystem::path executableFolderPath { getExecutablePath() };
 #else
-    inline std::filesystem::path executableFolderPath { };
+    inline const std::filesystem::path executableFolderPath { };
 #endif
 }

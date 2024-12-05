@@ -1,6 +1,24 @@
+#define GLFW_INCLUDE_NONE
+
+#include "GBCore.h"
+#include "gbSystem.h"
+#include "appConfig.h"
+#include "keyBindManager.h"
+#include "debugUI.h"
+#include "resources.h"
+#include "Utils/Shader.h"
+#include "Utils/fileUtils.h"
+#include "Utils/glFunctions.h"
+
+#include <iostream>
+#include <filesystem>
+
 #include <ImGUI/imgui.h>
 #include <ImGUI/imgui_impl_glfw.h>
 #include <ImGUI/imgui_impl_opengl3.h>
+
+#include <GLFW/glfw3.h>
+#include <miniz/miniz.h>
 
 #ifdef EMSCRIPTEN
 #include <emscripten/emscripten.h>
@@ -12,22 +30,6 @@
 #include <nfd.hpp>
 #include <thread>
 #endif
-
-#include <GLFW/glfw3.h>
-#include <miniz/miniz.h>
-
-#include <iostream>
-#include <filesystem>
-
-#include "GBCore.h"
-#include "gbSystem.h"
-#include "appConfig.h"
-#include "keyBindManager.h"
-#include "debugUI.h"
-#include "resources.h"
-#include "Utils/Shader.h"
-#include "Utils/fileUtils.h"
-#include "Utils/glFunctions.h"
 
 GLFWwindow* window;
 
@@ -55,18 +57,10 @@ bool glScreenshotRequested { false };
 bool fileDialogOpen { false };
 
 #ifndef EMSCRIPTEN
-#ifdef _WIN32
-#define STR(s) L##s
-#else
-#define STR(s) s
-#endif
-
 constexpr nfdnfilteritem_t openFilterItem[] = { {STR("Game ROM/Save"), STR("gb,gbc,zip,sav,mbs")} };
 constexpr nfdnfilteritem_t saveStateFilterItem[] = { {STR("Save State"), STR("mbs")} };
 constexpr nfdnfilteritem_t batterySaveFilterItem[] = { {STR("Battery Save"), STR("sav")} };
 constexpr nfdnfilteritem_t audioSaveFilterItem[] = { {STR("WAV File"), STR("wav")} };
-
-#undef STR
 #else
 constexpr const char* openFilterItem = ".gb,.gbc,.zip,.sav,.mbs";
 #endif
@@ -115,7 +109,7 @@ void handleBootROMLoad(GBSystem sys, const std::filesystem::path& filePath)
         std::filesystem::copy_file(filePath, destPath, std::filesystem::copy_options::overwrite_existing);
 #else
         auto& destPath = sys == GBSystem::DMG ? appConfig::dmgBootRomPath : appConfig::cgbBootRomPath;
-        destPath = filePath.string();
+        destPath = filePath;
         appConfig::updateConfigFile();
 #endif
         popupTitle = "Successfully Loaded Boot ROM!";
@@ -130,15 +124,15 @@ void handleBootROMLoad(GBSystem sys, const std::filesystem::path& filePath)
     showPopUp = true;
 }
 
-bool loadFile(const std::filesystem::path& filePath) 
+bool loadFile(const std::filesystem::path& filePath)
 {
-    static const std::map<std::string, GBSystem> bootRomMap = 
+    static const std::map<std::filesystem::path, GBSystem> bootRomMap = 
     {
         { GBCore::DMG_BOOTROM_NAME, GBSystem::DMG },
         { GBCore::CGB_BOOTROM_NAME, GBSystem::GBC },
     };
 
-    if (auto it = bootRomMap.find(filePath.filename().string()); it != bootRomMap.end()) 
+    if (auto it = bootRomMap.find(filePath.filename()); it != bootRomMap.end()) 
     {
         handleBootROMLoad(it->second, filePath);
         return true;
@@ -152,6 +146,12 @@ bool loadFile(const std::filesystem::path& filePath)
         showPopUp = true;
 #ifdef EMSCRIPTEN
         std::filesystem::remove(filePath); // Remove the file from memfs.
+#else
+        if (!gbCore.cartridge.ROMLoaded())
+        {
+            appConfig::romPath.clear();
+            appConfig::updateConfigFile();
+        }
 #endif
         return false;
     };
@@ -173,9 +173,9 @@ bool loadFile(const std::filesystem::path& filePath)
     case FileLoadResult::InvalidROM:      
         return handleFileError("Error Loading the ROM!");
     case FileLoadResult::InvalidBattery:   
-        return handleFileError("Error Loading the Battery Save!"); 
+        return handleFileError("Error Loading the Battery Save!");
     case FileLoadResult::CorruptSaveState: 
-        return handleFileError("Save State is Corrupt!"); 
+        return handleFileError("Save State is Corrupt!");
     case FileLoadResult::ROMNotFound:      
         return handleFileError("ROM Not Found! Load the ROM First.");
     case FileLoadResult::FileError:        
@@ -184,6 +184,8 @@ bool loadFile(const std::filesystem::path& filePath)
     case FileLoadResult::SuccessSaveState:
         return handleFileSuccess();
     }
+
+    UNREACHABLE();
 }
 
 
@@ -452,9 +454,7 @@ std::optional<std::filesystem::path> saveFileDialog(const std::string& defaultNa
 {
     fileDialogOpen = true;
     NFD::UniquePathN outPath;
-
-    const auto NdefaultName = FileUtils::nativePath(defaultName);
-    nfdresult_t result = NFD::SaveDialog(outPath, filter, 1, nullptr, NdefaultName.c_str());
+    nfdresult_t result = NFD::SaveDialog(outPath, filter, 1, nullptr, FileUtils::nativePathFromUTF8(defaultName).c_str());
 
     fileDialogOpen = false;
     return result == NFD_OKAY ? std::make_optional(outPath.get()) : std::nullopt;
@@ -708,8 +708,8 @@ void renderImGUI()
 
             if (ImGui::IsWindowAppearing())
             {
-                dmgBootExists = std::filesystem::exists(FileUtils::nativePath(appConfig::dmgBootRomPath));
-                cgbBootExists = std::filesystem::exists(FileUtils::nativePath(appConfig::cgbBootRomPath));
+                dmgBootExists = std::filesystem::exists(appConfig::dmgBootRomPath);
+                cgbBootExists = std::filesystem::exists(appConfig::cgbBootRomPath);
             }
 
             bool bootRomsExist = gbCore.cartridge.ROMLoaded() ? 
@@ -1231,7 +1231,7 @@ void drop_callback(GLFWwindow* _window, int count, const char** paths)
     (void)_window;
 
     if (count > 0)
-        loadFile(FileUtils::nativePath(paths[0]));
+        loadFile(FileUtils::nativePathFromUTF8(paths[0]));
 }
 
 bool pausedPreEvent;
@@ -1582,7 +1582,7 @@ void runApp(int argc, char* argv[])
         {
             const int saveNum = appConfig::saveStateNum;
 
-            if (loadFile(FileUtils::nativePath(appConfig::romPath)))
+            if (loadFile(appConfig::romPath))
             {
                 if (saveNum >= 1 && saveNum <= 9)
                     gbCore.loadState(saveNum);

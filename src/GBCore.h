@@ -72,13 +72,13 @@ public:
 	inline void saveState(const std::filesystem::path& path) const
 	{
 		if (!canSaveStateNow()) return;
-		std::ofstream st(path, std::ios::out | std::ios::binary);
+		std::ofstream st { path, std::ios::out | std::ios::binary };
 		saveState(st);
 	}
 
-	inline void saveBattery(const std::filesystem::path& _filePath) const
+	inline void saveBattery(const std::filesystem::path& path) const
 	{
-		std::ofstream st(_filePath, std::ios::out | std::ios::binary);
+		std::ofstream st { path, std::ios::out | std::ios::binary };
 		cartridge.getMapper()->saveBattery(st);
 	}
 
@@ -171,12 +171,6 @@ private:
 
 	bool loadROM(std::istream& st, const std::filesystem::path& filePath);
 	std::vector<uint8_t> extractZippedROM(std::istream& st);
-
-	inline bool loadBattery(std::istream& st) const
-	{
-		backupBatteryFile();
-		return cartridge.getMapper()->loadBattery(st);
-	}
 
 	static constexpr std::string_view SAVE_STATE_SIGNATURE = "MegaBoy Emulator Save State";
 	static bool isSaveStateFile(std::istream& st);

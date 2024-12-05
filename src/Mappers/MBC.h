@@ -39,7 +39,7 @@ public:
 	{
 		if (cartridge.hasRAM)
 		{
-			const uint32_t saveSize = FileUtils::getAvailableBytes(st);
+			const uint32_t saveSize = FileUtils::remainingBytes(st);
 
 			if (saveSize < ram.size())
 				return false;

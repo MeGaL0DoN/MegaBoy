@@ -85,8 +85,8 @@ public:
 	DMGstate s{};
 	GBCState gbc{};
 
-	std::array<uint8_t, 256> base_bootROM{};
-	std::array<uint8_t, 0x700> GBCbootROM{};
+	std::array<uint8_t, 256> baseBootROM{};
+	std::array<uint8_t, 0x700> cgbBootROM{};
 private:
 	GBCore& gbCore;
 

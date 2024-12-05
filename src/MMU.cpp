@@ -434,12 +434,12 @@ uint8_t MMU::read8(uint16_t addr) const
 	if (gbCore.cpu.executingBootROM)
 	{
 		if (addr < 0x100)
-			return base_bootROM[addr];
+			return baseBootROM[addr];
 
 		if constexpr (sys == GBSystem::GBC)
 		{
 			if (addr >= 0x200 && addr <= 0x8FF)
-				return GBCbootROM[addr - 0x200];
+				return cgbBootROM[addr - 0x200];
 		}
 	}
 
