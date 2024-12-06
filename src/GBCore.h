@@ -1,5 +1,6 @@
 #pragma once
 #include <filesystem>
+#include <span>
 
 #include "MMU.h"
 #include "CPU/CPU.h"
@@ -57,7 +58,7 @@ public:
 
 	bool loadSaveStateThumbnail(const std::filesystem::path& path, uint8_t* framebuffer);
 
-	void loadState(int num);
+	FileLoadResult loadState(int num);
 	void saveState(int num);
 
 	constexpr int getSaveNum() const { return currentSave; }
@@ -72,10 +73,13 @@ public:
 	inline void saveState(const std::filesystem::path& path) const
 	{
 		if (!canSaveStateNow()) return;
+
+		if (!std::filesystem::exists(saveStateFolderPath))
+			std::filesystem::create_directories(saveStateFolderPath);
+
 		std::ofstream st { path, std::ios::out | std::ios::binary };
 		saveState(st);
 	}
-
 	inline void saveBattery(const std::filesystem::path& path) const
 	{
 		std::ofstream st { path, std::ios::out | std::ios::binary };
@@ -175,11 +179,15 @@ private:
 	static constexpr std::string_view SAVE_STATE_SIGNATURE = "MegaBoy Emulator Save State";
 	static bool isSaveStateFile(std::istream& st);
 
+	static uint64_t calculateHash(std::span<const uint8_t> data);
+
 	void saveState(std::ostream& st) const;
 	void saveFrameBuffer(std::ostream& st) const;
 
+	std::vector<uint8_t> getStateData(std::istream& st) const;
 	FileLoadResult loadState(std::istream& st);
 	bool loadFrameBuffer(std::istream& st, uint8_t* framebuffer);
+	bool validateAndLoadRom(const std::filesystem::path& romPath, uint8_t checksum);
 
 	void saveGBState(std::ostream& st) const;
 	void loadGBState(std::istream& st);

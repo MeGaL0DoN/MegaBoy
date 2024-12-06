@@ -1,6 +1,7 @@
 #pragma once
 #include <iostream>
 #include <cstdint>
+#include <span>
 
 class membuf : public std::basic_streambuf<char>
 {
@@ -54,11 +55,11 @@ class memstream : public std::istream
     membuf _buffer;
 
 public:
-    memstream(const char* begin, const char* end)
-        : std::istream(&_buffer), _buffer(begin, end)
+    memstream(std::span<const char> span)
+        : std::istream(&_buffer), _buffer(span.data(), span.data() + span.size())
     {}
 
-    memstream(const uint8_t* begin, const uint8_t* end)
-        : std::istream(&_buffer), _buffer((const char*)begin, (const char*)end)
+    memstream(std::span<const uint8_t> span)
+        : std::istream(&_buffer), _buffer(reinterpret_cast<const char*>(span.data()), reinterpret_cast<const char*>(span.data() + span.size()))
     {}
 };

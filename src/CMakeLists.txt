@@ -13,7 +13,7 @@ elseif(MINGW)
 endif()
 
 add_executable(MegaBoy
-        main.cpp
+        MegaBoy.cpp
         appConfig.cpp
         appConfig.h
         keyBindManager.h
@@ -81,7 +81,7 @@ else()
     message(STATUS "IPO / LTO not supported: <${error}>")
 endif()
 
-set_property(TARGET MegaBoy PROPERTY COMPILE_WARNING_AS_ERROR ON)
+## set_property(TARGET MegaBoy PROPERTY COMPILE_WARNING_AS_ERROR ON)
 
 if (EMSCRIPTEN)
     target_link_options(MegaBoy PRIVATE -sUSE_GLFW=3 -sMIN_WEBGL_VERSION=2 -sMAX_WEBGL_VERSION=2

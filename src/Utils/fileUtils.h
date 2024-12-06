@@ -1,6 +1,5 @@
 #pragma once
 
-#include <iostream>
 #include <filesystem>
 #include <string_view>
 
@@ -46,11 +45,11 @@ namespace FileUtils
 
     inline std::filesystem::path nativePathFromUTF8(std::string_view utf8Str)
     {
-        #ifdef _WIN32
-            return toUTF16(utf8Str);
-        #else
-            return path.string();
-        #endif
+#ifdef _WIN32
+        return toUTF16(utf8Str);
+#else
+        return std::filesystem::path(utf8Str);
+#endif
     }
     inline std::string pathToUTF8(const std::filesystem::path& path)
     {
@@ -76,9 +75,9 @@ namespace FileUtils
     }
     inline void removeFilenameSubstr(std::filesystem::path& path,
 #ifdef _WIN32
-        const std::wstring& substring
+        std::wstring_view substring
 #else
-        const std::string& substring
+        std::string_view substring
 #endif 
 )
     {

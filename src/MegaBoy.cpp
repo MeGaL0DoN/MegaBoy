@@ -31,6 +31,9 @@
 #include <thread>
 #endif
 
+static_assert(std::endian::native == std::endian::little, "This program requires a little-endian architecture.");
+static_assert(sizeof(char) == sizeof(uint8_t) == 1, "This program requires 'char' and 'uint8_t' to be 1 byte in size.");
+
 GLFWwindow* window;
 
 int menuBarHeight{};
@@ -188,6 +191,27 @@ bool loadFile(const std::filesystem::path& filePath)
     UNREACHABLE();
 }
 
+inline void loadState(int num)
+{
+    const auto result = gbCore.loadState(num);
+
+    if (result == FileLoadResult::FileError)
+    {
+        popupTitle = "Save State Doesn't Exist!";
+        showPopUp = true;
+    }
+    else if (result == FileLoadResult::CorruptSaveState)
+	{
+		popupTitle = "Save State is Corrupt!";
+		showPopUp = true;
+	}
+}
+inline void saveState(int num)
+{
+    gbCore.saveState(num);
+    showPopUp = true;
+    popupTitle = "Save State Saved!";
+}
 
 void takeScreenshot(bool captureOpenGL)
 {
@@ -1170,10 +1194,10 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
         if (key >= 49 && key <= 57)
         {
             if (mods & KeyBindManager::getBind(MegaBoyKey::SaveStateModifier))
-                gbCore.saveState(key - 48);
+                saveState(key - 48);
 
             else if (mods & KeyBindManager::getBind(MegaBoyKey::LoadStateModifier))
-                gbCore.loadState(key - 48);
+                loadState(key - 48);
 
             return;
         }
