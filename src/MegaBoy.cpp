@@ -143,12 +143,6 @@ bool loadFile(std::istream& st, const std::filesystem::path& filePath)
         return true;
     }
 
-    const auto result = gbCore.loadFile(st, filePath);
-
-#ifdef EMSCRIPTEN
-    std::filesystem::remove(filePath); // Remove the file from memfs.
-#endif
-
     const auto handleFileError = [&](const char* errorMessage) -> bool
     {
         popupTitle = errorMessage;
@@ -170,7 +164,7 @@ bool loadFile(std::istream& st, const std::filesystem::path& filePath)
         return true;
     };
 
-    switch (result) 
+    switch (gbCore.loadFile(st, filePath))
     {
     case FileLoadResult::InvalidROM:      
         return handleFileError("Error Loading the ROM!");
@@ -191,8 +185,12 @@ bool loadFile(std::istream& st, const std::filesystem::path& filePath)
 }
 bool loadFile(const std::filesystem::path& filePath)
 {
-    std::ifstream st{ filePath, std::ios::in | std::ios::binary };
-    return loadFile(st, filePath);
+    std::ifstream st { filePath, std::ios::in | std::ios::binary };
+    const auto result = loadFile(st, filePath);
+#ifdef EMSCRIPTEN
+    std::filesystem::remove(filePath); // Remove the file from memfs.
+#endif
+    return result;
 }
 
 constexpr int QUICK_SAVE_STATE = 0;
@@ -748,26 +746,26 @@ void renderImGUI()
             if (ImGui::Checkbox("Load last ROM on Startup", &appConfig::loadLastROM))
                 appConfig::updateConfigFile();
 #endif
-            static bool dmgBootExists { false };
-            static bool cgbBootExists { false };
+            static bool dmgBootLoaded { false };
+            static bool cgbBootLoaded { false };
 
             if (ImGui::IsWindowAppearing())
             {
-                dmgBootExists = std::filesystem::exists(appConfig::dmgBootRomPath);
-                cgbBootExists = std::filesystem::exists(appConfig::cgbBootRomPath);
+                dmgBootLoaded = GBCore::isBootROMValid(appConfig::dmgBootRomPath);
+                cgbBootLoaded = GBCore::isBootROMValid(appConfig::cgbBootRomPath);
             }
 
-            bool bootRomsExist = gbCore.cartridge.ROMLoaded() ? 
-                                 (System::Current() == GBSystem::DMG ? dmgBootExists : cgbBootExists) : (dmgBootExists || cgbBootExists);
+            bool bootRomsLoaded = gbCore.cartridge.ROMLoaded() ? 
+                                 (System::Current() == GBSystem::DMG ? dmgBootLoaded : cgbBootLoaded) : (dmgBootLoaded || cgbBootLoaded);
 
-            if (!bootRomsExist)
+            if (!bootRomsLoaded)
             {
                 const std::string tooltipText = gbCore.cartridge.ROMLoaded() ? 
                                                 (System::Current() == GBSystem::DMG ? "Drop 'dmg_boot.bin'" : "Drop 'cgb_boot.bin'") :
                                                 "Drop 'dmg_boot.bin' or 'cgb_boot.bin'";
 
                 ImGui::BeginDisabled();
-                ImGui::Checkbox("Boot ROM not Loaded!", &bootRomsExist);
+                ImGui::Checkbox("Boot ROM not Loaded!", &bootRomsLoaded);
 
                 if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
                     ImGui::SetTooltip("%s", tooltipText.c_str());

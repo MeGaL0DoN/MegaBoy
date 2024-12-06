@@ -35,6 +35,9 @@ constexpr uint16_t CGB_BOOTROM_SIZE = DMG_BOOTROM_SIZE + sizeof(MMU::cgbBootROM)
 
 bool GBCore::isBootROMValid(const std::filesystem::path& path)
 {
+	if (!std::filesystem::exists(path))
+		return false;
+
 	if (path.filename() == DMG_BOOTROM_NAME)
 		return std::filesystem::file_size(path) == DMG_BOOTROM_SIZE;
 
