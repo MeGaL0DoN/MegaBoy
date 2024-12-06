@@ -9,9 +9,11 @@
 #include "Utils/Shader.h"
 #include "Utils/fileUtils.h"
 #include "Utils/glFunctions.h"
+#include "Utils/memstream.h"
 
 #include <iostream>
 #include <filesystem>
+#include <span>
 
 #include <ImGUI/imgui.h>
 #include <ImGUI/imgui_impl_glfw.h>
@@ -127,7 +129,7 @@ void handleBootROMLoad(GBSystem sys, const std::filesystem::path& filePath)
     showPopUp = true;
 }
 
-bool loadFile(const std::filesystem::path& filePath)
+bool loadFile(std::istream& st, const std::filesystem::path& filePath)
 {
     static const std::map<std::filesystem::path, GBSystem> bootRomMap = 
     {
@@ -141,21 +143,23 @@ bool loadFile(const std::filesystem::path& filePath)
         return true;
     }
 
-    const auto result = gbCore.loadFile(filePath);
+    const auto result = gbCore.loadFile(st, filePath);
+
+#ifdef EMSCRIPTEN
+    std::filesystem::remove(filePath); // Remove the file from memfs.
+#endif
 
     const auto handleFileError = [&](const char* errorMessage) -> bool
     {
         popupTitle = errorMessage;
         showPopUp = true;
-#ifdef EMSCRIPTEN
-        std::filesystem::remove(filePath); // Remove the file from memfs.
-#else
+
         if (!gbCore.cartridge.ROMLoaded())
         {
             appConfig::romPath.clear();
             appConfig::updateConfigFile();
         }
-#endif
+
         return false;
     };
     const auto handleFileSuccess = [&]() -> bool
@@ -163,11 +167,6 @@ bool loadFile(const std::filesystem::path& filePath)
         showPopUp = false;
         debugUI::signalROMLoaded();
         updateWindowTitle();
-
-#ifdef EMSCRIPTEN
-        if (result != FileLoadResult::SuccessSaveState) // Don't remove save state files from memfs.
-            std::filesystem::remove(filePath);
-#endif
         return true;
     };
 
@@ -190,27 +189,43 @@ bool loadFile(const std::filesystem::path& filePath)
 
     UNREACHABLE();
 }
+bool loadFile(const std::filesystem::path& filePath)
+{
+    std::ifstream st{ filePath, std::ios::in | std::ios::binary };
+    return loadFile(st, filePath);
+}
+
+constexpr int QUICK_SAVE_STATE = 0;
 
 inline void loadState(int num)
 {
-    const auto result = gbCore.loadState(num);
+    const auto result = num == QUICK_SAVE_STATE ? gbCore.loadState(gbCore.getSaveStateFolderPath() / "quicksave.mbs")
+                                                : gbCore.loadState(num);
+
+    if (result == FileLoadResult::SuccessSaveState)
+        return;
 
     if (result == FileLoadResult::FileError)
     {
         popupTitle = "Save State Doesn't Exist!";
         showPopUp = true;
     }
-    else if (result == FileLoadResult::CorruptSaveState)
+    else
 	{
 		popupTitle = "Save State is Corrupt!";
 		showPopUp = true;
 	}
 }
-inline void saveState(int num)
+inline void saveState(int num) 
 {
-    gbCore.saveState(num);
-    showPopUp = true;
-    popupTitle = "Save State Saved!";
+    if (num == QUICK_SAVE_STATE)
+        gbCore.saveState(gbCore.getSaveStateFolderPath() / "quicksave.mbs");
+    else
+    {
+        gbCore.saveState(num);
+        showPopUp = true;
+        popupTitle = "Save State Saved!";
+    }
 }
 
 void takeScreenshot(bool captureOpenGL)
@@ -506,14 +521,18 @@ void downloadFile(const char* fileName)
     emscripten_browser_file::download(fileName, "application/octet-stream", buffer.data(), fileSize);
     std::filesystem::remove(fileName);
 }
+void downloadFile(std::span<const char> buffer, const char* fileName)
+{
+    emscripten_browser_file::download(fileName, "application/octet-stream", buffer.data(), buffer.size());
+}
 
 void handle_upload_file(std::string const &filename, std::string const &mime_type, std::string_view buffer, void*)
 {
-    std::ofstream fs(filename, std::ios::out | std::ios::binary);
-    fs.write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
-    fs.close();
+    if (buffer.empty())
+        return;
 
-    loadFile(filename);
+    memstream ms { buffer };
+    loadFile(ms, filename);
 }
 void openFileDialog(const char* filter)
 {
@@ -689,12 +708,13 @@ void renderImGUI()
                 {
                     if (ImGui::MenuItem("Export State"))
                     {
-                        const std::string fileName = gbCore.gameTitle + " - Save State.mbs";
+                        const std::string filename = gbCore.gameTitle + " - Save State.mbs";
 #ifdef EMSCRIPTEN
-                        gbCore.saveState(fileName);
-                        downloadFile(fileName.c_str());
+                        std::ostringstream st;
+                        gbCore.saveState(st);
+                        downloadFile(st.view(), filename.c_str());
 #else
-                        auto result = saveFileDialog(fileName, saveStateFilterItem);
+                        auto result = saveFileDialog(filename, saveStateFilterItem);
 
                         if (result.has_value())
                             gbCore.saveState(result.value());
@@ -705,12 +725,13 @@ void renderImGUI()
                 {
                     if (ImGui::MenuItem("Export Battery"))
                     {
-                        const std::string fileName = gbCore.gameTitle + " - Battery Save.sav";
+                        const std::string filename = gbCore.gameTitle + " - Battery Save.sav";
 #ifdef EMSCRIPTEN
-                        gbCore.saveBattery(fileName);
-                        downloadFile(fileName.c_str());
+                        std::ostringstream st;
+                        gbCore.saveBattery(st);
+                        downloadFile(st.view(), filename.c_str());
 #else
-                        auto result = saveFileDialog(fileName, batterySaveFilterItem);
+                        auto result = saveFileDialog(filename, batterySaveFilterItem);
 
                         if (result.has_value())
                             gbCore.saveBattery(result.value());
@@ -764,7 +785,7 @@ void renderImGUI()
             if (ImGui::Checkbox("Battery Saves", &appConfig::batterySaves))
                 appConfig::updateConfigFile();
 
-            if (ImGui::Checkbox("Autosave Save State", &appConfig::autosaveState))
+            if (ImGui::Checkbox("Autosave Save Slot", &appConfig::autosaveState))
                 appConfig::updateConfigFile();
 
             ImGui::SeparatorText("Controls");
@@ -978,7 +999,7 @@ void renderImGUI()
                 else
                 {
 #ifdef EMSCRIPTEN
-                    gbCore.apu.startRecording("Recording.wav");
+                    gbCore.apu.startRecording("Recording.wav"); // TODO: verify if works properly.
 #else
                     auto result = saveFileDialog("Recording", audioSaveFilterItem);
 
@@ -1204,12 +1225,12 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
 
         if (key == KeyBindManager::getBind(MegaBoyKey::QuickSave))
         {
-            gbCore.saveState(gbCore.getSaveStateFolderPath() / "quicksave.mbs");
+            saveState(QUICK_SAVE_STATE);
             return;
         }
         if (key == KeyBindManager::getBind(MegaBoyKey::LoadQuickSave))
         {
-            loadFile(gbCore.getSaveStateFolderPath() / "quicksave.mbs");
+            loadState(QUICK_SAVE_STATE);
             return;
         }
 

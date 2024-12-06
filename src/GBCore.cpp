@@ -111,7 +111,7 @@ bool GBCore::isSaveStateFile(std::istream& st)
 	return fileSignature == SAVE_STATE_SIGNATURE;
 }
 
-FileLoadResult GBCore::loadFile(std::istream& st)
+FileLoadResult GBCore::loadFile(std::istream& st, std::filesystem::path filePath)
 {
 	if (!st)
 		return FileLoadResult::FileError;
@@ -306,6 +306,16 @@ void GBCore::backupBatteryFile() const
 	std::filesystem::copy_file(batterySavePath, batteryBackupPath, std::filesystem::copy_options::overwrite_existing);
 }
 
+FileLoadResult GBCore::loadState(const std::filesystem::path& path)
+{
+	std::ifstream st{ path, std::ios::in | std::ios::binary };
+	if (!st) return FileLoadResult::FileError;
+
+	if (!isSaveStateFile(st))
+		return FileLoadResult::CorruptSaveState;
+
+	return loadState(st);
+}
 FileLoadResult GBCore::loadState(int num)
 {
 	const auto _filePath = getSaveStateFilePath(num);
@@ -325,6 +335,16 @@ FileLoadResult GBCore::loadState(int num)
 	return result;
 }
 
+void GBCore::saveState(const std::filesystem::path& path) const
+{
+	if (!canSaveStateNow()) return;
+
+	if (!std::filesystem::exists(saveStateFolderPath))
+		std::filesystem::create_directories(saveStateFolderPath);
+
+	std::ofstream st{ path, std::ios::out | std::ios::binary };
+	writeState(st);
+}
 void GBCore::saveState(int num)
 {
 	if (!cartridge.ROMLoaded()) 
@@ -350,7 +370,7 @@ uint64_t GBCore::calculateHash(std::span<const uint8_t> data)
 	return hash;
 }
 
-void GBCore::saveFrameBuffer(std::ostream& st) const
+void GBCore::writeFrameBuffer(std::ostream& st) const
 {
 	mz_ulong compressedSize = mz_compressBound(PPU::FRAMEBUFFER_SIZE);
 	std::vector<uint8_t> compressedBuffer(compressedSize);
@@ -421,8 +441,8 @@ bool GBCore::validateAndLoadRom(const std::filesystem::path& romPath, uint8_t ch
 	return true;
 }
 
-// SAVE STATE FORMAT (LITTLE ENDIAN ONLY):
-// 27 byte save signature (SAVE_STATE_SIGNATURE varaible)
+// .mbs SAVE STATE FORMAT (LITTLE ENDIAN):
+// 27 byte save signature (SAVE_STATE_SIGNATURE variable)
 // 8 byte FNV-1a hash of the rest of file
 // 1 byte ROM cartridge header checksum
 // 2 byte ROM file path (UTF-8) length
@@ -437,7 +457,7 @@ bool GBCore::validateAndLoadRom(const std::filesystem::path& romPath, uint8_t ch
     // 8 byte cycle counter
     // CPU -> PPU -> MMU -> APU -> Serial -> Input -> Mapper data. Format is defined in their respective classes, not 100% guaranteed to be compatible between versions.
 
-void GBCore::saveState(std::ostream& os) const
+void GBCore::writeState(std::ostream& os) const
 {
 	std::ostringstream st{ };
 
@@ -450,10 +470,10 @@ void GBCore::saveState(std::ostream& os) const
 	ST_WRITE(filePathLen);
 	st.write(romFilePathStr.data(), filePathLen);
 
-	saveFrameBuffer(st); 
+	writeFrameBuffer(st); 
 
 	std::ostringstream gbSt{ };
-	saveGBState(gbSt);
+	writeGBState(gbSt);
 
 	const auto uncompressedData { gbSt.view().data() };
 	const auto uncompressedSize { static_cast<uint32_t>(gbSt.tellp()) };
@@ -539,7 +559,7 @@ FileLoadResult GBCore::loadState(std::istream& is)
 	ST_READ(isStateCompressed);
 
 	if (!isStateCompressed)
-		loadGBState(st);
+		readGBState(st);
 	else
 	{
 		uint32_t uncompressedSize;
@@ -557,7 +577,7 @@ FileLoadResult GBCore::loadState(std::istream& is)
 			return FileLoadResult::CorruptSaveState;
 
 		memstream ms { buffer };
-		loadGBState(ms);
+		readGBState(ms);
 	}
 
 	// For the first frame not to be as teared.
@@ -570,7 +590,7 @@ FileLoadResult GBCore::loadState(std::istream& is)
 	return FileLoadResult::SuccessSaveState;
 }
 
-void GBCore::saveGBState(std::ostream& st) const
+void GBCore::writeGBState(std::ostream& st) const
 {
 	const auto system{ System::Current() };
 	ST_WRITE(system);
@@ -584,7 +604,7 @@ void GBCore::saveGBState(std::ostream& st) const
 	input.saveState(st);
 	cartridge.getMapper()->saveState(st); // Mapper must be saved last.
 }
-void GBCore::loadGBState(std::istream& st)
+void GBCore::readGBState(std::istream& st)
 {
 	GBSystem system;
 	ST_READ(system);

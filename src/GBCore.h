@@ -35,8 +35,6 @@ public:
 	static constexpr uint32_t CYCLES_PER_SECOND = 1048576 * 4;
 	static constexpr double FRAME_RATE = static_cast<double>(CYCLES_PER_FRAME) / CYCLES_PER_SECOND;
 
-	static constexpr uint32_t calculateCycles(double deltaTime) { return static_cast<uint32_t>((CYCLES_PER_FRAME * (deltaTime / FRAME_RATE))); }
-
 	constexpr uint64_t totalCycles() const { return cycleCounter; }
 
 	static bool isBootROMValid(const std::filesystem::path& path);
@@ -49,17 +47,31 @@ public:
 		this->drawCallback = callback;
 	}
 
-	inline FileLoadResult loadFile(const std::filesystem::path& _filePath)
+	static constexpr std::string_view SAVE_STATE_SIGNATURE = "MegaBoy Emulator Save State";
+	static bool isSaveStateFile(std::istream& st);
+
+	FileLoadResult loadFile(std::istream& st, std::filesystem::path filePath);
+
+	inline FileLoadResult loadFile(const std::filesystem::path& filePath)
 	{
-		std::ifstream st(_filePath, std::ios::in | std::ios::binary);
-		this->filePath = _filePath;
-		return loadFile(st);
+		std::ifstream st { filePath, std::ios::in | std::ios::binary };
+		return loadFile(st, filePath);
 	}
 
+	FileLoadResult loadState(const std::filesystem::path& path);
+	FileLoadResult loadState(int num);
 	bool loadSaveStateThumbnail(const std::filesystem::path& path, uint8_t* framebuffer);
 
-	FileLoadResult loadState(int num);
+	constexpr bool canSaveStateNow() const { return cartridge.ROMLoaded() && !cpu.isExecutingBootROM(); }
+
+	void saveState(const std::filesystem::path& path) const;
 	void saveState(int num);
+
+	inline void saveState(std::ostream& st) const
+	{
+		if (!canSaveStateNow()) return;
+		writeState(st);
+	}
 
 	constexpr int getSaveNum() const { return currentSave; }
 	constexpr const std::filesystem::path& getSaveStateFolderPath() { return saveStateFolderPath; }
@@ -68,21 +80,13 @@ public:
 	inline void setBatterySaveFolder(const std::filesystem::path& path) { customBatterySavePath = path; }
 	inline std::filesystem::path getBatterySaveFolder() const { return customBatterySavePath; }
 
-	constexpr bool canSaveStateNow() const { return cartridge.ROMLoaded() && !cpu.isExecutingBootROM(); }
-
-	inline void saveState(const std::filesystem::path& path) const
-	{
-		if (!canSaveStateNow()) return;
-
-		if (!std::filesystem::exists(saveStateFolderPath))
-			std::filesystem::create_directories(saveStateFolderPath);
-
-		std::ofstream st { path, std::ios::out | std::ios::binary };
-		saveState(st);
-	}
 	inline void saveBattery(const std::filesystem::path& path) const
 	{
 		std::ofstream st { path, std::ios::out | std::ios::binary };
+		cartridge.getMapper()->saveBattery(st);
+	}
+	inline void saveBattery(std::ostream& st) const
+	{
 		cartridge.getMapper()->saveBattery(st);
 	}
 
@@ -128,12 +132,10 @@ private:
 	int speedFactor { 1 };
 
 	std::filesystem::path saveStateFolderPath;
-	std::filesystem::path filePath;
+	int currentSave { 0 };
+
 	std::filesystem::path romFilePath;
-
-	std::filesystem::path customBatterySavePath;
-
-	int currentSave{ 0 };
+	std::filesystem::path customBatterySavePath;;
 
 	std::array<bool, 0x10000> breakpoints {};
 
@@ -171,26 +173,21 @@ private:
 		ppu->drawCallback = this->drawCallback;
 	}
 
-	FileLoadResult loadFile(std::istream& st);
-
 	bool loadROM(std::istream& st, const std::filesystem::path& filePath);
 	std::vector<uint8_t> extractZippedROM(std::istream& st);
 
-	static constexpr std::string_view SAVE_STATE_SIGNATURE = "MegaBoy Emulator Save State";
-	static bool isSaveStateFile(std::istream& st);
-
 	static uint64_t calculateHash(std::span<const uint8_t> data);
 
-	void saveState(std::ostream& st) const;
-	void saveFrameBuffer(std::ostream& st) const;
+	void writeState(std::ostream& st) const;
+	void writeFrameBuffer(std::ostream& st) const;
 
 	std::vector<uint8_t> getStateData(std::istream& st) const;
 	FileLoadResult loadState(std::istream& st);
 	bool loadFrameBuffer(std::istream& st, uint8_t* framebuffer);
 	bool validateAndLoadRom(const std::filesystem::path& romPath, uint8_t checksum);
 
-	void saveGBState(std::ostream& st) const;
-	void loadGBState(std::istream& st);
+	void writeGBState(std::ostream& st) const;
+	void readGBState(std::istream& st);
 
 	void loadBootROM();
 };
