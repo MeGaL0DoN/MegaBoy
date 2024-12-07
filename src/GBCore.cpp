@@ -33,19 +33,18 @@ void GBCore::reset(bool resetBattery, bool clearBuf, bool updateSystem)
 constexpr uint16_t DMG_BOOTROM_SIZE = sizeof(MMU::baseBootROM);
 constexpr uint16_t CGB_BOOTROM_SIZE = DMG_BOOTROM_SIZE + sizeof(MMU::cgbBootROM);
 
-bool GBCore::isBootROMValid(const std::filesystem::path& path)
+bool GBCore::isBootROMValid(std::istream& st, const std::filesystem::path& path)
 {
-	if (!std::filesystem::exists(path))
-		return false;
+	if (!st) return false;
+	const auto filename = path.filename();
 
-	if (path.filename() == DMG_BOOTROM_NAME)
-		return std::filesystem::file_size(path) == DMG_BOOTROM_SIZE;
-
-	if (path.filename() == CGB_BOOTROM_NAME)
+	if (filename == DMG_BOOTROM_NAME)
+		return FileUtils::remainingBytes(st) == DMG_BOOTROM_SIZE;
+	if (filename == CGB_BOOTROM_NAME)
 	{
-		const auto fileSize = std::filesystem::file_size(path);
 		// There is 0x100 bytes gap between dmg and cgb boot. Some files may or may not include it.
-		return fileSize == CGB_BOOTROM_SIZE || fileSize == CGB_BOOTROM_SIZE + 0x100;
+		const auto bootSize = FileUtils::remainingBytes(st);
+		return bootSize == CGB_BOOTROM_SIZE || bootSize == CGB_BOOTROM_SIZE + 0x100;
 	}
 
 	return false;
@@ -59,11 +58,10 @@ void GBCore::loadBootROM()
 		System::Current() == GBSystem::DMG ? appConfig::dmgBootRomPath : appConfig::cgbBootRomPath
 	};
 
-	if (!isBootROMValid(bootRomPath)) 
-		return;
-
 	std::ifstream st { bootRomPath, std::ios::binary };
-	if (!st) return;
+
+	if (!isBootROMValid(st, bootRomPath))
+		return;
 
 	ST_READ_ARR(mmu.baseBootROM);
 
@@ -114,39 +112,48 @@ bool GBCore::isSaveStateFile(std::istream& st)
 	return fileSignature == SAVE_STATE_SIGNATURE;
 }
 
-FileLoadResult GBCore::loadFile(std::istream& st, std::filesystem::path filePath)
+FileLoadResult GBCore::loadFile(std::istream& st, std::filesystem::path filePath, bool loadBatteryOnRomload)
 {
-	if (!st)
-		return FileLoadResult::FileError;
-
 	autoSave();
-	bool isSaveState { false };
+	const bool isSaveState { isSaveStateFile(st) };
 
-	if (isSaveStateFile(st))
+	if (isSaveState)
 	{
 		const auto result = loadState(st);
 
 		if (result != FileLoadResult::SuccessSaveState)
 			return result;
-
-		isSaveState = true;
 	}
 	else
 	{
-		if (filePath.extension() == ".sav")
+		auto ext = filePath.extension();
+		auto stem = FileUtils::pathNativeStr(filePath.stem());
+
+		// Support for .sav.bak files.
+		if (ext == ".bak" && stem.size() >= 4) 
 		{
-			FileUtils::removeFilenameSubstr(filePath, STR(" - BACKUP"));
+			if (stem.substr(stem.size() - 4) == N_STR(".sav"))
+			{ 
+				stem.resize(stem.size() - 4);
+				ext = ".sav";
+				filePath.replace_filename(stem + N_STR(".sav"));
+			}
+		}
+
+		if (ext == ".sav")
+		{
 			st.seekg(0, std::ios::beg);
 
 			constexpr std::array romExtensions = { ".gb", ".gbc", ".zip" };
 			bool romLoaded = false;
 
-			if (romFilePath.stem() != filePath.stem())
+			if (romFilePath.stem() != stem)
 			{
 				for (auto ext : romExtensions)
 				{
 					const auto romPath = FileUtils::replaceExtension(filePath, ext);
-					std::ifstream ifs{ romPath, std::ios::in | std::ios::binary };
+					std::ifstream ifs { romPath, std::ios::in | std::ios::binary };
+					if (!ifs) continue;
 
 					if (loadROM(ifs, romPath))
 					{
@@ -181,14 +188,8 @@ FileLoadResult GBCore::loadFile(std::istream& st, std::filesystem::path filePath
 			if (!loadROM(st, filePath))
 				return FileLoadResult::InvalidROM;
 
-			if (cartridge.hasBattery && appConfig::batterySaves)
-			{
-				if (std::ifstream ifs{ getBatteryFilePath(), std::ios::in | std::ios::binary })
-				{
-					backupBatteryFile();
-					cartridge.getMapper()->loadBattery(ifs);
-				}
-			}
+			if (loadBatteryOnRomload) 
+				loadCurrentBatterySave();
 
 			loadBootROM();
 		}
@@ -201,9 +202,6 @@ FileLoadResult GBCore::loadFile(std::istream& st, std::filesystem::path filePath
 
 bool GBCore::loadROM(std::istream& st, const std::filesystem::path& filePath)
 {
-	if (!st)
-		return false;
-
 	if (filePath.extension() == ".zip")
 	{
 		const auto romData = extractZippedROM(st);
@@ -241,7 +239,7 @@ std::vector<uint8_t> GBCore::extractZippedROM(std::istream& st)
 	if (!mz_zip_reader_init_mem(&zipArchive, zipData.data(), zipData.size(), 0))
 		return {};
 
-	const int fileCount = mz_zip_reader_get_num_files(&zipArchive);
+	const auto fileCount = mz_zip_reader_get_num_files(&zipArchive);
 
 	for (int i = 0; i < fileCount; i++)
 	{
@@ -300,13 +298,13 @@ void GBCore::backupBatteryFile() const
 		return;
 	
 	const auto batterySavePath{ getBatteryFilePath() };
-	auto batteryBackupPath { batterySavePath };
-	batteryBackupPath.replace_filename(FileUtils::getNativePathStr(batterySavePath.stem()) + STR(" - BACKUP.sav"));
+	auto batteryBackupPath { FileUtils::replaceExtension(batterySavePath, ".sav.bak") };
+	std::error_code err;
 
 #ifdef __MINGW32__
-	std::filesystem::remove(batteryBackupPath); // mingw bug, copy_file crashes if the file already exists, even with overwrite_existing.
+	std::filesystem::remove(batteryBackupPath, err); // mingw bug, copy_file fails if the file already exists, even with overwrite_existing.
 #endif
-	std::filesystem::copy_file(batterySavePath, batteryBackupPath, std::filesystem::copy_options::overwrite_existing);
+	std::filesystem::copy_file(batterySavePath, batteryBackupPath, std::filesystem::copy_options::overwrite_existing, err);
 }
 
 FileLoadResult GBCore::loadState(const std::filesystem::path& path)
@@ -321,11 +319,8 @@ FileLoadResult GBCore::loadState(const std::filesystem::path& path)
 }
 FileLoadResult GBCore::loadState(int num)
 {
-	const auto _filePath = getSaveStateFilePath(num);
-	std::ifstream st{ _filePath, std::ios::in | std::ios::binary };
-
-	if (!st)
-		return FileLoadResult::FileError;
+	std::ifstream st { getSaveStateFilePath(num), std::ios::in | std::ios::binary };
+	if (!st) return FileLoadResult::FileError;
 
 	if (!isSaveStateFile(st))
 		return FileLoadResult::CorruptSaveState;
@@ -342,10 +337,13 @@ void GBCore::saveState(const std::filesystem::path& path) const
 {
 	if (!canSaveStateNow()) return;
 
-	if (!std::filesystem::exists(saveStateFolderPath))
-		std::filesystem::create_directories(saveStateFolderPath);
+	std::error_code err;
+
+	if (!std::filesystem::exists(saveStateFolderPath, err))
+		std::filesystem::create_directories(saveStateFolderPath, err);
 
 	std::ofstream st{ path, std::ios::out | std::ios::binary };
+	if (!st) return;
 	writeState(st);
 }
 void GBCore::saveState(int num)
@@ -364,9 +362,9 @@ uint64_t GBCore::calculateHash(std::span<const uint8_t> data)
 	constexpr uint64_t FNV_PRIME = 0x100000001b3;
 	uint64_t hash = 0xcbf29ce484222325;
 
-	for (size_t i = 0; i < data.size(); i++)
+	for (const auto byte : data)
 	{
-		hash ^= data[i];
+		hash ^= byte;
 		hash *= FNV_PRIME;
 	}
 
@@ -452,7 +450,7 @@ bool GBCore::validateAndLoadRom(const std::filesystem::path& romPath, uint8_t ch
 // N byte ROM file path
 // 1 byte isFramebufCompressed flag
 // if isFramebufCompressed is true: 4 byte compressed framebuffer size
-// 65536 bytes of uncompressed or deflate compressed framebuffer data
+// 69120 bytes of uncompressed or deflate compressed framebuffer data
 // 1 byte isStateCompressed flag
 // if isStateCompressed is true: 4 byte uncompressed state size
 // The rest of the file is uncompressed or deflate compressed GB state data:
@@ -506,7 +504,7 @@ void GBCore::writeState(std::ostream& os) const
 	os.write(streamData, dataSize);
 }
 
-std::vector<uint8_t> GBCore::getStateData(std::istream& st) const
+std::vector<uint8_t> GBCore::getStateData(std::istream& st)
 {
 	uint64_t storedHash{};
 	ST_READ(storedHash);
@@ -643,15 +641,15 @@ bool GBCore::loadSaveStateThumbnail(const std::filesystem::path& path, uint8_t* 
 
 	memstream st { buffer };
 
-	uint16_t filePathLen{ 0 };
-	ST_READ(filePathLen);
-	st.seekg(filePathLen, std::ios::cur);
-
 	uint8_t saveStateChecksum;
 	ST_READ(saveStateChecksum);
 
 	if (cartridge.getChecksum() != saveStateChecksum)
 		return false;
+
+	uint16_t filePathLen { 0 };
+	ST_READ(filePathLen);
+	st.seekg(filePathLen, std::ios::cur);
 
 	return loadFrameBuffer(st, framebuffer);
 }

@@ -59,7 +59,7 @@ namespace FileUtils
             return path.string();
         #endif
     }
-    inline auto getNativePathStr(const std::filesystem::path& path)
+    inline auto pathNativeStr(const std::filesystem::path& path)
 	{
 		#ifdef _WIN32
 			return path.wstring();
@@ -72,23 +72,6 @@ namespace FileUtils
     {
         path.replace_extension(newExt);
         return path;
-    }
-    inline void removeFilenameSubstr(std::filesystem::path& path,
-#ifdef _WIN32
-        std::wstring_view substring
-#else
-        std::string_view substring
-#endif 
-)
-    {
-        auto filename = getNativePathStr(path.filename());
-        const size_t pos = filename.find(substring);
-
-        if (pos != std::string::npos) 
-        {
-            filename.erase(pos, substring.length());
-            path.replace_filename(filename);
-        }
     }
 
     inline uint32_t remainingBytes(std::istream& st)

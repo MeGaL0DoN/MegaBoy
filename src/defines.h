@@ -17,7 +17,7 @@
 #endif
 
 #ifdef _WIN32
-#define STR(s) L##s
+#define N_STR(s) L##s
 #else
-#define STR(s) s
+#define N_STR(s) s
 #endif

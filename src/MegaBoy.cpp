@@ -34,7 +34,7 @@
 #endif
 
 static_assert(std::endian::native == std::endian::little, "This program requires a little-endian architecture.");
-static_assert(sizeof(char) == sizeof(uint8_t) == 1, "This program requires 'char' and 'uint8_t' to be 1 byte in size.");
+static_assert(CHAR_BIT == 8, "This program requires 'char' to be 8 bits in size.");
 
 GLFWwindow* window;
 
@@ -62,12 +62,12 @@ bool glScreenshotRequested { false };
 bool fileDialogOpen { false };
 
 #ifndef EMSCRIPTEN
-constexpr nfdnfilteritem_t openFilterItem[] = { {STR("Game ROM/Save"), STR("gb,gbc,zip,sav,mbs")} };
-constexpr nfdnfilteritem_t saveStateFilterItem[] = { {STR("Save State"), STR("mbs")} };
-constexpr nfdnfilteritem_t batterySaveFilterItem[] = { {STR("Battery Save"), STR("sav")} };
-constexpr nfdnfilteritem_t audioSaveFilterItem[] = { {STR("WAV File"), STR("wav")} };
+constexpr nfdnfilteritem_t openFilterItem[] = { { N_STR("Game ROM/Save"), N_STR("gb,gbc,zip,sav,mbs,bin") } };
+constexpr nfdnfilteritem_t saveStateFilterItem[] = { { N_STR("Save State"), N_STR("mbs") } };
+constexpr nfdnfilteritem_t batterySaveFilterItem[] = { { N_STR("Battery Save"), N_STR("sav") } };
+constexpr nfdnfilteritem_t audioSaveFilterItem[] = { { N_STR("WAV File"), N_STR("wav") } };
 #else
-constexpr const char* openFilterItem = ".gb,.gbc,.zip,.sav,.mbs";
+constexpr const char* openFilterItem = ".gb,.gbc,.zip,.sav,.mbs,.bin";
 #endif
 
 const char* popupTitle = "";
@@ -103,17 +103,35 @@ inline void setEmulationPaused(bool val)
     updateWindowTitle();
 }
 
-inline bool emulationRunning() { return !gbCore.emulationPaused && gbCore.cartridge.ROMLoaded() && !gbCore.breakpointHit; }
-
-void handleBootROMLoad(GBSystem sys, const std::filesystem::path& filePath)
-{
-    if (GBCore::isBootROMValid(filePath))
-    {
 #ifdef EMSCRIPTEN
-        const auto destPath = sys == GBSystem::DMG ? appConfig::dmgBootRomPath : appConfig::cgbBootRomPath;
-        std::filesystem::copy_file(filePath, destPath, std::filesystem::copy_options::overwrite_existing);
+bool emscripten_saves_syncing { false };
+extern "C" EMSCRIPTEN_KEEPALIVE void emscripten_on_save_finish_sync()
+{
+    gbCore.loadCurrentBatterySave();
+    emscripten_saves_syncing = false;
+}
+#endif
+
+inline bool emulationRunning()
+{
+    const bool isRunning = !gbCore.emulationPaused && gbCore.cartridge.ROMLoaded() && !gbCore.breakpointHit;
+
+#ifdef EMSCRIPTEN
+    return isRunning && !emscripten_saves_syncing;
 #else
+    return isRunning;
+#endif
+}
+
+void handleBootROMLoad(GBSystem sys, std::istream& st, const std::filesystem::path& filePath)
+{
+    if (GBCore::isBootROMValid(st, filePath))
+    {
         auto& destPath = sys == GBSystem::DMG ? appConfig::dmgBootRomPath : appConfig::cgbBootRomPath;
+#ifdef EMSCRIPTEN
+        std::ofstream destFile { destPath, std::ios::binary | std::ios::out };
+        destFile << st.rdbuf();
+#else
         destPath = filePath;
         appConfig::updateConfigFile();
 #endif
@@ -121,10 +139,6 @@ void handleBootROMLoad(GBSystem sys, const std::filesystem::path& filePath)
     }
     else
         popupTitle = "Invalid Boot ROM!";
-
-#ifdef EMSCRIPTEN
-    std::filesystem::remove(filePath);
-#endif
 
     showPopUp = true;
 }
@@ -139,7 +153,7 @@ bool loadFile(std::istream& st, const std::filesystem::path& filePath)
 
     if (auto it = bootRomMap.find(filePath.filename()); it != bootRomMap.end()) 
     {
-        handleBootROMLoad(it->second, filePath);
+        handleBootROMLoad(it->second, st, filePath);
         return true;
     }
 
@@ -164,7 +178,15 @@ bool loadFile(std::istream& st, const std::filesystem::path& filePath)
         return true;
     };
 
-    switch (gbCore.loadFile(st, filePath))
+    // On Emscripten first need to wait for indexed db to sync, then load the battery manually.
+    constexpr bool AUTO_LOAD_BATTERY =
+#ifdef EMSCRIPTEN
+        false; 
+#else
+        true;
+#endif
+
+    switch (gbCore.loadFile(st, filePath, AUTO_LOAD_BATTERY))
     {
     case FileLoadResult::InvalidROM:      
         return handleFileError("Error Loading the ROM!");
@@ -176,7 +198,26 @@ bool loadFile(std::istream& st, const std::filesystem::path& filePath)
         return handleFileError("ROM Not Found! Load the ROM First.");
     case FileLoadResult::FileError:        
         return handleFileError("Error Reading the File!");
-    case FileLoadResult::SuccessROM:
+    case FileLoadResult::SuccessROM: 
+    {
+#ifdef EMSCRIPTEN
+        const auto savePath = gbCore.getSaveStateFolderPath();
+        gbCore.setBatterySaveFolder(savePath);
+        emscripten_saves_syncing = true;
+
+        EM_ASM_ARGS ({
+            var saveDir = UTF8ToString($0);
+            FS.mkdir(saveDir);
+            FS.mount(IDBFS, { autoPersist: true }, saveDir);
+
+            FS.syncfs(true, function(err) {
+                if (err != null) { console.log(err); }
+                Module.ccall('emscripten_on_save_finish_sync', null, [], []);
+            });
+        }, savePath.string().c_str());
+#endif
+        return handleFileSuccess();
+    }
     case FileLoadResult::SuccessSaveState:
         return handleFileSuccess();
     }
@@ -188,7 +229,8 @@ bool loadFile(const std::filesystem::path& filePath)
     std::ifstream st { filePath, std::ios::in | std::ios::binary };
     const auto result = loadFile(st, filePath);
 #ifdef EMSCRIPTEN
-    std::filesystem::remove(filePath); // Remove the file from memfs.
+    std::error_code err;
+    std::filesystem::remove(filePath, err); // Remove the file from memfs.
 #endif
     return result;
 }
@@ -670,10 +712,133 @@ void renderKeyConfigGUI()
 }
 
 bool saveStatesWindowOpen { false };
+bool updateSaveStatesGUI { true };
 
 void renderSaveStatesGUI()
 {
-    // TODO
+    constexpr int NUM_SAVE_STATES = 10;
+    constexpr int THUMBNAILS_PER_ROW = 3;
+
+    static std::array<uint32_t, NUM_SAVE_STATES> saveStateTextures{};
+    static std::vector<uint8_t> tempGbFramebuf(PPU::FRAMEBUFFER_SIZE);
+
+    static int selectedSaveState = -1; 
+
+    ImGui::Begin("Save States", &saveStatesWindowOpen, ImGuiWindowFlags_AlwaysAutoResize);
+
+    int renderedCount = 0; 
+
+    for (int i = 1; i < NUM_SAVE_STATES; i++)
+    {
+        const auto saveStatePath = gbCore.getSaveStateFolderPath() / ("save" + std::to_string(i) + ".mbs");
+
+        std::error_code err;
+        if (!std::filesystem::exists(saveStatePath, err))
+            continue;
+
+        if (updateSaveStatesGUI)
+        {
+            if (!gbCore.loadSaveStateThumbnail(saveStatePath, tempGbFramebuf.data()))
+                continue;
+
+            if (saveStateTextures[i])
+                OpenGL::updateTexture(saveStateTextures[i], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, tempGbFramebuf.data());
+            else
+                OpenGL::createTexture(saveStateTextures[i], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, tempGbFramebuf.data());
+        }
+
+        if (renderedCount % THUMBNAILS_PER_ROW != 0)
+            ImGui::SameLine();
+
+        ImGui::BeginGroup();
+
+        const float textWidth = ImGui::CalcTextSize(("Save " + std::to_string(i)).c_str()).x;
+        const float cursorX = ImGui::GetCursorPosX() + (PPU::SCR_WIDTH - textWidth) / 2.0f;
+        ImGui::SetCursorPosX(cursorX);
+        ImGui::Text("Save %d", i);
+
+        ImGui::Image(reinterpret_cast<void*>(saveStateTextures[i]), ImVec2(PPU::SCR_WIDTH, PPU::SCR_HEIGHT));
+
+        ImGui::Spacing();
+
+        const float buttonWidth = PPU::SCR_WIDTH * 0.5f;
+        const float buttonX = ImGui::GetCursorPosX() + (PPU::SCR_WIDTH - buttonWidth) / 2.0f;
+        ImGui::SetCursorPosX(buttonX);
+
+        if (ImGui::Button(("Options##" + std::to_string(i)).c_str(), ImVec2(buttonWidth, 0)))
+            selectedSaveState = i;
+
+        ImGui::EndGroup();
+        renderedCount++; 
+    }
+
+    ImGui::End();
+
+    if (selectedSaveState != -1)
+    {
+        const auto saveStatePath = gbCore.getSaveStateFolderPath() / ("save" + std::to_string(selectedSaveState) + ".mbs");
+        ImGui::Begin("Save Options", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+
+        const std::string title = "Options for Save " + std::to_string(selectedSaveState);
+        ImGui::SeparatorText(title.c_str());
+        ImGui::Spacing();
+
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.4f, 0.8f, 1.0f));       
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.5f, 0.9f, 1.0f)); 
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.15f, 0.35f, 0.75f, 1.0f)); 
+
+        if (ImGui::Button("Load", ImVec2(100, 0))) 
+        {
+            loadState(selectedSaveState);
+            selectedSaveState = -1; 
+        }
+
+        ImGui::SameLine();
+
+        if (ImGui::Button("Save To", ImVec2(100, 0))) 
+        {
+            saveState(selectedSaveState);
+            selectedSaveState = -1;
+        }
+
+        ImGui::PopStyleColor(3);
+        ImGui::Spacing();
+
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.8f, 0.2f, 1.0f));     
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.9f, 0.3f, 1.0f)); 
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.15f, 0.7f, 0.15f, 1.0f)); 
+
+        if (ImGui::Button("Export", ImVec2(100, 0)))
+        {
+            // export
+            selectedSaveState = -1; 
+        }
+
+        ImGui::SameLine();
+
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));       
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f)); 
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.7f, 0.15f, 0.15f, 1.0f)); 
+
+        if (ImGui::Button("Delete", ImVec2(100, 0)))
+        {
+            std::filesystem::remove(saveStatePath);
+            selectedSaveState = -1; 
+        }
+        ImGui::PopStyleColor(6);
+
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing(); 
+
+        if (ImGui::Button("Cancel", ImVec2(100, 0)))
+            selectedSaveState = -1;
+
+        ImGui::End();  
+    }
+
+    if (updateSaveStatesGUI)
+        updateSaveStatesGUI = false;
 }
 
 void renderImGUI()
@@ -1312,13 +1477,6 @@ void content_scale_callback(GLFWwindow* _window, float xScale, float yScale)
 {
     devicePixelRatio = EM_ASM_DOUBLE({ return window.devicePixelRatio; });
 }
-
-const char* unloadCallback(int eventType, const void *reserved, void *userData)
-{
-    gbCore.autoSave();
-    return gbCore.getSaveNum() != 0 ? "Are you sure? Don't forget to export saves." : "";
-}
-
 EM_BOOL visibilityChangeCallback(int eventType, const EmscriptenVisibilityChangeEvent *visibilityChangeEvent, void *userData)
 {
     handleVisibilityChange(visibilityChangeEvent->hidden);
@@ -1418,7 +1576,6 @@ bool setGLFW()
 
     glfwSetWindowContentScaleCallback(window, content_scale_callback);
     emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, NULL, EM_TRUE, emscripten_resize_callback);
-    emscripten_set_beforeunload_callback(nullptr, unloadCallback);
     emscripten_set_visibilitychange_callback(nullptr, false, visibilityChangeCallback);
 #else
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
@@ -1628,7 +1785,7 @@ void runApp(int argc, char* argv[])
             if (loadFile(appConfig::romPath))
             {
                 if (saveNum >= 1 && saveNum <= 9)
-                    gbCore.loadState(saveNum);
+                    loadState(saveNum);
             }
         }
     }
@@ -1642,27 +1799,18 @@ void runApp(int argc, char* argv[])
 int main(int argc, char* argv[])
 {
 #ifdef EMSCRIPTEN
-    gbCore.setBatterySaveFolder("batterySaves");
-
     EM_ASM ({
+        FS.mkdir("/saves");
         FS.mkdir('/data');
         FS.mount(IDBFS, { autoPersist: true }, '/data');
 
         FS.syncfs(true, function(err) {
             if (err != null) { console.log(err); }
-
-            FS.mkdir('/batterySaves');
-            FS.mkdir('/bootroms');
-            FS.mount(IDBFS, { autoPersist: true }, '/batterySaves');
-            FS.mount(IDBFS, { autoPersist: true }, '/bootroms');
-            FS.syncfs(true, function(err) { if (err != null) { console.log(err); } });
-
             Module.ccall('runApp', null, [], []);
         });
     });
 #else
     runApp(argc, argv);
-
     gbCore.autoSave();
 
     NFD_Quit();

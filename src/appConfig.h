@@ -24,8 +24,8 @@ namespace appConfig
 	inline int saveStateNum{ 0 };
 
 #ifdef EMSCRIPTEN
-	constexpr const char* dmgBootRomPath { "bootroms/dmg_boot.bin" };
-	constexpr const char* cgbBootRomPath { "bootroms/cgb_boot.bin" };
+	constexpr const char* dmgBootRomPath { "data/dmg_boot.bin" };
+	constexpr const char* cgbBootRomPath { "data/cgb_boot.bin" };
 #else
 	inline std::filesystem::path dmgBootRomPath{};
 	inline std::filesystem::path cgbBootRomPath{};
