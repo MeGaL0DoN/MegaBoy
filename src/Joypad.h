@@ -6,17 +6,17 @@
 
 class CPU;
 
-class gbInputManager
+class Joypad
 {
 public:
-	explicit gbInputManager(CPU& cpu) : cpu(cpu)
+	explicit Joypad(CPU& cpu) : cpu(cpu)
 	{}
 	           
 	void update(int scancode, int action);
 	void reset();
 
-	uint8_t readJoypadReg() const;
-	void setJoypadReg(uint8_t val);
+	uint8_t readInputReg() const;
+	void writeInputReg(uint8_t val);
 
 	inline void saveState(std::ostream& st) const { ST_WRITE(readButtons), ST_WRITE(readDpad); }
 	inline void loadState(std::istream& st) { ST_READ(readButtons), ST_READ(readDpad); }

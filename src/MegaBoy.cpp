@@ -36,7 +36,7 @@
 static_assert(std::endian::native == std::endian::little, "This program requires a little-endian architecture.");
 static_assert(CHAR_BIT == 8, "This program requires 'char' to be 8 bits in size.");
 
-GLFWwindow* window;
+GLFWwindow* window{};
 
 int menuBarHeight{};
 int window_width{}, window_height{};
@@ -51,10 +51,10 @@ int newIntegerScale { -1 };
 double devicePixelRatio{};
 #endif
 
-Shader regularShader;
-Shader scalingShader;
-Shader lcdShader;
-std::array<uint32_t, 2> gbFramebufferTextures {};
+Shader regularShader{};
+Shader scalingShader{};
+Shader lcdShader{};
+std::array<uint32_t, 2> gbFramebufferTextures{};
 
 Shader* currentShader{ };
 
@@ -62,22 +62,22 @@ bool glScreenshotRequested { false };
 bool fileDialogOpen { false };
 
 #ifndef EMSCRIPTEN
-constexpr nfdnfilteritem_t openFilterItem[] = { { N_STR("Game ROM/Save"), N_STR("gb,gbc,zip,sav,mbs,bin") } };
-constexpr nfdnfilteritem_t saveStateFilterItem[] = { { N_STR("Save State"), N_STR("mbs") } };
-constexpr nfdnfilteritem_t batterySaveFilterItem[] = { { N_STR("Battery Save"), N_STR("sav") } };
-constexpr nfdnfilteritem_t audioSaveFilterItem[] = { { N_STR("WAV File"), N_STR("wav") } };
+constexpr nfdnfilteritem_t openFilterItem[] { { N_STR("Game ROM/Save"), N_STR("gb,gbc,zip,sav,mbs,bin") } };
+constexpr nfdnfilteritem_t saveStateFilterItem[] { { N_STR("Save State"), N_STR("mbs") } };
+constexpr nfdnfilteritem_t batterySaveFilterItem[] { { N_STR("Battery Save"), N_STR("sav") } };
+constexpr nfdnfilteritem_t audioSaveFilterItem[] { { N_STR("WAV File"), N_STR("wav") } };
 #else
-constexpr const char* openFilterItem = ".gb,.gbc,.zip,.sav,.mbs,.bin";
+constexpr const char* openFilterItem { ".gb,.gbc,.zip,.sav,.mbs,.bin" };
 #endif
 
-const char* popupTitle = "";
-bool showPopUp { false };
+const char* popupTitle { "" };
+bool showInfoPopUp { false };
 
 std::string FPS_text{ "FPS: 00.00 - 0.00 ms" };
 
 extern GBCore gbCore;
 
-constexpr float FADE_DURATION = 0.9f;
+constexpr float FADE_DURATION { 0.9f };
 bool fadeEffectActive { false };
 float fadeTime { 0.0f };
 
@@ -87,6 +87,10 @@ constexpr int FAST_FORWARD_SPEED = 5;
 bool lockVSyncSetting { false };
 
 int awaitingKeyBind { -1 };
+
+constexpr int NUM_SAVE_STATES { 10 };
+std::array<bool, NUM_SAVE_STATES> modifiedSaveStates{};
+bool showSaveStatePopUp{ false };
 
 inline void updateWindowTitle()
 {
@@ -123,6 +127,13 @@ inline bool emulationRunning()
 #endif
 }
 
+inline void activateInfoPopUp(const char* title)
+{
+    popupTitle = title;
+	showInfoPopUp = true;
+    showSaveStatePopUp = false;
+}
+
 void handleBootROMLoad(GBSystem sys, std::istream& st, const std::filesystem::path& filePath)
 {
     if (GBCore::isBootROMValid(st, filePath))
@@ -135,12 +146,10 @@ void handleBootROMLoad(GBSystem sys, std::istream& st, const std::filesystem::pa
         destPath = filePath;
         appConfig::updateConfigFile();
 #endif
-        popupTitle = "Successfully Loaded Boot ROM!";
+        activateInfoPopUp("Successfully Loaded Boot ROM!");
     }
     else
-        popupTitle = "Invalid Boot ROM!";
-
-    showPopUp = true;
+        activateInfoPopUp("Invalid Boot ROM!");
 }
 
 bool loadFile(std::istream& st, const std::filesystem::path& filePath)
@@ -159,8 +168,7 @@ bool loadFile(std::istream& st, const std::filesystem::path& filePath)
 
     const auto handleFileError = [&](const char* errorMessage) -> bool
     {
-        popupTitle = errorMessage;
-        showPopUp = true;
+        activateInfoPopUp(errorMessage);
 
         if (!gbCore.cartridge.ROMLoaded())
         {
@@ -172,7 +180,7 @@ bool loadFile(std::istream& st, const std::filesystem::path& filePath)
     };
     const auto handleFileSuccess = [&]() -> bool
     {
-        showPopUp = false;
+        showInfoPopUp = false;
         debugUI::signalROMLoaded();
         updateWindowTitle();
         return true;
@@ -216,6 +224,8 @@ bool loadFile(std::istream& st, const std::filesystem::path& filePath)
             });
         }, savePath.string().c_str());
 #endif
+        std::fill(modifiedSaveStates.begin(), modifiedSaveStates.begin() + NUM_SAVE_STATES, true);
+        showSaveStatePopUp = false;
         return handleFileSuccess();
     }
     case FileLoadResult::SuccessSaveState:
@@ -246,15 +256,9 @@ inline void loadState(int num)
         return;
 
     if (result == FileLoadResult::FileError)
-    {
-        popupTitle = "Save State Doesn't Exist!";
-        showPopUp = true;
-    }
+        activateInfoPopUp("Save State Doesn't Exist!");
     else
-	{
-		popupTitle = "Save State is Corrupt!";
-		showPopUp = true;
-	}
+        activateInfoPopUp("Save State is Corrupt!");
 }
 inline void saveState(int num) 
 {
@@ -263,8 +267,8 @@ inline void saveState(int num)
     else
     {
         gbCore.saveState(num);
-        showPopUp = true;
-        popupTitle = "Save State Saved!";
+        modifiedSaveStates[num] = true;
+        activateInfoPopUp("Save State Saved!");
     }
 }
 
@@ -549,21 +553,20 @@ std::optional<std::filesystem::path> openFileDialog(const nfdnfilteritem_t* filt
     return result == NFD_OKAY ? std::make_optional(outPath.get()) : std::nullopt;
 }
 #else
-void downloadFile(const char* fileName)
+void downloadFile(const char* filePath, const char* downloadName)
 {
-    std::ifstream inputFile(fileName, std::ios::binary | std::ios::ate);
+    std::ifstream inputFile(filePath, std::ios::binary | std::ios::ate);
     std::streampos fileSize = inputFile.tellg();
     inputFile.seekg(0, std::ios::beg);
 
     std::vector<char> buffer(fileSize);
     inputFile.read(buffer.data(), static_cast<std::streamsize>(fileSize));
 
-    emscripten_browser_file::download(fileName, "application/octet-stream", buffer.data(), fileSize);
-    std::filesystem::remove(fileName);
+    emscripten_browser_file::download(downloadName, "application/octet-stream", buffer.data(), fileSize);
 }
-void downloadFile(std::span<const char> buffer, const char* fileName)
+void downloadFile(std::span<const char> buffer, const char* downloadName)
 {
-    emscripten_browser_file::download(fileName, "application/octet-stream", buffer.data(), buffer.size());
+    emscripten_browser_file::download(downloadName, "application/octet-stream", buffer.data(), buffer.size());
 }
 
 void handle_upload_file(std::string const &filename, std::string const &mime_type, std::string_view buffer, void*)
@@ -712,39 +715,37 @@ void renderKeyConfigGUI()
 }
 
 bool saveStatesWindowOpen { false };
-bool updateSaveStatesGUI { true };
 
 void renderSaveStatesGUI()
 {
-    constexpr int NUM_SAVE_STATES = 10;
     constexpr int THUMBNAILS_PER_ROW = 3;
-
     static std::array<uint32_t, NUM_SAVE_STATES> saveStateTextures{};
-    static std::vector<uint8_t> tempGbFramebuf(PPU::FRAMEBUFFER_SIZE);
-
-    static int selectedSaveState = -1; 
+    static int selectedSaveState = -1;
 
     ImGui::Begin("Save States", &saveStatesWindowOpen, ImGuiWindowFlags_AlwaysAutoResize);
-
-    int renderedCount = 0; 
+    int renderedCount = 0;
 
     for (int i = 1; i < NUM_SAVE_STATES; i++)
     {
-        const auto saveStatePath = gbCore.getSaveStateFolderPath() / ("save" + std::to_string(i) + ".mbs");
+        const auto saveStatePath { gbCore.getSaveStatePath(i) };
 
         std::error_code err;
-        if (!std::filesystem::exists(saveStatePath, err))
+        if (!std::filesystem::is_regular_file(saveStatePath, err) || err)
             continue;
 
-        if (updateSaveStatesGUI)
+        if (modifiedSaveStates[i])
         {
-            if (!gbCore.loadSaveStateThumbnail(saveStatePath, tempGbFramebuf.data()))
-                continue;
+            static std::vector<uint8_t> framebuf(PPU::FRAMEBUFFER_SIZE);
+
+            if (!gbCore.loadSaveStateThumbnail(saveStatePath, framebuf))
+                std::memset(framebuf.data(), 0, PPU::FRAMEBUFFER_SIZE);
 
             if (saveStateTextures[i])
-                OpenGL::updateTexture(saveStateTextures[i], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, tempGbFramebuf.data());
+                OpenGL::updateTexture(saveStateTextures[i], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuf.data());
             else
-                OpenGL::createTexture(saveStateTextures[i], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, tempGbFramebuf.data());
+                OpenGL::createTexture(saveStateTextures[i], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuf.data());
+
+            modifiedSaveStates[i] = false;
         }
 
         if (renderedCount % THUMBNAILS_PER_ROW != 0)
@@ -757,88 +758,142 @@ void renderSaveStatesGUI()
         ImGui::SetCursorPosX(cursorX);
         ImGui::Text("Save %d", i);
 
-        ImGui::Image(reinterpret_cast<void*>(saveStateTextures[i]), ImVec2(PPU::SCR_WIDTH, PPU::SCR_HEIGHT));
+        const auto imageSize { ImVec2(static_cast<int>(PPU::SCR_WIDTH * scaleFactor), static_cast<int>(PPU::SCR_HEIGHT * scaleFactor)) };
+
+        if (gbCore.getSaveNum() == i)
+        {
+            constexpr auto lightGolden{ ImVec4(1.0f, 0.92f, 0.5f, 1.0f) };
+            constexpr auto golden{ ImVec4(1.0f, 0.84f, 0.0f, 1.0f) };
+
+            ImGui::PushStyleColor(ImGuiCol_Button, lightGolden);
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, golden);
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, golden);
+        }
+
+        if (ImGui::ImageButton(reinterpret_cast<void*>(static_cast<uint64_t>(saveStateTextures[i])), imageSize))
+        {
+            selectedSaveState = i;
+			showSaveStatePopUp = true;
+        }
+
+        if (gbCore.getSaveNum() == i)
+            ImGui::PopStyleColor(3);
 
         ImGui::Spacing();
-
-        const float buttonWidth = PPU::SCR_WIDTH * 0.5f;
-        const float buttonX = ImGui::GetCursorPosX() + (PPU::SCR_WIDTH - buttonWidth) / 2.0f;
-        ImGui::SetCursorPosX(buttonX);
-
-        if (ImGui::Button(("Options##" + std::to_string(i)).c_str(), ImVec2(buttonWidth, 0)))
-            selectedSaveState = i;
-
         ImGui::EndGroup();
-        renderedCount++; 
+
+        renderedCount++;
     }
+
+    if (renderedCount == 0)
+        ImGui::SeparatorText("No Save States Found!");
 
     ImGui::End();
 
-    if (selectedSaveState != -1)
+    if (showSaveStatePopUp && !ImGui::IsPopupOpen("Save Options"))
+        ImGui::OpenPopup("Save Options");
+
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+
+    if (ImGui::BeginPopupModal("Save Options", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove))
     {
-        const auto saveStatePath = gbCore.getSaveStateFolderPath() / ("save" + std::to_string(selectedSaveState) + ".mbs");
-        ImGui::Begin("Save Options", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
-
-        const std::string title = "Options for Save " + std::to_string(selectedSaveState);
-        ImGui::SeparatorText(title.c_str());
-        ImGui::Spacing();
-
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.4f, 0.8f, 1.0f));       
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.5f, 0.9f, 1.0f)); 
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.15f, 0.35f, 0.75f, 1.0f)); 
-
-        if (ImGui::Button("Load", ImVec2(100, 0))) 
+        if (!showSaveStatePopUp)
+            ImGui::CloseCurrentPopup();
+        else
         {
-            loadState(selectedSaveState);
-            selectedSaveState = -1; 
+            const auto saveStatePath { gbCore.getSaveStatePath(selectedSaveState) };
+            const auto title { "Options for Save " + std::to_string(selectedSaveState) };
+
+            ImGui::SeparatorText(title.c_str());
+            ImGui::Spacing();
+
+            constexpr ImVec4 buttonColor (0.2f, 0.6f, 1.0f, 0.8f);
+            constexpr ImVec4 hoverColor (0.3f, 0.7f, 1.0f, 0.9f);
+            constexpr ImVec4 activeColor (0.2f, 0.5f, 0.9f, 1.0f);
+            constexpr ImVec4 successColor (0.4f, 0.8f, 0.4f, 0.8f);
+            constexpr ImVec4 successHoverColor (0.5f, 0.9f, 0.5f, 0.9f);
+            constexpr ImVec4 successActiveColor (0.3f, 0.7f, 0.3f, 1.0f);
+            constexpr ImVec4 dangerColor (1.0f, 0.4f, 0.4f, 0.8f);
+            constexpr ImVec4 dangerHoverColor (1.0f, 0.5f, 0.5f, 0.9f);
+            constexpr ImVec4 dangerActiveColor (0.9f, 0.3f, 0.3f, 1.0f);
+
+            ImGui::PushStyleColor(ImGuiCol_Button, buttonColor);
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, hoverColor);
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, activeColor);
+
+            const auto buttonSize { ImVec2(100 * scaleFactor, 0) };
+
+            if (ImGui::Button("Load", buttonSize))
+            {
+                loadState(selectedSaveState);
+                showSaveStatePopUp = false;
+            }
+
+            ImGui::SameLine();
+
+            if (ImGui::Button("Save To", buttonSize))
+            {
+                saveState(selectedSaveState);
+                showSaveStatePopUp = false;
+            }
+
+            ImGui::PopStyleColor(3);
+            ImGui::Spacing();
+
+            ImGui::PushStyleColor(ImGuiCol_Button, successColor);
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, successHoverColor);
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, successActiveColor);
+
+            if (ImGui::Button("Export", buttonSize))
+            {
+                const auto filename { gbCore.gameTitle + " - Save " + std::to_string(selectedSaveState) + ".mbs" };
+#ifdef EMSCRIPTEN
+                downloadFile(saveStatePath.c_str(), filename.c_str());
+#else
+                const auto result { saveFileDialog(filename, saveStateFilterItem) };
+
+                if (result.has_value())
+                {
+                    std::error_code err;
+					std::filesystem::copy(saveStatePath, *result, err);			
+                }
+#endif
+                showSaveStatePopUp = false;
+            }
+
+            ImGui::SameLine();
+            ImGui::PopStyleColor(3);
+
+            ImGui::PushStyleColor(ImGuiCol_Button, dangerColor);
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, dangerHoverColor);
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, dangerActiveColor);
+
+            if (ImGui::Button("Delete", buttonSize))
+            {
+                if (gbCore.getSaveNum() == selectedSaveState)
+                    gbCore.unbindSaveState();
+
+                std::error_code err;
+                std::filesystem::remove(saveStatePath, err);
+                showSaveStatePopUp = false;
+            }
+
+            ImGui::PopStyleColor(3);
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            if (ImGui::Button("Cancel", buttonSize))
+                showSaveStatePopUp = false;
+
+            if (!showSaveStatePopUp)
+				ImGui::CloseCurrentPopup();
         }
 
-        ImGui::SameLine();
-
-        if (ImGui::Button("Save To", ImVec2(100, 0))) 
-        {
-            saveState(selectedSaveState);
-            selectedSaveState = -1;
-        }
-
-        ImGui::PopStyleColor(3);
-        ImGui::Spacing();
-
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.8f, 0.2f, 1.0f));     
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.9f, 0.3f, 1.0f)); 
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.15f, 0.7f, 0.15f, 1.0f)); 
-
-        if (ImGui::Button("Export", ImVec2(100, 0)))
-        {
-            // export
-            selectedSaveState = -1; 
-        }
-
-        ImGui::SameLine();
-
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));       
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f)); 
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.7f, 0.15f, 0.15f, 1.0f)); 
-
-        if (ImGui::Button("Delete", ImVec2(100, 0)))
-        {
-            std::filesystem::remove(saveStatePath);
-            selectedSaveState = -1; 
-        }
-        ImGui::PopStyleColor(6);
-
-        ImGui::Spacing();
-        ImGui::Separator();
-        ImGui::Spacing(); 
-
-        if (ImGui::Button("Cancel", ImVec2(100, 0)))
-            selectedSaveState = -1;
-
-        ImGui::End();  
+        ImGui::EndPopup();
     }
-
-    if (updateSaveStatesGUI)
-        updateSaveStatesGUI = false;
 }
 
 void renderImGUI()
@@ -856,10 +911,10 @@ void renderImGUI()
 #ifdef EMSCRIPTEN
                 openFileDialog(openFilterItem);
 #else
-                auto result = openFileDialog(openFilterItem);
+                const auto result { openFileDialog(openFilterItem) };
 
                 if (result.has_value())
-                    loadFile(result.value());
+                    loadFile(*result);
 #endif
             }
             if (gbCore.cartridge.ROMLoaded())
@@ -871,16 +926,16 @@ void renderImGUI()
                 {
                     if (ImGui::MenuItem("Export State"))
                     {
-                        const std::string filename = gbCore.gameTitle + " - Save State.mbs";
+                        const std::string filename { gbCore.gameTitle + " - Save State.mbs" };
 #ifdef EMSCRIPTEN
                         std::ostringstream st;
                         gbCore.saveState(st);
                         downloadFile(st.view(), filename.c_str());
 #else
-                        auto result = saveFileDialog(filename, saveStateFilterItem);
+                        const auto result { saveFileDialog(filename, saveStateFilterItem) };
 
                         if (result.has_value())
-                            gbCore.saveState(result.value());
+                            gbCore.saveState(*result);
 #endif
                     }
                 }
@@ -888,16 +943,16 @@ void renderImGUI()
                 {
                     if (ImGui::MenuItem("Export Battery"))
                     {
-                        const std::string filename = gbCore.gameTitle + " - Battery Save.sav";
+                        const std::string filename { gbCore.gameTitle + " - Battery Save.sav" };
 #ifdef EMSCRIPTEN
                         std::ostringstream st;
                         gbCore.saveBattery(st);
                         downloadFile(st.view(), filename.c_str());
 #else
-                        auto result = saveFileDialog(filename, batterySaveFilterItem);
+                        const auto result { saveFileDialog(filename, batterySaveFilterItem) };
 
                         if (result.has_value())
-                            gbCore.saveBattery(result.value());
+                            gbCore.saveBattery(*result);
 #endif
                     }
                 }
@@ -921,7 +976,7 @@ void renderImGUI()
             }
 
             bool bootRomsLoaded = gbCore.cartridge.ROMLoaded() ? 
-                                 (System::Current() == GBSystem::DMG ? dmgBootLoaded : cgbBootLoaded) : (dmgBootLoaded || cgbBootLoaded);
+                                  (System::Current() == GBSystem::DMG ? dmgBootLoaded : cgbBootLoaded) : (dmgBootLoaded || cgbBootLoaded);
 
             if (!bootRomsLoaded)
             {
@@ -1150,26 +1205,26 @@ void renderImGUI()
 
             ImGui::SeparatorText("Misc.");
 
-            if (ImGui::Button(gbCore.apu.recording ? "Stop Recording" : "Start Recording"))
+            if (ImGui::Button(gbCore.apu.recording ? "Stop Recording" : "Start Recording")) // TODO
             {
-                if (gbCore.apu.recording)
-                {
-                    gbCore.apu.stopRecording();
-#ifdef EMSCRIPTEN
-                    downloadFile("Recording.wav");
-#endif
-                }
-                else
-                {
-#ifdef EMSCRIPTEN
-                    gbCore.apu.startRecording("Recording.wav"); // TODO: verify if works properly.
-#else
-                    auto result = saveFileDialog("Recording", audioSaveFilterItem);
-
-                    if (result.has_value())
-                        gbCore.apu.startRecording(result.value());
-#endif
-                }
+//                if (gbCore.apu.recording)
+//                {
+//                    gbCore.apu.stopRecording();
+//#ifdef EMSCRIPTEN
+//                    downloadFile("Recording.wav");
+//#endif
+//                }
+//                else
+//                {
+//#ifdef EMSCRIPTEN
+//                    gbCore.apu.startRecording("Recording.wav"); // TODO: verify if works properly.
+//#else
+//                    const auto result { saveFileDialog("Recording", audioSaveFilterItem) };
+//
+//                    if (result.has_value())
+//                        gbCore.apu.startRecording(result.value());
+//#endif
+//                }
             }
             ImGui::EndMenu();
         }
@@ -1237,7 +1292,7 @@ void renderImGUI()
         ImGui::EndMainMenuBar();
     }
 
-    if (showPopUp && !ImGui::IsPopupOpen(popupTitle))
+    if (showInfoPopUp && !ImGui::IsPopupOpen(popupTitle))
     {
         ImGui::OpenPopup(popupTitle);
         ImGui::SetNextWindowSize(ImVec2(ImGui::CalcTextSize(popupTitle).x + (ImGui::GetStyle().WindowPadding.x * 2), -1.0f), ImGuiCond_Appearing);
@@ -1245,7 +1300,7 @@ void renderImGUI()
 
     if (ImGui::BeginPopupModal(popupTitle, nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize))
     {
-        if (!showPopUp)
+        if (!showInfoPopUp)
             ImGui::CloseCurrentPopup();
         else
         {
@@ -1262,7 +1317,7 @@ void renderImGUI()
             if (ImGui::Button("OK", ImVec2(buttonWidth, 0)))
             {
                 ImGui::CloseCurrentPopup();
-                showPopUp = false;
+                showInfoPopUp = false;
             }
         }
 
@@ -1431,7 +1486,7 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
         return;
     }
 
-    gbCore.input.update(key, action);
+    gbCore.joypad.update(key, action);
 }
 
 void drop_callback(GLFWwindow* _window, int count, const char** paths)
@@ -1476,6 +1531,12 @@ EM_BOOL emscripten_resize_callback(int eventType, const EmscriptenUiEvent *uiEve
 void content_scale_callback(GLFWwindow* _window, float xScale, float yScale)
 {
     devicePixelRatio = EM_ASM_DOUBLE({ return window.devicePixelRatio; });
+}
+
+const char* unloadCallback(int eventType, const void* reserved, void* userData)
+{
+    gbCore.autoSave();
+    return nullptr;
 }
 EM_BOOL visibilityChangeCallback(int eventType, const EmscriptenVisibilityChangeEvent *visibilityChangeEvent, void *userData)
 {
@@ -1576,6 +1637,7 @@ bool setGLFW()
 
     glfwSetWindowContentScaleCallback(window, content_scale_callback);
     emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, NULL, EM_TRUE, emscripten_resize_callback);
+    emscripten_set_beforeunload_callback(nullptr, unloadCallback);
     emscripten_set_visibilitychange_callback(nullptr, false, visibilityChangeCallback);
 #else
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
@@ -1743,6 +1805,9 @@ void mainLoop()
             updateWindowTitle();
 #endif
             gbCore.autoSave();
+
+            if (appConfig::autosaveState && gbCore.getSaveNum() != 0)
+                modifiedSaveStates[gbCore.getSaveNum()] = true;
         }
 
         gbFrameCount = 0;

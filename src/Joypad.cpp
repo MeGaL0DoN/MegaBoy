@@ -1,9 +1,9 @@
-#include "gbInputManager.h"
-#include "Utils/bitOps.h"
+#include "Joypad.h"
 #include "keyBindManager.h"
 #include "CPU/CPU.h"
+#include "Utils/bitOps.h"
 
-void gbInputManager::reset()
+void Joypad::reset()
 {
 	readButtons = true;
 	readDpad = true;
@@ -11,7 +11,7 @@ void gbInputManager::reset()
 	buttonState = 0xF;
 }
 
-void gbInputManager::update(int key, int action)
+void Joypad::update(int key, int action)
 {
 	auto updateInput = [&](uint8_t& keyState, bool readGroup, int keyConfigOffset) -> bool
 	{
@@ -40,7 +40,7 @@ void gbInputManager::update(int key, int action)
 	updateInput(buttonState, readButtons, 0);
 }
 
-uint8_t gbInputManager::readJoypadReg() const
+uint8_t Joypad::readInputReg() const
 {
 	if (!readButtons && !readDpad)
 		return 0xCF;
@@ -61,7 +61,7 @@ uint8_t gbInputManager::readJoypadReg() const
 	return keyState;
 }
 
-void gbInputManager::setJoypadReg(uint8_t val)
+void Joypad::writeInputReg(uint8_t val)
 {
 	readButtons = !getBit(val, 5);
 	readDpad = !getBit(val, 4);

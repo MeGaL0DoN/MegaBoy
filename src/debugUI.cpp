@@ -150,8 +150,8 @@ inline void displayImage(uint32_t texture, uint16_t width, uint16_t height, int&
 
     if (texture)
     {
-        OpenGL::bindTexture(texture);
-        ImGui::Image(reinterpret_cast<void*>(texture), imageSize);
+        OpenGL::bindTexture(texture);;
+        ImGui::Image(reinterpret_cast<void*>(static_cast<uint64_t>(texture)), imageSize);
     }
     else
     {

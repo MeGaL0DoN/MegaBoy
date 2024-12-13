@@ -16,21 +16,21 @@ add_executable(MegaBoy
         MegaBoy.cpp
         appConfig.cpp
         appConfig.h
-        keyBindManager.h
-        resources.h
-        defines.h
-        MMU.cpp
-        MMU.h
-        serialPort.cpp
-        serialPort.h
-        Cartridge.cpp
-        Cartridge.h
         GBCore.cpp
         GBCore.h
         gbSystem.cpp
         gbSystem.h
-        gbInputManager.cpp
-        gbInputManager.h
+        MMU.cpp
+        MMU.h
+        SerialPort.cpp
+        SerialPort.h
+        Cartridge.cpp
+        Cartridge.h
+        Joypad.cpp
+        Joypad.h
+        keyBindManager.h
+        resources.h
+        defines.h
         debugUI.cpp
         debugUI.h
         "PPU/PPU.h"

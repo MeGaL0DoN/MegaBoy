@@ -21,7 +21,7 @@ void GBCore::reset(bool resetBattery, bool clearBuf, bool updateSystem)
 	cpu.reset();
 	mmu.reset();
 	serial.reset();
-	input.reset();
+	joypad.reset();
 	apu.reset();
 	cartridge.getMapper()->reset(resetBattery);
 
@@ -276,7 +276,7 @@ std::vector<uint8_t> GBCore::extractZippedROM(std::istream& st)
 void GBCore::autoSave() const 
 {
 	if (currentSave != 0 && appConfig::autosaveState)
-		saveState(getSaveStateFilePath(currentSave));
+		saveState(getSaveStatePath(currentSave));
 
 	if (!cartridge.hasBattery || !appConfig::batterySaves) 
 		return;
@@ -319,7 +319,7 @@ FileLoadResult GBCore::loadState(const std::filesystem::path& path)
 }
 FileLoadResult GBCore::loadState(int num)
 {
-	std::ifstream st { getSaveStateFilePath(num), std::ios::in | std::ios::binary };
+	std::ifstream st { getSaveStatePath(num), std::ios::in | std::ios::binary };
 	if (!st) return FileLoadResult::FileError;
 
 	if (!isSaveStateFile(st))
@@ -351,7 +351,7 @@ void GBCore::saveState(int num)
 	if (!cartridge.ROMLoaded()) 
 		return;
 
-	saveState(getSaveStateFilePath(num));
+	saveState(getSaveStatePath(num));
 
 	if (currentSave == 0)
 		updateSelectedSaveInfo(num);
@@ -390,13 +390,13 @@ void GBCore::writeFrameBuffer(std::ostream& st) const
 	else
 		st.write(reinterpret_cast<const char*>(ppu->framebufferPtr()), PPU::FRAMEBUFFER_SIZE);
 }
-bool GBCore::loadFrameBuffer(std::istream& st, uint8_t* framebuffer)
+bool GBCore::loadFrameBuffer(std::istream& st, std::span<uint8_t> framebuffer)
 {
 	bool isCompressed;
 	ST_READ(isCompressed);
 
 	if (!isCompressed)
-		st.read(reinterpret_cast<char*>(framebuffer), PPU::FRAMEBUFFER_SIZE);
+		st.read(reinterpret_cast<char*>(framebuffer.data()), PPU::FRAMEBUFFER_SIZE);
 	else
 	{
 		uint32_t compressedSize;
@@ -406,7 +406,7 @@ bool GBCore::loadFrameBuffer(std::istream& st, uint8_t* framebuffer)
 		st.read(reinterpret_cast<char*>(compressedBuffer.data()), compressedSize);
 
 		mz_ulong uncompressedSize{ PPU::FRAMEBUFFER_SIZE };
-		int status = mz_uncompress(reinterpret_cast<unsigned char*>(framebuffer), &uncompressedSize, compressedBuffer.data(), compressedSize);
+		int status = mz_uncompress(reinterpret_cast<unsigned char*>(framebuffer.data()), &uncompressedSize, compressedBuffer.data(), compressedSize);
 
 		if (status != MZ_OK)
 			return false;
@@ -583,7 +583,7 @@ FileLoadResult GBCore::loadState(std::istream& is)
 
 	// For the first frame not to be as teared.
 	st.seekg(framebufDataOffset, std::ios::beg);
-	loadFrameBuffer(st, ppu->backbufferPtr());
+	loadFrameBuffer(st, { ppu->backbufferPtr(), PPU::FRAMEBUFFER_SIZE });
 
 	if (drawCallback != nullptr)
 		drawCallback(ppu->backbufferPtr(), true);
@@ -602,7 +602,7 @@ void GBCore::writeGBState(std::ostream& st) const
 	mmu.saveState(st);
 	// apu.saveState(st);
 	serial.saveState(st);
-	input.saveState(st);
+	joypad.saveState(st);
 	cartridge.getMapper()->saveState(st); // Mapper must be saved last.
 }
 void GBCore::readGBState(std::istream& st)
@@ -620,11 +620,11 @@ void GBCore::readGBState(std::istream& st)
 	mmu.loadState(st);
 	// apu.loadState(st);
 	serial.loadState(st);
-	input.loadState(st);
+	joypad.loadState(st);
 	cartridge.getMapper()->loadState(st);
 }
 
-bool GBCore::loadSaveStateThumbnail(const std::filesystem::path& path, uint8_t* framebuffer)
+bool GBCore::loadSaveStateThumbnail(const std::filesystem::path& path, std::span<uint8_t> framebuffer)
 {
 	if (!cartridge.ROMLoaded())
 		return false;

@@ -182,7 +182,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 		switch (addr)
 		{
 		case 0xFF00:
-			gbCore.input.setJoypadReg(val);
+			gbCore.joypad.writeInputReg(val);
 			break;
 		case 0xFF01:
 			gbCore.serial.s.serial_reg = val;
@@ -489,7 +489,7 @@ uint8_t MMU::read8(uint16_t addr) const
 		switch (addr)
 		{
 		case 0xFF00:
-			return gbCore.input.readJoypadReg();
+			return gbCore.joypad.readInputReg();
 		case 0xFF01:
 			return gbCore.serial.s.serial_reg;
 		case 0xFF02:

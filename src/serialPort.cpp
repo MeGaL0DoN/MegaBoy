@@ -1,6 +1,6 @@
-#include "serialPort.h"
+#include "SerialPort.h"
 
-void serialPort::writeSerialControl(uint8_t val)
+void SerialPort::writeSerialControl(uint8_t val)
 {
     s.serial_control = val | 0b01111100;
     if (s.serial_control & 0x80) 
@@ -10,7 +10,7 @@ void serialPort::writeSerialControl(uint8_t val)
     }
 }
 
-void serialPort::execute() 
+void SerialPort::execute() 
 {
     if (s.serial_control & 0x80)
     {

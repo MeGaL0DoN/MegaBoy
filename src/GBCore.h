@@ -6,8 +6,8 @@
 #include "CPU/CPU.h"
 #include "PPU/PPUCore.h"
 #include "APU/APU.h"
-#include "gbInputManager.h"
-#include "serialPort.h"
+#include "Joypad.h"
+#include "SerialPort.h"
 #include "Cartridge.h"
 #include "appConfig.h"
 #include "Utils/fileUtils.h"
@@ -79,7 +79,7 @@ public:
 
 	FileLoadResult loadState(const std::filesystem::path& path);
 	FileLoadResult loadState(int num);
-	bool loadSaveStateThumbnail(const std::filesystem::path& path, uint8_t* framebuffer);
+	bool loadSaveStateThumbnail(const std::filesystem::path& path, std::span<uint8_t> framebuffer);
 
 	constexpr bool canSaveStateNow() const { return cartridge.ROMLoaded() && !cpu.isExecutingBootROM(); }
 
@@ -92,9 +92,21 @@ public:
 		writeState(st);
 	}
 
+	constexpr void unbindSaveState() { currentSave = 0; }
 	constexpr int getSaveNum() const { return currentSave; }
-	constexpr const std::filesystem::path& getSaveStateFolderPath() { return saveStateFolderPath; }
+
 	constexpr const std::filesystem::path& getROMPath() { return romFilePath; }
+	constexpr const std::filesystem::path& getSaveStateFolderPath() { return saveStateFolderPath; }
+
+	inline std::filesystem::path getSaveStatePath(int saveNum) const
+	{
+		return saveStateFolderPath / ("save" + std::to_string(saveNum) + ".mbs");
+	}
+	inline std::filesystem::path getBatteryFilePath() const
+	{
+		return customBatterySavePath.empty() ? FileUtils::replaceExtension(romFilePath, ".sav")
+			: customBatterySavePath / "batterySave.sav";
+	}
 
 	inline void setBatterySaveFolder(const std::filesystem::path& path) { customBatterySavePath = path; }
 
@@ -140,8 +152,8 @@ public:
 	CPU cpu { *this };
 	std::unique_ptr<PPU> ppu { nullptr };
 	APU apu{};
-	gbInputManager input { cpu };
-	serialPort serial { cpu };
+	Joypad joypad { cpu };
+	SerialPort serial { cpu };
 	Cartridge cartridge { *this };
 private:
 	void (*drawCallback)(const uint8_t* framebuffer, bool firstFrame) { nullptr };
@@ -162,17 +174,6 @@ private:
 	{
 		ppuDebugEnable = val;
 		if (ppu) ppu->setDebugEnable(val);
-	}
-
-	inline std::filesystem::path getBatteryFilePath() const
-	{
-		return customBatterySavePath.empty() ? FileUtils::replaceExtension(romFilePath, ".sav")
-											 : customBatterySavePath / "batterySave.sav";
-	}
-
-	inline std::filesystem::path getSaveStateFilePath(int saveNum) const
-	{
-		return saveStateFolderPath / ("save" + std::to_string(saveNum) + ".mbs");
 	}
 
 	inline void updateSelectedSaveInfo(int saveStateNum)
@@ -202,7 +203,7 @@ private:
 
 	static std::vector<uint8_t> getStateData(std::istream& st);
 	FileLoadResult loadState(std::istream& st);
-	bool loadFrameBuffer(std::istream& st, uint8_t* framebuffer);
+	bool loadFrameBuffer(std::istream& st, std::span<uint8_t> framebuffer);
 	bool validateAndLoadRom(const std::filesystem::path& romPath, uint8_t checksum);
 
 	void writeGBState(std::ostream& st) const;

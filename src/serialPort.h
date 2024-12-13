@@ -4,12 +4,12 @@
 #include "CPU/CPU.h"
 #include "defines.h"
 
-class serialPort
+class SerialPort
 {
 public:
 	friend class MMU;
 
-	explicit serialPort(CPU& cpu) : cpu(cpu) { reset(); }
+	explicit SerialPort(CPU& cpu) : cpu(cpu) { reset(); }
 	void writeSerialControl(uint8_t val);
 	void execute();
 
