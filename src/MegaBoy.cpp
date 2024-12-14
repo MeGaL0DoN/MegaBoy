@@ -48,10 +48,6 @@ float scaleFactor{};
 int currentIntegerScale{};
 int newIntegerScale { -1 };
 
-#ifdef EMSCRIPTEN
-double devicePixelRatio{};
-#endif
-
 Shader regularShader{};
 Shader scalingShader{};
 Shader lcdShader{};
@@ -69,6 +65,9 @@ constexpr nfdnfilteritem_t batterySaveFilterItem[] { { N_STR("Battery Save"), N_
 constexpr nfdnfilteritem_t audioSaveFilterItem[] { { N_STR("WAV File"), N_STR("wav") } };
 #else
 constexpr const char* openFilterItem { ".gb,.gbc,.zip,.sav,.mbs,.bin" };
+
+double devicePixelRatio{};
+bool emscripten_saves_syncing { false };
 #endif
 
 const char* popupTitle { "" };
@@ -124,7 +123,6 @@ inline void resetRom(bool fullReset)
 }
 
 #ifdef EMSCRIPTEN
-bool emscripten_saves_syncing { false };
 extern "C" EMSCRIPTEN_KEEPALIVE void emscripten_on_save_finish_sync()
 {
     gbCore.loadCurrentBatterySave();
