@@ -10,30 +10,24 @@ CPU::~CPU() = default;
 
 void CPU::reset()
 {
-	s.reset();
-	registers.reset();
+	s = {};
+	registers = {};
 
 	executingBootROM = false;
 	cycles = 0;
-	tCyclesPerM = 4;
+	tCyclesPerM = 4; // GBC double speed is off by default.
 }
 
 void CPU::saveState(std::ostream& st) const
 {
 	ST_WRITE(s);
-	ST_WRITE(registers.AF.val);
-	ST_WRITE(registers.BC.val);
-	ST_WRITE(registers.DE.val);
-	ST_WRITE(registers.HL.val);
+	ST_WRITE(registers);
 }
 
 void CPU::loadState(std::istream& st)
 {
 	ST_READ(s);
-	ST_READ(registers.AF.val);
-	ST_READ(registers.BC.val);
-	ST_READ(registers.DE.val);
-	ST_READ(registers.HL.val);
+	ST_READ(registers);
 	tCyclesPerM = s.GBCdoubleSpeed ? 2 : 4;
 }
 

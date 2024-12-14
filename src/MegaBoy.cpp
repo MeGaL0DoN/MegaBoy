@@ -36,6 +36,7 @@
 static_assert(std::endian::native == std::endian::little, "This program requires a little-endian architecture.");
 static_assert(CHAR_BIT == 8, "This program requires 'char' to be 8 bits in size.");
 
+GBCore gbCore;
 GLFWwindow* window{};
 
 int menuBarHeight{};
@@ -54,9 +55,9 @@ double devicePixelRatio{};
 Shader regularShader{};
 Shader scalingShader{};
 Shader lcdShader{};
-std::array<uint32_t, 2> gbFramebufferTextures{};
 
 Shader* currentShader{ };
+std::array<uint32_t, 2> gbFramebufferTextures{};
 
 bool glScreenshotRequested { false };
 bool fileDialogOpen { false };
@@ -75,8 +76,6 @@ bool showInfoPopUp { false };
 
 std::string FPS_text{ "FPS: 00.00 - 0.00 ms" };
 
-extern GBCore gbCore;
-
 constexpr float FADE_DURATION { 0.9f };
 bool fadeEffectActive { false };
 float fadeTime { 0.0f };
@@ -92,30 +91,6 @@ constexpr int NUM_SAVE_STATES { 10 };
 std::array<bool, NUM_SAVE_STATES> modifiedSaveStates{};
 bool showSaveStatePopUp{ false };
 
-inline void updateWindowTitle()
-{
-    std::string title = (gbCore.gameTitle.empty() ? "MegaBoy" : "MegaBoy - " + gbCore.gameTitle);
-#ifndef EMSCRIPTEN
-    if (gbCore.cartridge.ROMLoaded()) title += !gbCore.emulationPaused ? (" (" + FPS_text + ")") : "";
-#endif
-    glfwSetWindowTitle(window, title.c_str());
-}
-
-inline void setEmulationPaused(bool val)
-{
-    gbCore.emulationPaused = val;
-    updateWindowTitle();
-}
-
-#ifdef EMSCRIPTEN
-bool emscripten_saves_syncing { false };
-extern "C" EMSCRIPTEN_KEEPALIVE void emscripten_on_save_finish_sync()
-{
-    gbCore.loadCurrentBatterySave();
-    emscripten_saves_syncing = false;
-}
-#endif
-
 inline bool emulationRunning()
 {
     const bool isRunning = !gbCore.emulationPaused && gbCore.cartridge.ROMLoaded() && !gbCore.breakpointHit;
@@ -126,6 +101,37 @@ inline bool emulationRunning()
     return isRunning;
 #endif
 }
+
+inline void updateWindowTitle()
+{
+    std::string title = (gbCore.gameTitle.empty() ? "MegaBoy" : "MegaBoy - " + gbCore.gameTitle);
+#ifndef EMSCRIPTEN
+    if (emulationRunning())
+        title += " (" + FPS_text + ")";
+#endif
+    glfwSetWindowTitle(window, title.c_str());
+}
+
+inline void setEmulationPaused(bool val)
+{
+    gbCore.emulationPaused = val;
+    updateWindowTitle();
+}
+inline void resetRom(bool fullReset)
+{
+    gbCore.resetRom(fullReset);
+    debugUI::signalROMreset();
+}
+
+#ifdef EMSCRIPTEN
+bool emscripten_saves_syncing { false };
+extern "C" EMSCRIPTEN_KEEPALIVE void emscripten_on_save_finish_sync()
+{
+    gbCore.loadCurrentBatterySave();
+    emscripten_saves_syncing = false;
+    std::ranges::fill(modifiedSaveStates, true);
+}
+#endif
 
 inline void activateInfoPopUp(const char* title)
 {
@@ -166,7 +172,7 @@ bool loadFile(std::istream& st, const std::filesystem::path& filePath)
         return true;
     }
 
-    const auto handleFileError = [&](const char* errorMessage) -> bool
+    const auto handleFileError = [](const char* errorMessage) -> bool
     {
         activateInfoPopUp(errorMessage);
 
@@ -178,10 +184,10 @@ bool loadFile(std::istream& st, const std::filesystem::path& filePath)
 
         return false;
     };
-    const auto handleFileSuccess = [&]() -> bool
+    const auto handleFileSuccess = []() -> bool
     {
         showInfoPopUp = false;
-        debugUI::signalROMLoaded();
+        debugUI::signalROMreset();
         updateWindowTitle();
         return true;
     };
@@ -209,8 +215,8 @@ bool loadFile(std::istream& st, const std::filesystem::path& filePath)
     case FileLoadResult::SuccessROM: 
     {
 #ifdef EMSCRIPTEN
-        const auto savePath = gbCore.getSaveStateFolderPath();
-        gbCore.setBatterySaveFolder(savePath);
+        const auto savesPath { gbCore.getSaveStateFolderPath() };
+        gbCore.setBatterySaveFolder(savesPath);
         emscripten_saves_syncing = true;
 
         EM_ASM_ARGS ({
@@ -222,9 +228,11 @@ bool loadFile(std::istream& st, const std::filesystem::path& filePath)
                 if (err != null) { console.log(err); }
                 Module.ccall('emscripten_on_save_finish_sync', null, [], []);
             });
-        }, savePath.string().c_str());
+        }, savesPath.c_str());
+#else
+        // On emscripten wait for emscripten_on_save_finish_sync instead.
+        std::ranges::fill(modifiedSaveStates, true);
 #endif
-        std::fill(modifiedSaveStates.begin(), modifiedSaveStates.begin() + NUM_SAVE_STATES, true);
         showSaveStatePopUp = false;
         return handleFileSuccess();
     }
@@ -267,9 +275,10 @@ inline void saveState(int num)
     else
     {
         gbCore.saveState(num);
-        modifiedSaveStates[num] = true;
         activateInfoPopUp("Save State Saved!");
     }
+
+    modifiedSaveStates[num] = true;
 }
 
 void takeScreenshot(bool captureOpenGL)
@@ -1244,15 +1253,15 @@ void renderImGUI()
                 if (gbCore.cartridge.hasBattery)
                 {
                     if (ImGui::MenuItem("Reset to Battery", resetKeyStr.c_str()))
-                        gbCore.resetRom(false);
+                        resetRom(false);
 
                     if (ImGui::MenuItem("Full Reset", "Warning!"))
-                        gbCore.resetRom(true);
+                        resetRom(true);
                 }
                 else
                 {
                     if (ImGui::MenuItem("Reset", resetKeyStr.c_str()))
-                        gbCore.resetRom(true);
+                        resetRom(true);
                 }
 
                 if (ImGui::MenuItem("Take Screenshot", screenshotKeyStr.c_str()))
@@ -1350,7 +1359,7 @@ void renderGameBoy(double deltaTime)
         if (fadeAmount >= 0.95f)
         {
             resetFade();
-            gbCore.resetRom(false);
+            resetRom(false);
         }
         else 
             currentShader->setFloat("fadeAmount", fadeAmount);

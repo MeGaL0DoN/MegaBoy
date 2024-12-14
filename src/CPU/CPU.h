@@ -112,61 +112,32 @@ private:
 
 	struct cpuState
 	{
-		uint16_t PC;
-		Register16 SP;
+		uint16_t PC{ 0x100 };
+		Register16 SP{ 0xFFFE };
 
-		uint8_t DIV_reg;
-		uint8_t TIMA_reg;
-		uint8_t TMA_reg;
-		uint8_t TAC_reg;
+		uint8_t DIV_reg{ 0xAB };
+		uint8_t TIMA_reg{ 0x00 };
+		uint8_t TMA_reg{ 0x00 };
+		uint8_t TAC_reg{ 0xF8 };
 
-		uint16_t DIV_COUNTER;
-		uint16_t TIMA_COUNTER;
+		uint16_t DIV_COUNTER{ 0 };
+		uint16_t TIMA_COUNTER{ 0 };
 
-		uint8_t IE;
-		uint8_t IF;
-		
-		bool halted;
-		bool halt_bug;
+		uint8_t IE{ 0x00 };
+		uint8_t IF{ 0xE1 };
 
-		bool stopState;
-		uint16_t stopCycleCounter;
+		bool halted{ false };
+		bool halt_bug{ false };
 
-		bool IME;
-		bool shouldSetIME;
-		bool interruptLatch;
+		bool stopState{ false };
+		uint16_t stopCycleCounter{ 0 };
 
-		bool GBCdoubleSpeed;
-		bool prepareSpeedSwitch;
+		bool IME{ false };
+		bool shouldSetIME{ false };
+		bool interruptLatch{ false };
 
-		cpuState()
-		{
-			reset();
-		}
-
-		inline void reset()
-		{
-			PC = 0x100;
-			SP = 0xFFFE;
-			DIV_reg = 0xAB;
-			TIMA_reg = 0x00;
-			TMA_reg = 0x00;
-			TAC_reg = 0xF8;
-			DIV_COUNTER = 0;
-			TIMA_COUNTER = 0;
-			IE = 0x00;
-			IF = 0xE1;
-			
-			stopState = false;
-			stopCycleCounter = 0;
-			halted = false;
-			halt_bug = false;
-			IME = false;
-			shouldSetIME = false;
-
-			GBCdoubleSpeed = false;
-			prepareSpeedSwitch = false;
-		}
+		bool GBCdoubleSpeed{ false };
+		bool prepareSpeedSwitch{ false };
 	};
 
 	cpuState s{};
@@ -174,7 +145,6 @@ private:
 
 	uint8_t opcode { 0 };
 	uint8_t cycles { 0 };
-
 	uint8_t HL_val {};
 
 	uint8_t tCyclesPerM { 0 };

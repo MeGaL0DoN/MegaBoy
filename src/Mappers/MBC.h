@@ -75,8 +75,5 @@ protected:
 	std::vector<uint8_t>& ram;
 	T s;
 
-	virtual void resetBatteryState()
-	{
-		std::fill(ram.begin(), ram.end(), static_cast<uint8_t>(0));
-	}
+	virtual void resetBatteryState() { std::ranges::fill(ram, 0); }
 };

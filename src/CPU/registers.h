@@ -49,11 +49,8 @@ struct registerCollection
 	Register16 DE{};
 	Register16 HL{};
 
-	registerCollection()
-	{
-		reset();
-	}
-
+	registerCollection() { reset(); }
+private:
 	void reset()
 	{
 		switch (System::Current())

@@ -5,6 +5,8 @@
 #include <cmath>
 #include <ImGUI/imgui.h>
 
+extern GBCore gbCore;
+
 void debugUI::updateMenu()
 {
     if (ImGui::BeginMenu("Debug"))
@@ -37,7 +39,7 @@ void debugUI::updateMenu()
     }
 }
 
-inline std::string to_hex_str(uint8_t i) 
+static inline std::string to_hex_str(uint8_t i)
 {
     constexpr std::array<char, 16> hex_chars = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
     std::string hex_str(2, '0');
@@ -47,7 +49,7 @@ inline std::string to_hex_str(uint8_t i)
 
     return hex_str;
 }
-inline std::string to_hex_str(uint16_t i) 
+static inline std::string to_hex_str(uint16_t i)
 {
     constexpr std::array<char, 16> hex_chars = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
     std::string hex_str(4, '0');
@@ -76,6 +78,15 @@ void debugUI::disassembleRom()
         romDisassembly.push_back(instructionDisasmEntry { addr, instrLen, {}, disasm });
         addr += instrLen;
     }
+}
+
+void debugUI::signalROMreset()
+{
+    romDisassembly.clear();
+    dissasmRomBank = 0;
+    memoryRomBank = 0;
+    removeTempBreakpoint();
+    showBreakpointHitWindow = false;
 }
 
 void debugUI::signalVBlank() 
@@ -166,15 +177,6 @@ inline void displayImage(uint32_t texture, uint16_t width, uint16_t height, int&
 inline std::string disassemble(uint16_t addr, uint8_t* instrLen)
 {
     return to_hex_str(static_cast<uint16_t>(addr)).append(": ").append(gbCore.cpu.disassemble(addr, [](uint16_t addr) { return gbCore.mmu.read8(addr); }, instrLen));
-}
-
-void debugUI::signalROMLoaded()
-{
-    romDisassembly.clear();
-    dissasmRomBank = 0;
-    memoryRomBank = 0;
-    removeTempBreakpoint();
-    showBreakpointHitWindow = false;
 }
 
 void debugUI::extendBreakpointDisasmWindow()
@@ -443,7 +445,7 @@ void debugUI::updateWindows(float scaleFactor)
     }
     if (showDisassembly)
     {
-        ImGui::SetNextWindowSize(ImVec2(280 * (static_cast<int>(showBreakpointHitWindow) + 1) * scaleFactor, 450 * scaleFactor), ImGuiCond_Appearing);
+        ImGui::SetNextWindowSize(ImVec2(280.0f * (static_cast<float>(showBreakpointHitWindow) + 1) * scaleFactor, 450 * scaleFactor), ImGuiCond_Appearing);
         ImGui::Begin("Disassembly", &showDisassembly);
 
         static bool firstTimeBreakpointWindow { true };
@@ -478,7 +480,7 @@ void debugUI::updateWindows(float scaleFactor)
 
             ImGui::SameLine();
 
-            if (std::find(breakpoints.begin(), breakpoints.end(), breakpointAddr) == breakpoints.end())
+            if (std::ranges::find(breakpoints, breakpointAddr) == breakpoints.end())
             {
                 ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.4f, 0.8f, 1.0f));
                 ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.5f, 0.9f, 1.0f));
@@ -652,8 +654,13 @@ void debugUI::updateWindows(float scaleFactor)
 
         if (showBreakpointHitWindow)
         {
-            ImGui::NextColumn();
+            const static auto setTempBreakpoint = [](uint16_t addr)
+            {
+                tempBreakpointAddr = addr;
+                gbCore.breakpoints[addr] = true;
+            };
 
+            ImGui::NextColumn();
             ImGui::SeparatorText("Debug");
 
             ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10, 0));
@@ -778,7 +785,7 @@ void debugUI::updateWindows(float scaleFactor)
                     const float currentScrollY = ImGui::GetScrollY();
                     const float windowHeight = ImGui::GetWindowHeight();
                     const float itemHeight = ImGui::GetTextLineHeightWithSpacing();
-                    const float targetY = itemHeight * breakpointDisasmLine;
+                    const float targetY = itemHeight * static_cast<float>(breakpointDisasmLine);
 
                     const float visibleStart = currentScrollY + itemHeight;
                     const float visibleEnd = currentScrollY + windowHeight - (2 * itemHeight);

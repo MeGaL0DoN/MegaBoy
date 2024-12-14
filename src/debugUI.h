@@ -1,13 +1,13 @@
 #pragma once
-#include <string>
-#include <memory>
-#include <vector>
-#include <map>
+
 #include "GBCore.h"
 #include "Utils/glFunctions.h"
 #include "Utils/pixelOps.h"
 
-extern GBCore gbCore;
+#include <string>
+#include <memory>
+#include <vector>
+#include <map>
 
 class debugUI
 {
@@ -16,7 +16,7 @@ public:
 	static void updateWindows(float scaleFactor);
 
 	static void signalVBlank();
-	static void signalROMLoaded();
+	static void signalROMreset();
 	static void signalBreakpoint();
 private:
 	enum class VRAMTab 
@@ -42,10 +42,10 @@ private:
 	static inline bool showMemoryView { false };
 	static inline bool showCPUView { false };
 	static inline bool showDisassembly { false };
-	static inline bool showAudioView{ false };
+	static inline bool showAudioView { false };
 
-	static inline bool showVRAMView{ false };
-	static inline VRAMTab currentTab = VRAMTab::TileData;
+	static inline bool showVRAMView { false };
+	static inline auto currentTab { VRAMTab::TileData };
 
 	static inline std::unique_ptr<uint8_t[]> BGFrameBuffer;
 	static inline std::unique_ptr<uint8_t[]> windowFrameBuffer;
@@ -56,31 +56,25 @@ private:
 	static inline uint32_t tileDataTexture {0};
 	static inline uint32_t oamTexture {0};
     static inline uint32_t backgroundTexture {0};
-	static inline uint32_t windowTexture{ 0 };
+	static inline uint32_t windowTexture {0};
 
-	static inline int vramTileBank{ 0 };
+	static inline int vramTileBank {0};
 
-	static inline int romMemoryView{ false };
-	static inline int romDisassemblyView{ false };
+	static inline int romMemoryView { false };
+	static inline int romDisassemblyView{  false };
 
-	static inline int dissasmRomBank{ 0 };
-	static inline int memoryRomBank{ 0 };
+	static inline int dissasmRomBank {0};
+	static inline int memoryRomBank {0};
 
 	static inline std::vector<uint16_t> breakpoints{};
 	static inline std::vector<instructionDisasmEntry> romDisassembly;
 	static inline std::vector<instructionDisasmEntry> breakpointDisassembly;
 
-	static inline int breakpointDisasmLine { 0 };
+	static inline int breakpointDisasmLine  {0};
 	static inline bool showBreakpointHitWindow { false };
-	static inline bool shouldScrollToPC{ false };
+	static inline bool shouldScrollToPC { false };
 	static inline int32_t tempBreakpointAddr { -1 };
 	static inline int32_t stepOutStartSPVal { -1 };
-
-	static inline void setTempBreakpoint(uint16_t addr)
-	{
-		tempBreakpointAddr = addr;
-		gbCore.breakpoints[addr] = true;
-	}
 
 	static inline void disassembleRom();
 	static inline void removeTempBreakpoint();

@@ -8,8 +8,6 @@
 #include "Utils/memstream.h"
 #include "debugUI.h"
 
-GBCore gbCore{};
-
 void GBCore::reset(bool resetBattery, bool clearBuf, bool updateSystem)
 {
 	if (updateSystem)
