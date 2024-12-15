@@ -215,20 +215,26 @@ bool loadFile(std::istream& st, const std::filesystem::path& filePath)
 #ifdef EMSCRIPTEN
         const auto savesPath { gbCore.getSaveStateFolderPath() };
         gbCore.setBatterySaveFolder(savesPath);
-        emscripten_saves_syncing = true;
 
-        EM_ASM_ARGS ({
-            var saveDir = UTF8ToString($0);
-            FS.mkdir(saveDir);
-            FS.mount(IDBFS, { autoPersist: true }, saveDir);
+        std::error_code err;
+        if (!std::filesystem::exists(savesPath, err))
+        {
+            emscripten_saves_syncing = true;
 
-            FS.syncfs(true, function(err) {
-                if (err != null) { console.log(err); }
-                Module.ccall('emscripten_on_save_finish_sync', null, [], []);
-            });
-        }, savesPath.c_str());
+            EM_ASM_ARGS ({
+                var saveDir = UTF8ToString($0);
+                FS.mkdir(saveDir);
+                FS.mount(IDBFS, { autoPersist: true }, saveDir);
+
+                FS.syncfs(true, function(err) {
+                    if (err != null) { console.log(err); }
+                    Module.ccall('emscripten_on_save_finish_sync', null,[],[]);
+                });
+            }, savesPath.c_str());
+        }
+        else
+            emscripten_on_save_finish_sync();
 #else
-        // On emscripten wait for emscripten_on_save_finish_sync instead.
         std::ranges::fill(modifiedSaveStates, true);
 #endif
         showSaveStatePopUp = false;
@@ -400,10 +406,10 @@ void refreshGBTextures()
     OpenGL::updateTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu->framebufferPtr());
 }
 
-// So new palette is applied on screen even if emulation is paused.
+// For new palette to be applied on screen even if emulation is paused.
 void refreshDMGPaletteColors(const std::array<color, 4>& newColors) 
 {
-    if (!gbCore.emulationPaused || System::Current() != GBSystem::DMG)
+    if (!gbCore.cartridge.ROMLoaded() || emulationRunning() || System::Current() != GBSystem::DMG)
         return;
 
     gbCore.ppu->refreshDMGScreenColors(newColors);
@@ -1120,7 +1126,7 @@ void renderImGUI()
 
             if (showPaletteSelection)
             {
-                constexpr std::array<const char*, 4> palettes = { "BGB Green", "Grayscale", "Classic", "Custom" };
+                constexpr std::array palettes = { "BGB Green", "Grayscale", "Classic", "Custom" };
 
                 static bool customPaletteOpen{ false };
                 static std::array<std::array<float, 3>, 4> colors{ };
@@ -1531,7 +1537,6 @@ EM_BOOL emscripten_resize_callback(int eventType, const EmscriptenUiEvent *uiEve
     glfwSetWindowSize(window, window_width, window_height);
     rescaleWindow();
     render(0);
-    glfwSwapBuffers(window);
 
     return EM_TRUE;
 }

@@ -224,13 +224,13 @@ public:
 	static constexpr uint16_t TILEMAP_HEIGHT = 32 * 8;
 	static constexpr uint32_t TILEMAP_FRAMEBUFFER_SIZE = TILEMAP_WIDTH * TILEMAP_HEIGHT * 3;
 
-	static constexpr std::array<color, 4> GRAY_PALETTE = { color {255, 255, 255}, color {169, 169, 169}, color {84, 84, 84}, color {0, 0, 0} };
-	static constexpr std::array<color, 4> CLASSIC_PALETTE = { color {155, 188, 15}, color {139, 172, 15}, color {48, 98, 48}, color {15, 56, 15} };
-	static constexpr std::array<color, 4> BGB_GREEN_PALETTE = { color {224, 248, 208}, color {136, 192, 112 }, color {52, 104, 86}, color{8, 24, 32} };
+	static constexpr std::array GRAY_PALETTE = { color {255, 255, 255}, color {169, 169, 169}, color {84, 84, 84}, color {0, 0, 0} };
+	static constexpr std::array CLASSIC_PALETTE = { color {155, 188, 15}, color {139, 172, 15}, color {48, 98, 48}, color {15, 56, 15} };
+	static constexpr std::array BGB_GREEN_PALETTE = { color {224, 248, 208}, color {136, 192, 112 }, color {52, 104, 86}, color{8, 24, 32} };
 
 	// MIST GB Palette: https://lospec.com/palette-list/mist-gb
-	static constexpr std::array<color, 4> DEFAULT_CUSTOM_PALETTE { color {196, 240, 194}, color {90, 185, 168}, color {30, 96, 110}, color {45, 27, 0} };
-	static inline std::array<color, 4> CUSTOM_PALETTE { DEFAULT_CUSTOM_PALETTE };
+	static constexpr std::array DEFAULT_CUSTOM_PALETTE { color {196, 240, 194}, color {90, 185, 168}, color {30, 96, 110}, color {45, 27, 0} };
+	static inline std::array CUSTOM_PALETTE { DEFAULT_CUSTOM_PALETTE };
 
 	static inline const color* ColorPalette { };
 

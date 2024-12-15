@@ -202,8 +202,8 @@ private:
 	void writeFrameBuffer(std::ostream& st) const;
 
 	static std::vector<uint8_t> getStateData(std::istream& st);
+	static bool loadFrameBuffer(std::istream& st, std::span<uint8_t> framebuffer);
 	FileLoadResult loadState(std::istream& st);
-	bool loadFrameBuffer(std::istream& st, std::span<uint8_t> framebuffer);
 	bool validateAndLoadRom(const std::filesystem::path& romPath, uint8_t checksum);
 
 	void writeGBState(std::ostream& st) const;
