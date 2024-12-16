@@ -845,9 +845,10 @@ void renderSaveStatesGUI()
 
             ImGui::SameLine();
 
-            if (ImGui::Button("Save To", buttonSize))
+            if (ImGui::Button("Copy", buttonSize))
             {
-                saveState(selectedSaveState);
+                // Instead of passing the number pass the path, so save state is just copied, without becoming the active one.
+                gbCore.loadState(saveStatePath);
                 showSaveStatePopUp = false;
             }
 
@@ -885,7 +886,11 @@ void renderSaveStatesGUI()
             if (ImGui::Button("Delete", buttonSize))
             {
                 if (gbCore.getSaveNum() == selectedSaveState)
+                {
                     gbCore.unbindSaveState();
+                    appConfig::saveStateNum = 0;
+                    appConfig::updateConfigFile();
+                }
 
                 std::error_code err;
                 std::filesystem::remove(saveStatePath, err);
@@ -893,10 +898,18 @@ void renderSaveStatesGUI()
             }
 
             ImGui::PopStyleColor(3);
+            ImGui::Spacing();
+
+            if (ImGui::Button("Save To", buttonSize))
+            {
+                saveState(selectedSaveState);
+                showSaveStatePopUp = false;
+            }
 
             ImGui::Spacing();
             ImGui::Separator();
             ImGui::Spacing();
+            ImGui::SetCursorPosX((ImGui::GetWindowSize().x - buttonSize.x) * 0.5f);
 
             if (ImGui::Button("Cancel", buttonSize))
                 showSaveStatePopUp = false;

@@ -442,7 +442,7 @@ bool GBCore::validateAndLoadRom(const std::filesystem::path& romPath, uint8_t ch
 
 // .mbs SAVE STATE FORMAT (LITTLE ENDIAN):
 // 27 byte save signature (SAVE_STATE_SIGNATURE variable)
-// 8 byte FNV-1a hash of the rest of file
+// 8 byte FNV-1a hash of the file (excluding the signature)
 // 1 byte ROM cartridge header checksum
 // 2 byte ROM file path (UTF-8) length
 // N byte ROM file path
@@ -591,7 +591,7 @@ FileLoadResult GBCore::loadState(std::istream& is)
 
 void GBCore::writeGBState(std::ostream& st) const
 {
-	const auto system{ System::Current() };
+	const auto system { System::Current() };
 	ST_WRITE(system);
 	ST_WRITE(cycleCounter);
 
