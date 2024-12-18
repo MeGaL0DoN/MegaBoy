@@ -5,10 +5,8 @@
 #include "APU.h"
 #include "../GBCore.h"
 #include "../Utils/bitOps.h"
-
-extern GBCore gbCore;
-
-APU::APU()
+ 
+APU::APU(GBCore& gbCore) : gbCore(gbCore)
 {
 	initMiniAudio();
 }
@@ -38,9 +36,10 @@ void APU::reset()
 
 void sound_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
 {
-	APU* apu = (APU*)pDevice->pUserData;
+	GBCore* gb = static_cast<GBCore*>(pDevice->pUserData);
+	APU& apu = gb->apu;
 
-	if (gbCore.emulationPaused || !gbCore.cartridge.ROMLoaded() || !appConfig::enableAudio)
+	if (gb->emulationPaused || !gb->cartridge.ROMLoaded() || !appConfig::enableAudio)
 		return;
 
 	int16_t* pOutput16 = (int16_t*)pOutput;
@@ -48,26 +47,26 @@ void sound_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, 
 	for (uint32_t i = 0; i < frameCount; i++)
 	{
 		for (int i = 0; i < APU::CYCLES_PER_SAMPLE; i++)
-			apu->execute();
+			apu.execute();
 
-		apu->generateSample();
+		apu.generateSample();
 
-		pOutput16[i * 2] = apu->getSample();
-		pOutput16[i * 2 + 1] = apu->getSample();
+		pOutput16[i * 2] = apu.getSample();
+		pOutput16[i * 2 + 1] = apu.getSample();
 	}
 
-	if (apu->recording)
+	if (apu.recording)
 	{
-		size_t bufferLen = apu->recordingBuffer.size();
+		size_t bufferLen = apu.recordingBuffer.size();
 		size_t newBufferLen = bufferLen + (frameCount * APU::CHANNELS);
 
-		apu->recordingBuffer.resize(newBufferLen);
-		std::memcpy(&apu->recordingBuffer[bufferLen], pOutput16, sizeof(int16_t) * APU::CHANNELS * frameCount);
+		apu.recordingBuffer.resize(newBufferLen);
+		std::memcpy(&apu.recordingBuffer[bufferLen], pOutput16, sizeof(int16_t) * APU::CHANNELS * frameCount);
 
 		if (newBufferLen >= APU::SAMPLE_RATE)
 		{		
-			apu->recordingStream.write(reinterpret_cast<char*>(&apu->recordingBuffer[0]), newBufferLen * sizeof(int16_t));
-			apu->recordingBuffer.clear();
+			apu.recordingStream.write(reinterpret_cast<char*>(apu.recordingBuffer.data()), newBufferLen * sizeof(int16_t));
+			apu.recordingBuffer.clear();
 		}
 	}
 }
@@ -145,7 +144,7 @@ void APU::initMiniAudio()
 	deviceConfig.playback.channels =  CHANNELS;
 	deviceConfig.sampleRate = SAMPLE_RATE;
 	deviceConfig.dataCallback = sound_data_callback;
-	deviceConfig.pUserData = this;
+	deviceConfig.pUserData = &gbCore;
 
 	ma_device_init(NULL, &deviceConfig, soundDevice.get());
 	ma_device_start(soundDevice.get());

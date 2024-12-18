@@ -31,6 +31,8 @@ public:
 	constexpr bool ROMLoaded() const { return romLoaded; }
 	constexpr uint8_t getChecksum() const { return checksum; }
 
+	uint64_t getGBTotalCycles() const;
+
 	bool hasRAM { false };
 	bool hasBattery { false };
 	uint16_t romBanks { 0 };

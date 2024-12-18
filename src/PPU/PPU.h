@@ -4,6 +4,7 @@
 #include <array>
 #include <iostream>
 #include <memory>
+#include <functional>
 
 #include "../defines.h"
 #include "../Utils/pixelOps.h"
@@ -238,6 +239,8 @@ public:
 
 	virtual ~PPU() = default;
 
+	std::function<void(const uint8_t*, bool)> drawCallback { nullptr };
+
 	virtual void execute(uint8_t cycles) = 0;
 	virtual void reset(bool clearBuf) = 0;
 
@@ -254,8 +257,6 @@ public:
 
 	inline uint8_t* framebufferPtr() { return framebuffer.get(); }
 	inline uint8_t* backbufferPtr() { return backbuffer.get(); }
-
-	void (*drawCallback)(const uint8_t* framebuffer, bool firstFrame) { nullptr };
 
 	inline uint8_t* oamFramebuffer() { return debugOAMFramebuffer.get(); }
 	inline uint8_t* bgFramebuffer() { return debugBGFramebuffer.get(); }

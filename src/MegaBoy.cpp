@@ -16,6 +16,7 @@
 #include <span>
 
 #include <ImGUI/imgui.h>
+#include <ImGUI/imgui_internal.h>
 #include <ImGUI/imgui_impl_glfw.h>
 #include <ImGUI/imgui_impl_opengl3.h>
 
@@ -36,7 +37,7 @@
 static_assert(std::endian::native == std::endian::little, "This program requires a little-endian architecture.");
 static_assert(CHAR_BIT == 8, "This program requires 'char' to be 8 bits in size.");
 
-GBCore gbCore;
+GBCore gb;
 GLFWwindow* window{};
 
 int menuBarHeight{};
@@ -92,7 +93,7 @@ bool showSaveStatePopUp{ false };
 
 inline bool emulationRunning()
 {
-    const bool isRunning = !gbCore.emulationPaused && gbCore.cartridge.ROMLoaded() && !gbCore.breakpointHit;
+    const bool isRunning = !gb.emulationPaused && gb.cartridge.ROMLoaded() && !gb.breakpointHit;
 
 #ifdef EMSCRIPTEN
     return isRunning && !emscripten_saves_syncing;
@@ -103,7 +104,7 @@ inline bool emulationRunning()
 
 inline void updateWindowTitle()
 {
-    std::string title = (gbCore.gameTitle.empty() ? "MegaBoy" : "MegaBoy - " + gbCore.gameTitle);
+    std::string title = (gb.gameTitle.empty() ? "MegaBoy" : "MegaBoy - " + gb.gameTitle);
 #ifndef EMSCRIPTEN
     if (emulationRunning())
         title += " (" + FPS_text + ")";
@@ -113,19 +114,19 @@ inline void updateWindowTitle()
 
 inline void setEmulationPaused(bool val)
 {
-    gbCore.emulationPaused = val;
+    gb.emulationPaused = val;
     updateWindowTitle();
 }
 inline void resetRom(bool fullReset)
 {
-    gbCore.resetRom(fullReset);
+    gb.resetRom(fullReset);
     debugUI::signalROMreset();
 }
 
 #ifdef EMSCRIPTEN
 extern "C" EMSCRIPTEN_KEEPALIVE void emscripten_on_save_finish_sync()
 {
-    gbCore.loadCurrentBatterySave();
+    gb.loadCurrentBatterySave();
     emscripten_saves_syncing = false;
     std::ranges::fill(modifiedSaveStates, true);
 }
@@ -174,7 +175,7 @@ bool loadFile(std::istream& st, const std::filesystem::path& filePath)
     {
         activateInfoPopUp(errorMessage);
 
-        if (!gbCore.cartridge.ROMLoaded())
+        if (!gb.cartridge.ROMLoaded())
         {
             appConfig::romPath.clear();
             appConfig::updateConfigFile();
@@ -198,7 +199,7 @@ bool loadFile(std::istream& st, const std::filesystem::path& filePath)
         true;
 #endif
 
-    switch (gbCore.loadFile(st, filePath, AUTO_LOAD_BATTERY))
+    switch (gb.loadFile(st, filePath, AUTO_LOAD_BATTERY))
     {
     case FileLoadResult::InvalidROM:      
         return handleFileError("Error Loading the ROM!");
@@ -213,8 +214,8 @@ bool loadFile(std::istream& st, const std::filesystem::path& filePath)
     case FileLoadResult::SuccessROM: 
     {
 #ifdef EMSCRIPTEN
-        const auto savesPath { gbCore.getSaveStateFolderPath() };
-        gbCore.setBatterySaveFolder(savesPath);
+        const auto savesPath { gb.getSaveStateFolderPath() };
+        gb.setBatterySaveFolder(savesPath);
 
         std::error_code err;
         if (!std::filesystem::exists(savesPath, err))
@@ -237,6 +238,9 @@ bool loadFile(std::istream& st, const std::filesystem::path& filePath)
 #else
         std::ranges::fill(modifiedSaveStates, true);
 #endif
+        gb.gameGenies.clear();
+        gb.gameSharks.clear();
+
         showSaveStatePopUp = false;
         return handleFileSuccess();
     }
@@ -261,8 +265,8 @@ constexpr int QUICK_SAVE_STATE = 0;
 
 inline void loadState(int num)
 {
-    const auto result = num == QUICK_SAVE_STATE ? gbCore.loadState(gbCore.getSaveStateFolderPath() / "quicksave.mbs")
-                                                : gbCore.loadState(num);
+    const auto result = num == QUICK_SAVE_STATE ? gb.loadState(gb.getSaveStateFolderPath() / "quicksave.mbs")
+                                                : gb.loadState(num);
 
     if (result == FileLoadResult::SuccessSaveState)
         return;
@@ -275,10 +279,10 @@ inline void loadState(int num)
 inline void saveState(int num) 
 {
     if (num == QUICK_SAVE_STATE)
-        gbCore.saveState(gbCore.getSaveStateFolderPath() / "quicksave.mbs");
+        gb.saveState(gb.getSaveStateFolderPath() / "quicksave.mbs");
     else
     {
-        gbCore.saveState(num);
+        gb.saveState(num);
         activateInfoPopUp("Save State Saved!");
     }
 
@@ -310,7 +314,7 @@ void takeScreenshot(bool captureOpenGL)
 
         const int width = captureOpenGL ? viewport_width : PPU::SCR_WIDTH;
         const int height = captureOpenGL ? viewport_height : PPU::SCR_HEIGHT;
-        const uint8_t* framebuffer = captureOpenGL ? glFramebuffer.get() : gbCore.ppu->framebufferPtr();
+        const uint8_t* framebuffer = captureOpenGL ? glFramebuffer.get() : gb.ppu->framebufferPtr();
 
         pngBuffer = tdefl_write_image_to_png_file_in_memory_ex(framebuffer, width, height, CHANNELS, &pngDataSize, 3, captureOpenGL);
 
@@ -318,7 +322,7 @@ void takeScreenshot(bool captureOpenGL)
             return;
 
 #ifdef EMSCRIPTEN
-        const std::string fileName = gbCore.gameTitle + " - Screenshot.png";
+        const std::string fileName = gb.gameTitle + " - Screenshot.png";
         emscripten_browser_file::download(fileName.c_str(), "image/png", pngBuffer, pngDataSize);
 #else
         const auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
@@ -327,7 +331,7 @@ void takeScreenshot(bool captureOpenGL)
         std::stringstream ss;
         ss << std::put_time(now_tm, "%H-%M-%S");
 
-        const std::string fileName = gbCore.gameTitle + " (" + ss.str() + ").png";
+        const std::string fileName = gb.gameTitle + " (" + ss.str() + ").png";
         const auto screenshotsFolder = FileUtils::executableFolderPath / "screenshots";
                 
         if (!std::filesystem::exists(screenshotsFolder))
@@ -402,17 +406,17 @@ void drawCallback(const uint8_t* framebuffer, bool firstFrame)
 
 void refreshGBTextures()
 {
-    OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu->framebufferPtr());
-    OpenGL::updateTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gbCore.ppu->framebufferPtr());
+    OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gb.ppu->framebufferPtr());
+    OpenGL::updateTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gb.ppu->framebufferPtr());
 }
 
 // For new palette to be applied on screen even if emulation is paused.
 void refreshDMGPaletteColors(const std::array<color, 4>& newColors) 
 {
-    if (!gbCore.cartridge.ROMLoaded() || emulationRunning() || System::Current() != GBSystem::DMG)
+    if (!gb.cartridge.ROMLoaded() || emulationRunning() || System::Current() != GBSystem::DMG)
         return;
 
-    gbCore.ppu->refreshDMGScreenColors(newColors);
+    gb.ppu->refreshDMGScreenColors(newColors);
     refreshGBTextures();
 }
 void updateSelectedPalette()
@@ -437,7 +441,7 @@ void setOpenGL()
     updateSelectedFilter();
     updateSelectedPalette(); 
 
-    gbCore.setDrawCallback(drawCallback);
+    gb.setDrawCallback(drawCallback);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -740,7 +744,7 @@ void renderSaveStatesGUI()
 
     for (int i = 1; i < NUM_SAVE_STATES; i++)
     {
-        const auto saveStatePath { gbCore.getSaveStatePath(i) };
+        const auto saveStatePath { gb.getSaveStatePath(i) };
 
         std::error_code err;
         if (!std::filesystem::is_regular_file(saveStatePath, err) || err)
@@ -750,7 +754,7 @@ void renderSaveStatesGUI()
         {
             static std::vector<uint8_t> framebuf(PPU::FRAMEBUFFER_SIZE);
 
-            if (!gbCore.loadSaveStateThumbnail(saveStatePath, framebuf))
+            if (!gb.loadSaveStateThumbnail(saveStatePath, framebuf))
                 std::memset(framebuf.data(), 0, PPU::FRAMEBUFFER_SIZE);
 
             if (saveStateTextures[i])
@@ -773,7 +777,7 @@ void renderSaveStatesGUI()
 
         const auto imageSize { ImVec2(static_cast<int>(PPU::SCR_WIDTH * scaleFactor), static_cast<int>(PPU::SCR_HEIGHT * scaleFactor)) };
 
-        if (gbCore.getSaveNum() == i)
+        if (gb.getSaveNum() == i)
         {
             constexpr auto lightGolden{ ImVec4(1.0f, 0.92f, 0.5f, 1.0f) };
             constexpr auto golden{ ImVec4(1.0f, 0.84f, 0.0f, 1.0f) };
@@ -789,7 +793,7 @@ void renderSaveStatesGUI()
 			showSaveStatePopUp = true;
         }
 
-        if (gbCore.getSaveNum() == i)
+        if (gb.getSaveNum() == i)
             ImGui::PopStyleColor(3);
 
         ImGui::Spacing();
@@ -815,7 +819,7 @@ void renderSaveStatesGUI()
             ImGui::CloseCurrentPopup();
         else
         {
-            const auto saveStatePath { gbCore.getSaveStatePath(selectedSaveState) };
+            const auto saveStatePath { gb.getSaveStatePath(selectedSaveState) };
             const auto title { "Options for Save " + std::to_string(selectedSaveState) };
 
             ImGui::SeparatorText(title.c_str());
@@ -848,7 +852,7 @@ void renderSaveStatesGUI()
             if (ImGui::Button("Copy", buttonSize))
             {
                 // Instead of passing the number pass the path, so save state is just copied, without becoming the active one.
-                gbCore.loadState(saveStatePath);
+                gb.loadState(saveStatePath);
                 showSaveStatePopUp = false;
             }
 
@@ -861,7 +865,7 @@ void renderSaveStatesGUI()
 
             if (ImGui::Button("Export", buttonSize))
             {
-                const auto filename { gbCore.gameTitle + " - Save " + std::to_string(selectedSaveState) + ".mbs" };
+                const auto filename { gb.gameTitle + " - Save " + std::to_string(selectedSaveState) + ".mbs" };
 #ifdef EMSCRIPTEN
                 downloadFile(saveStatePath.c_str(), filename.c_str());
 #else
@@ -885,9 +889,9 @@ void renderSaveStatesGUI()
 
             if (ImGui::Button("Delete", buttonSize))
             {
-                if (gbCore.getSaveNum() == selectedSaveState)
+                if (gb.getSaveNum() == selectedSaveState)
                 {
-                    gbCore.unbindSaveState();
+                    gb.unbindSaveState();
                     appConfig::saveStateNum = 0;
                     appConfig::updateConfigFile();
                 }
@@ -922,6 +926,142 @@ void renderSaveStatesGUI()
     }
 }
 
+bool cheatsWindowOpen { false };
+
+void renderCheatsGUI() 
+{
+    static std::array<char, 9> sharkBuf{};
+    static std::array<char, 12> genieBuf{};
+
+    static auto isHexChar = [](char c) -> bool {
+        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+    };
+
+    ImGui::SetNextWindowSizeConstraints(ImVec2(420 * scaleFactor, 290 * scaleFactor), ImVec2(420 * scaleFactor, FLT_MAX));
+    ImGui::Begin("Cheats", &cheatsWindowOpen);
+
+    ImGui::Columns(2);
+    ImGui::GetCurrentWindow()->DC.CurrentColumns->Flags |= ImGuiOldColumnFlags_NoResize;
+
+    auto renderCheatSection = [&](const char* name, auto& buf, auto& cheats, auto validateFunc, auto addFunc)
+    {
+        ImGui::BeginChild(name);
+        ImGui::SeparatorText(name);
+        ImGui::InputText("##input", buf.data(), buf.size());
+        ImGui::SameLine();
+
+        const bool isValid = validateFunc(buf);
+        if (!isValid) 
+            ImGui::BeginDisabled();
+
+        if (ImGui::Button("Add")) 
+            addFunc(buf, cheats);
+
+        if (!isValid) 
+        {
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) 
+                ImGui::SetTooltip("Cheat Is Not Valid!");
+
+            ImGui::EndDisabled();
+        }
+
+        ImGui::Spacing();
+
+        const bool cheatsEmpty = cheats.empty();
+
+        if (cheatsEmpty)
+            ImGui::BeginDisabled();
+
+        if (ImGui::Button("Clear All")) 
+            cheats.clear();
+
+        if (cheatsEmpty)
+            ImGui::EndDisabled();
+
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::BeginChild((std::string(name) + "Cheats").c_str());
+
+        for (int i = 0; i < cheats.size(); i++) 
+        {
+            auto& cheat = cheats[i];
+            ImGui::PushID(i);
+            ImGui::Spacing();
+
+            ImGui::Checkbox("Enable", &cheat.enable);
+            ImGui::SameLine();
+
+            ImGui::BeginDisabled();
+            ImGui::InputText("", cheat.str.data(), cheat.str.length());
+            ImGui::EndDisabled();
+            ImGui::PopID();
+        }
+
+        ImGui::EndChild();
+        ImGui::EndChild();
+    };
+
+    auto validateGenie = [](const auto& buf)
+    {
+        return std::all_of(buf.begin(), buf.end() - 1,
+            [i = -1](char ch) mutable {
+                i++;
+                return (i == 3 || i == 7) ? ch == '-' : isHexChar(ch);
+            });
+    };
+
+    auto validateShark = [](const auto& buf) 
+    {
+        return std::all_of(buf.begin(), buf.end() - 1, isHexChar);
+    };
+
+    auto addGenie = [](const auto& buf, auto& cheats) 
+    {
+        gameGenieCheat cheat;
+
+        cheat.newData = hexOps::fromHex(std::array { buf[0], buf[1] });
+        cheat.checksum = hexOps::fromHex(buf[9]);
+
+        cheat.oldData = hexOps::fromHex(std::array { buf[8], buf[10] });
+        cheat.oldData = ((cheat.oldData >> 2) | (cheat.oldData << 6)) ^ 0xBA;
+
+        cheat.addr = (hexOps::fromHex(buf[6]) << 12) |
+                     (hexOps::fromHex(buf[2]) << 8)  |
+                     (hexOps::fromHex(std::array{ buf[4], buf[5] }));
+
+        cheat.addr ^= 0xF000;
+
+        if (std::ranges::find(cheats, cheat) == cheats.end())
+        {
+            cheat.str = buf.data();
+            cheats.push_back(cheat);
+        }
+    };
+
+    auto addShark = [](const auto& buf, auto& cheats) 
+    {
+        gameSharkCheat cheat;
+
+        cheat.addr = hexOps::fromHex(std::array { buf[4], buf[5], buf[6], buf[7] });
+        cheat.addr = (cheat.addr << 8) | (cheat.addr >> 8);
+
+        cheat.type = hexOps::fromHex (std::array{ buf[0], buf[1] });
+        cheat.newData = hexOps::fromHex(std::array{ buf[2], buf[3] });
+
+        if (std::ranges::find(cheats, cheat) == cheats.end())
+        {
+            cheat.str = buf.data();
+            cheats.push_back(cheat);
+        }
+    };
+
+    renderCheatSection("Game Genie", genieBuf, gb.gameGenies, validateGenie, addGenie);
+    ImGui::NextColumn();
+    renderCheatSection("Game Shark", sharkBuf, gb.gameSharks, validateShark, addShark);
+
+    ImGui::End();
+}
+
 void renderImGUI()
 {
     ImGui_ImplOpenGL3_NewFrame();
@@ -943,42 +1083,42 @@ void renderImGUI()
                     loadFile(*result);
 #endif
             }
-            if (gbCore.cartridge.ROMLoaded())
+            if (gb.cartridge.ROMLoaded())
             {
                 if (ImGui::MenuItem("View Save States"))
                     saveStatesWindowOpen = true;
 
-                if (gbCore.canSaveStateNow())
+                if (gb.canSaveStateNow())
                 {
                     if (ImGui::MenuItem("Export State"))
                     {
-                        const std::string filename { gbCore.gameTitle + " - Save State.mbs" };
+                        const std::string filename { gb.gameTitle + " - Save State.mbs" };
 #ifdef EMSCRIPTEN
                         std::ostringstream st;
-                        gbCore.saveState(st);
+                        gb.saveState(st);
                         downloadFile(st.view(), filename.c_str());
 #else
                         const auto result { saveFileDialog(filename, saveStateFilterItem) };
 
                         if (result.has_value())
-                            gbCore.saveState(*result);
+                            gb.saveState(*result);
 #endif
                     }
                 }
-                if (gbCore.cartridge.hasBattery)
+                if (gb.cartridge.hasBattery)
                 {
                     if (ImGui::MenuItem("Export Battery"))
                     {
-                        const std::string filename { gbCore.gameTitle + " - Battery Save.sav" };
+                        const std::string filename { gb.gameTitle + " - Battery Save.sav" };
 #ifdef EMSCRIPTEN
                         std::ostringstream st;
-                        gbCore.saveBattery(st);
+                        gb.saveBattery(st);
                         downloadFile(st.view(), filename.c_str());
 #else
                         const auto result { saveFileDialog(filename, batterySaveFilterItem) };
 
                         if (result.has_value())
-                            gbCore.saveBattery(*result);
+                            gb.saveBattery(*result);
 #endif
                     }
                 }
@@ -1001,12 +1141,12 @@ void renderImGUI()
                 cgbBootLoaded = GBCore::isBootROMValid(appConfig::cgbBootRomPath);
             }
 
-            bool bootRomsLoaded = gbCore.cartridge.ROMLoaded() ? 
+            bool bootRomsLoaded = gb.cartridge.ROMLoaded() ? 
                                   (System::Current() == GBSystem::DMG ? dmgBootLoaded : cgbBootLoaded) : (dmgBootLoaded || cgbBootLoaded);
 
             if (!bootRomsLoaded)
             {
-                const std::string tooltipText = gbCore.cartridge.ROMLoaded() ? 
+                const std::string tooltipText = gb.cartridge.ROMLoaded() ? 
                                                 (System::Current() == GBSystem::DMG ? "Drop 'dmg_boot.bin'" : "Drop 'cgb_boot.bin'") :
                                                 "Drop 'dmg_boot.bin' or 'cgb_boot.bin'";
 
@@ -1035,7 +1175,7 @@ void renderImGUI()
             ImGui::SeparatorText("Controls");
 
             if (ImGui::Button("Key Binding"))
-                keyConfigWindowOpen = !keyConfigWindowOpen;
+                keyConfigWindowOpen = true;
 
             ImGui::SeparatorText("Emulated System");
 
@@ -1224,18 +1364,18 @@ void renderImGUI()
             if (ImGui::Checkbox("Enable Audio", &appConfig::enableAudio))
                 appConfig::updateConfigFile();
 
-            static int volume { static_cast<int>(gbCore.apu.volume * 100) };
+            static int volume { static_cast<int>(gb.apu.volume * 100) };
 
             if (ImGui::SliderInt("Volume", &volume, 0, 100))
-                gbCore.apu.volume = static_cast<float>(volume / 100.0);
+                gb.apu.volume = static_cast<float>(volume / 100.0);
 
             ImGui::SeparatorText("Misc.");
 
-            if (ImGui::Button(gbCore.apu.recording ? "Stop Recording" : "Start Recording")) // TODO
+            if (ImGui::Button(gb.apu.recording ? "Stop Recording" : "Start Recording")) // TODO
             {
-//                if (gbCore.apu.recording)
+//                if (gb.apu.recording)
 //                {
-//                    gbCore.apu.stopRecording();
+//                    gb.apu.stopRecording();
 //#ifdef EMSCRIPTEN
 //                    downloadFile("Recording.wav");
 //#endif
@@ -1243,12 +1383,12 @@ void renderImGUI()
 //                else
 //                {
 //#ifdef EMSCRIPTEN
-//                    gbCore.apu.startRecording("Recording.wav"); // TODO: verify if works properly.
+//                    gb.apu.startRecording("Recording.wav"); // TODO: verify if works properly.
 //#else
 //                    const auto result { saveFileDialog("Recording", audioSaveFilterItem) };
 //
 //                    if (result.has_value())
-//                        gbCore.apu.startRecording(result.value());
+//                        gb.apu.startRecording(result.value());
 //#endif
 //                }
             }
@@ -1256,7 +1396,7 @@ void renderImGUI()
         }
         if (ImGui::BeginMenu("Emulation"))
         {
-            if (gbCore.cartridge.ROMLoaded())
+            if (gb.cartridge.ROMLoaded())
             {
                 const auto formatKeyBind = [](MegaBoyKey key) { return "(" + std::string(KeyBindManager::getKeyName(KeyBindManager::getBind(key))) + ")"; };
 
@@ -1264,10 +1404,10 @@ void renderImGUI()
                 const std::string resetKeyStr = formatKeyBind(MegaBoyKey::Reset);
                 const std::string screenshotKeyStr = formatKeyBind(MegaBoyKey::Screenshot);
 
-                if (ImGui::MenuItem(gbCore.emulationPaused ? "Resume" : "Pause", pauseKeyStr.c_str()))
-                    setEmulationPaused(!gbCore.emulationPaused);
+                if (ImGui::MenuItem(gb.emulationPaused ? "Resume" : "Pause", pauseKeyStr.c_str()))
+                    setEmulationPaused(!gb.emulationPaused);
 
-                if (gbCore.cartridge.hasBattery)
+                if (gb.cartridge.hasBattery)
                 {
                     if (ImGui::MenuItem("Reset to Battery", resetKeyStr.c_str()))
                         resetRom(false);
@@ -1286,6 +1426,9 @@ void renderImGUI()
 
                 if (ImGui::MenuItem("Take 160x144 Screenshot"))
                     takeScreenshot(false);
+
+                if (ImGui::MenuItem("Enter Cheat"))
+                    cheatsWindowOpen = true;
             }
 
             ImGui::EndMenu();
@@ -1293,12 +1436,12 @@ void renderImGUI()
 
         debugUI::updateMenu();
 
-        if (gbCore.breakpointHit)
+        if (gb.breakpointHit)
         {
             ImGui::Separator();
 			ImGui::Text("Breakpoint Hit!");
         }
-        else if (gbCore.emulationPaused)
+        else if (gb.emulationPaused)
         {
             ImGui::Separator();
             ImGui::Text("Emulation Paused");
@@ -1308,9 +1451,9 @@ void renderImGUI()
 			ImGui::Separator();
 			ImGui::Text("Fast Forward...");
         }
-        else if (gbCore.cartridge.ROMLoaded() && gbCore.getSaveNum() != 0)
+        else if (gb.cartridge.ROMLoaded() && gb.getSaveNum() != 0)
         {
-            const std::string saveText = "Save: " + std::to_string(gbCore.getSaveNum());
+            const std::string saveText = "Save: " + std::to_string(gb.getSaveNum());
             ImGui::Separator();
             ImGui::Text("%s", saveText.c_str());
         }
@@ -1355,6 +1498,9 @@ void renderImGUI()
 
     if (saveStatesWindowOpen)
         renderSaveStatesGUI();
+
+    if (cheatsWindowOpen)
+        renderCheatsGUI();
 
     debugUI::updateWindows(scaleFactor);
 
@@ -1444,14 +1590,14 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
         return;
     }
 
-    if (!gbCore.cartridge.ROMLoaded()) return;
+    if (!gb.cartridge.ROMLoaded()) return;
 
     if (action == GLFW_PRESS)
     {
         if (key == KeyBindManager::getBind(MegaBoyKey::Pause))
         {
             resetFade();
-            setEmulationPaused(!gbCore.emulationPaused);
+            setEmulationPaused(!gb.emulationPaused);
             return;
         }
 
@@ -1501,18 +1647,18 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
         if (action == GLFW_PRESS)
         {
             fastForwarding = true;
-            gbCore.enableFastForward(FAST_FORWARD_SPEED);
+            gb.enableFastForward(FAST_FORWARD_SPEED);
         }
         else if (action == GLFW_RELEASE)
         {
             fastForwarding = false;
-            gbCore.disableFastForward();
+            gb.disableFastForward();
         }
 
         return;
     }
 
-    gbCore.joypad.update(key, action);
+    gb.joypad.update(key, action);
 }
 
 void drop_callback(GLFWwindow* _window, int count, const char** paths)
@@ -1528,7 +1674,7 @@ void handleVisibilityChange(bool hidden)
 {
     if (hidden)
     {
-        pausedPreEvent = gbCore.emulationPaused;
+        pausedPreEvent = gb.emulationPaused;
         setEmulationPaused(true);
     }
     else
@@ -1560,7 +1706,7 @@ void content_scale_callback(GLFWwindow* _window, float xScale, float yScale)
 
 const char* unloadCallback(int eventType, const void* reserved, void* userData)
 {
-    gbCore.autoSave();
+    gb.autoSave();
     return nullptr;
 }
 EM_BOOL visibilityChangeCallback(int eventType, const EmscriptenVisibilityChangeEvent *visibilityChangeEvent, void *userData)
@@ -1746,7 +1892,7 @@ void mainLoop()
     static int frameCount{ 0 };
     static int gbFrameCount{ 0 };
 
-    const bool waitEvents = (gbCore.emulationPaused && !fadeEffectActive) || !gbCore.cartridge.ROMLoaded();
+    const bool waitEvents = (gb.emulationPaused && !fadeEffectActive) || !gb.cartridge.ROMLoaded();
 
     const double currentTime = glfwGetTime();
 
@@ -1799,7 +1945,7 @@ void mainLoop()
         if (emulationRunning())
 		{
             const auto execStart = glfwGetTime();
-            gbCore.update(GBCore::CYCLES_PER_FRAME);
+            gb.update(GBCore::CYCLES_PER_FRAME);
 
             executeTimes += (glfwGetTime() - execStart);
             gbFrameCount++;
@@ -1829,10 +1975,10 @@ void mainLoop()
 #ifndef EMSCRIPTEN
             updateWindowTitle();
 #endif
-            gbCore.autoSave();
+            gb.autoSave();
 
-            if (appConfig::autosaveState && gbCore.getSaveNum() != 0)
-                modifiedSaveStates[gbCore.getSaveNum()] = true;
+            if (appConfig::autosaveState && gb.getSaveNum() != 0)
+                modifiedSaveStates[gb.getSaveNum()] = true;
         }
 
         gbFrameCount = 0;
@@ -1901,7 +2047,7 @@ int main(int argc, char* argv[])
     });
 #else
     runApp(argc, argv);
-    gbCore.autoSave();
+    gb.autoSave();
 
     NFD_Quit();
     ImGui_ImplOpenGL3_Shutdown();

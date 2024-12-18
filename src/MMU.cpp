@@ -445,7 +445,15 @@ uint8_t MMU::read8(uint16_t addr) const
 
 	if (addr <= 0x7FFF)
 	{
-		return gbCore.cartridge.getMapper()->read(addr);
+		uint8_t val = gbCore.cartridge.getMapper()->read(addr);
+
+		for (auto& genie : gbCore.gameGenies) [[unlikely]]
+		{
+			if (addr == genie.addr && val == genie.oldData && genie.enable)
+				return genie.newData;
+		}
+
+		return val;
 	}
 	if (addr <= 0x9FFF)
 	{

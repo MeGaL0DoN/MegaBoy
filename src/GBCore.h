@@ -23,6 +23,36 @@ enum class FileLoadResult
 	FileError
 };
 
+struct gameSharkCheat
+{
+	bool enable { true };
+	uint8_t type{};
+	uint8_t newData{};
+	uint16_t addr{};
+
+	std::string str{};
+
+	bool operator==(const gameSharkCheat& other) const
+	{
+		return addr == other.addr && type == other.type && newData == other.newData;
+	}
+};
+struct gameGenieCheat
+{
+	bool enable{ true };
+	uint16_t addr{};
+	uint8_t newData{};
+	uint8_t oldData{};
+	uint8_t checksum{};
+
+	std::string str{};
+
+	bool operator==(const gameGenieCheat& other) const
+	{
+		return addr == other.addr && newData == other.newData && oldData == other.oldData && checksum == other.checksum;
+	}
+};
+
 class GBCore
 {
 public:
@@ -143,6 +173,9 @@ public:
 		cartridge.timer.fastForwardDisableEvent();
 	}
 
+	std::vector<gameGenieCheat> gameGenies{};
+	std::vector<gameSharkCheat> gameSharks{};
+
 	bool breakpointHit{ false };
 	bool emulationPaused { false };
 
@@ -151,7 +184,7 @@ public:
 	MMU mmu { *this };
 	CPU cpu { *this };
 	std::unique_ptr<PPU> ppu { nullptr };
-	APU apu{};
+	APU apu { *this };
 	Joypad joypad { cpu };
 	SerialPort serial { cpu };
 	Cartridge cartridge { *this };
@@ -184,13 +217,24 @@ private:
 
 	void reset(bool resetBattery, bool clearBuf = true, bool updateSystem = true);
 
+	inline void vBlankHandler(const uint8_t* framebuffer, bool firstFrame)
+	{
+		for (auto& cheat : gameSharks)
+		{
+			if (cheat.enable)
+				mmu.write8(cheat.addr, cheat.newData);
+		}
+
+		drawCallback(framebuffer, firstFrame);
+	}
+
 	inline void updatePPUSystem()
 	{
 		ppu = System::Current() == GBSystem::DMG ? std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::DMG>>(mmu, cpu) } 
 												 : std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::GBC>>(mmu, cpu) };
 
 		ppu->setDebugEnable(ppuDebugEnable);
-		ppu->drawCallback = this->drawCallback;
+		ppu->drawCallback = std::bind(&GBCore::vBlankHandler, this, std::placeholders::_1, std::placeholders::_2);
 	}
 
 	bool loadROM(std::istream& st, const std::filesystem::path& filePath);

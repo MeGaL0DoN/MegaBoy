@@ -2,13 +2,12 @@
 #include "../GBCore.h"
 #include "../Utils/bitOps.h"
 
-extern GBCore gbCore;
 #define RTC cartridge.timer
 
 void MBC3::updateRTC() const
 {
-	RTC.addRTCcycles(gbCore.totalCycles() - lastRTCAccessCycles);
-	lastRTCAccessCycles = gbCore.totalCycles();
+	RTC.addRTCcycles(cartridge.getGBTotalCycles() - lastRTCAccessCycles);
+	lastRTCAccessCycles = cartridge.getGBTotalCycles();
 }
 
 bool MBC3::loadBattery(std::istream& st) 
@@ -18,7 +17,7 @@ bool MBC3::loadBattery(std::istream& st)
 
 	if (cartridge.hasTimer)
 	{
-		lastRTCAccessCycles = gbCore.totalCycles();
+		lastRTCAccessCycles = cartridge.getGBTotalCycles();
 		cartridge.timer.loadBattery(st);
 	}
 

@@ -5,7 +5,7 @@
 #include "GBCore.h"
 #include "keyBindManager.h"
 
-extern GBCore gbCore;
+extern GBCore gb;
 
 const auto mINIFilePath = FileUtils::executableFolderPath / "data" / "config.ini";
 mINI::INIFile file { mINI::mINIFilePath(mINIFilePath) };
@@ -125,10 +125,10 @@ void appConfig::updateConfigFile()
 	config["bootroms"]["runBootROM"] = to_string(runBootROM);
 
 #ifndef EMSCRIPTEN
-	if (gbCore.cartridge.ROMLoaded())
+	if (gb.cartridge.ROMLoaded())
 	{
-		config["gameState"]["romPath"] = FileUtils::pathToUTF8(gbCore.getROMPath());
-		config["gameState"]["saveStateNum"] = std::to_string(gbCore.getSaveNum());
+		config["gameState"]["romPath"] = FileUtils::pathToUTF8(gb.getROMPath());
+		config["gameState"]["saveStateNum"] = std::to_string(gb.getSaveNum());
 	}
 	else
 		config.remove("gameState");

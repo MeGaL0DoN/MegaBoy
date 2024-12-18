@@ -9,6 +9,8 @@
 #include "squareWave.h"
 #include "sweepWave.h"
 
+class GBCore;
+
 class APU
 {
 public:
@@ -16,7 +18,7 @@ public:
 
 	void reset();
 
-	APU();
+	explicit APU(GBCore& gbCore);
 	~APU();
 
 	void execute();
@@ -47,19 +49,20 @@ public:
 
 	uint8_t NR50{};
 private:
+	void executeFrameSequencer();
 	void initMiniAudio();
+	void writeWAVHeader();
 
 	typedef class ma_device ma_device;
 	std::unique_ptr<ma_device> soundDevice;
 
-	void writeWAVHeader();
+	GBCore& gbCore;
 
 	float sample{};
 
 	sweepWave channel1 {};
 	squareWave channel2 {};
 
-	void executeFrameSequencer();
 	uint16_t frameSequencerCycles{};
 	uint8_t frameSequencerStep{};
 };

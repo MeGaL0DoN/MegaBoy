@@ -14,6 +14,8 @@
 
 Cartridge::Cartridge(GBCore& gbCore) : gbCore(gbCore) { }
 
+uint64_t Cartridge::getGBTotalCycles() const { return gbCore.totalCycles(); }
+
 bool Cartridge::loadROM(std::istream& is)
 {
 	is.seekg(0, std::ios::end);
