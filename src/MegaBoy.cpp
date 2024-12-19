@@ -28,6 +28,7 @@
 #include <emscripten/html5.h>
 #include <GLES3/gl3.h>
 #include <emscripten_browser_file/emscripten_browser_file.h>
+#include <emscripten_browser_clipboard/emscripten_browser_clipboard.h>
 #else
 #include <glad/glad.h>
 #include <nfd.hpp>
@@ -69,6 +70,7 @@ constexpr const char* openFilterItem { ".gb,.gbc,.zip,.sav,.mbs,.bin" };
 
 double devicePixelRatio{};
 bool emscripten_saves_syncing { false };
+bool emscripten_cursor_moved { false };
 #endif
 
 const char* popupTitle { "" };
@@ -529,6 +531,7 @@ void rescaleWindow()
 
     updateGLViewport();
 
+
 #ifdef EMSCRIPTEN
     emscripten_set_element_css_size (
         "canvas",
@@ -769,6 +772,7 @@ void renderSaveStatesGUI()
             ImGui::SameLine();
 
         ImGui::BeginGroup();
+        ImGui::PushID(i);
 
         const float textWidth = ImGui::CalcTextSize(("Save " + std::to_string(i)).c_str()).x;
         const float cursorX = ImGui::GetCursorPosX() + (PPU::SCR_WIDTH - textWidth) / 2.0f;
@@ -787,7 +791,7 @@ void renderSaveStatesGUI()
             ImGui::PushStyleColor(ImGuiCol_ButtonActive, golden);
         }
 
-        if (ImGui::ImageButton(reinterpret_cast<void*>(static_cast<uint64_t>(saveStateTextures[i])), imageSize))
+        if (ImGui::ImageButton("thumbnail", (ImTextureID)(intptr_t)saveStateTextures[i], imageSize))
         {
             selectedSaveState = i;
 			showSaveStatePopUp = true;
@@ -797,6 +801,7 @@ void renderSaveStatesGUI()
             ImGui::PopStyleColor(3);
 
         ImGui::Spacing();
+        ImGui::PopID();
         ImGui::EndGroup();
 
         renderedCount++;
@@ -947,10 +952,17 @@ void renderCheatsGUI()
     {
         ImGui::BeginChild(name);
         ImGui::SeparatorText(name);
-        ImGui::InputText("##input", buf.data(), buf.size());
-        ImGui::SameLine();
 
         const bool isValid = validateFunc(buf);
+
+        if (ImGui::InputText("##input", buf.data(), buf.size(), ImGuiInputTextFlags_EnterReturnsTrue))
+        {
+            if (isValid)
+				addFunc(buf, cheats);
+        }
+
+        ImGui::SameLine();
+
         if (!isValid) 
             ImGui::BeginDisabled();
 
@@ -1714,8 +1726,22 @@ EM_BOOL visibilityChangeCallback(int eventType, const EmscriptenVisibilityChange
     handleVisibilityChange(visibilityChangeEvent->hidden);
     return EM_TRUE;
 }
-#else
 
+// Copied from imgui_impl_glfw.cpp. For some reason it never enables the callback so the wheel is not working? Also the function is static, so can't use it outside imgui.
+EM_BOOL emscripten_wheel_callback(int, const EmscriptenWheelEvent* ev, void*)
+{
+    float multiplier = 0.0f;
+    if (ev->deltaMode == DOM_DELTA_PIXEL) multiplier = 1.0f / 100.0f;        // 100 pixels make up a step.
+    else if (ev->deltaMode == DOM_DELTA_LINE) { multiplier = 1.0f / 3.0f; }  // 3 lines make up a step.
+    else if (ev->deltaMode == DOM_DELTA_PAGE) { multiplier = 80.0f; }        // A page makes up 80 steps.
+    float wheel_x = static_cast<float>(ev->deltaX * -multiplier);
+    float wheel_y = static_cast<float>(ev->deltaY * -multiplier);
+    ImGuiIO& io = ImGui::GetIO();
+    io.AddMouseWheelEvent(wheel_x, wheel_y);
+    return EM_TRUE;
+}
+
+#else
 void framebuffer_size_callback(GLFWwindow* _window, int width, int height)
 {
     (void)_window;
@@ -1803,13 +1829,16 @@ bool setGLFW()
     glfwSetDropCallback(window, drop_callback);
     glfwSetKeyCallback(window, key_callback);
 
-#ifdef  EMSCRIPTEN
-    glfwSetWindowTitle(window, "MegaBoy");
-
+#ifdef EMSCRIPTEN
     glfwSetWindowContentScaleCallback(window, content_scale_callback);
+
+    const auto cursor_pos_callback = [](GLFWwindow* window, double xpos, double ypos) { emscripten_cursor_moved = true; };
+    glfwSetCursorPosCallback(window, cursor_pos_callback);
+
     emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, NULL, EM_TRUE, emscripten_resize_callback);
     emscripten_set_beforeunload_callback(nullptr, unloadCallback);
     emscripten_set_visibilitychange_callback(nullptr, false, visibilityChangeCallback);
+    emscripten_set_wheel_callback("canvas", nullptr, false, emscripten_wheel_callback);
 #else
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetWindowPosCallback(window, window_pos_callback);
@@ -1878,6 +1907,43 @@ void setImGUI()
     ImGui::StyleColorsDark();
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init(GL_VERSION_STR);
+
+// Setting up clipboard for imgui text inputs copy paste to work. REMOVE if switching to the emscripten glfw contrib port, as it should support it by default.
+#ifdef EMSCRIPTEN
+    static std::string clipboardContent {};
+
+    emscripten_browser_clipboard::paste([](std::string&& paste_data, void* callback_data [[maybe_unused]]) {
+        clipboardContent = std::move(paste_data);
+    });
+
+    ImGui::GetPlatformIO().Platform_GetClipboardTextFn = [](ImGuiContext* ctx [[maybe_unused]]) {
+        return clipboardContent.c_str();
+    };
+
+    ImGui::GetPlatformIO().Platform_SetClipboardTextFn = [](ImGuiContext* ctx [[maybe_unused]], char const* text) {
+        clipboardContent = text;
+        emscripten_browser_clipboard::copy(clipboardContent);
+    };
+#endif
+}
+
+void pollEvents(bool wait)
+{
+    if (wait)
+        glfwWaitEvents();
+    else 
+        glfwPollEvents();
+
+// Applying hidpi scaling to mouse pos. REMOVE if switching to the emscripten glfw contrib port, as it should support it by default.
+#ifdef EMSCRIPTEN
+    if (emscripten_cursor_moved)
+    {
+        double xpos, ypos;
+        glfwGetCursorPos(window, &xpos, &ypos);
+        ImGui::GetIO().AddMousePosEvent(static_cast<float>(xpos * devicePixelRatio), static_cast<float>(ypos * devicePixelRatio));
+        emscripten_cursor_moved = false;
+    }
+#endif
 }
 
 void mainLoop()
@@ -1898,7 +1964,7 @@ void mainLoop()
 
     if (waitEvents)
     {
-        glfwWaitEvents();
+        pollEvents(true);
         lastFrameTime = currentTime;
     }
 
@@ -1911,7 +1977,10 @@ void mainLoop()
     const bool shouldRender = appConfig::vsync || gbTimer >= GBCore::FRAME_RATE || waitEvents;
 
     if (shouldRender)
-        glfwPollEvents();
+    {
+        if (!waitEvents)
+            pollEvents(false);
+    }
     else
     {
 #ifndef EMSCRIPTEN
