@@ -1,0 +1,6 @@
+[submodule "src/Libs/GLFW"]
+	path = src/Libs/GLFW
+	url = https://github.com/glfw/glfw.git
+[submodule "src/Libs/nativefiledialog-extended"]
+	path = src/Libs/nativefiledialog-extended
+	url = https://github.com/btzy/nativefiledialog-extended.git
