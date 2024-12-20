@@ -37,8 +37,6 @@ public:
 	void saveState(std::ostream& st) const;
 	void loadState(std::istream& st);
 
-	bool gbcDoubleSpeed() const;
-
 	struct DMAstate
 	{
 		uint8_t reg{ 0xFF };

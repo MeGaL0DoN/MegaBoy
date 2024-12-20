@@ -4,11 +4,6 @@
 
 MMU::MMU(GBCore& gbCore) : gbCore(gbCore) {}
 
-bool MMU::gbcDoubleSpeed() const
-{
-	return gbCore.cpu.s.GBCdoubleSpeed;
-}
-
 void MMU::updateFunctionPointers()
 {
 	if (System::Current() == GBSystem::DMG)
@@ -447,7 +442,7 @@ uint8_t MMU::read8(uint16_t addr) const
 	{
 		uint8_t val = gbCore.cartridge.getMapper()->read(addr);
 
-		for (auto& genie : gbCore.gameGenies) [[unlikely]]
+		for (const auto& genie : gbCore.gameGenies) [[unlikely]]
 		{
 			if (addr == genie.addr && val == genie.oldData && genie.enable)
 				return genie.newData;

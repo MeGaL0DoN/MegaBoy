@@ -12,8 +12,8 @@
 class debugUI
 {
 public:
-	static void updateMenu();
-	static void updateWindows(float scaleFactor);
+	static void renderMenu();
+	static void renderWindows(float scaleFactor);
 
 	static void signalVBlank();
 	static void signalROMreset();

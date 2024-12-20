@@ -7,7 +7,7 @@
 
 extern GBCore gb;
 
-void debugUI::updateMenu()
+void debugUI::renderMenu()
 {
     if (ImGui::BeginMenu("Debug"))
     {
@@ -244,7 +244,7 @@ void debugUI::signalBreakpoint()
 
 #include "CPU/regDefines.h"
 
-void debugUI::updateWindows(float scaleFactor)
+void debugUI::renderWindows(float scaleFactor)
 {
     if (showMemoryView)
     {

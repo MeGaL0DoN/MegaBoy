@@ -28,7 +28,16 @@
 #include <emscripten/html5.h>
 #include <GLES3/gl3.h>
 #include <emscripten_browser_file/emscripten_browser_file.h>
+
+/* Currently not using Emscripten GLFW contrib port due to issues with imgui hidpi font scaling there, which resulted in text appearing blurry.
+   Instead, the official GLFW port is used for now. However, it has a lot of features (cursors, clipboard, etc.) unimplemented,
+   so I implement them myself in this app only when EMSCRIPTEN_DEFAULT_GLFW is defined, in case I switch to the contrib port in the future. */
+
+#ifndef EMSCRIPTEN_USE_PORT_CONTRIB_GLFW3
+#define EMSCRIPTEN_DEFAULT_GLFW
 #include <emscripten_browser_clipboard/emscripten_browser_clipboard.h>
+#endif
+
 #else
 #include <glad/glad.h>
 #include <nfd.hpp>
@@ -601,6 +610,36 @@ void openFileDialog(const char* filter)
 {
     emscripten_browser_file::upload(filter, handle_upload_file);
 }
+
+void emscriptenUpdateImGuiCursor()
+{
+#ifdef EMSCRIPTEN_DEFAULT_GLFW
+    static ImGuiMouseCursor previousCursor { ImGuiMouseCursor_Arrow };
+    const ImGuiMouseCursor currentCursor { ImGui::GetMouseCursor() };
+
+    if (currentCursor != previousCursor)
+    {
+        const char* cssCursorName;
+        switch (currentCursor)
+        {
+            case ImGuiMouseCursor_None:       cssCursorName = "none"; break;
+            case ImGuiMouseCursor_Arrow:      cssCursorName = "default"; break;
+            case ImGuiMouseCursor_TextInput:  cssCursorName = "text"; break;
+            case ImGuiMouseCursor_ResizeAll:  cssCursorName = "move"; break;
+            case ImGuiMouseCursor_ResizeNS:   cssCursorName = "ns-resize"; break;
+            case ImGuiMouseCursor_ResizeEW:   cssCursorName = "ew-resize"; break;
+            case ImGuiMouseCursor_ResizeNESW: cssCursorName = "nesw-resize"; break;
+            case ImGuiMouseCursor_ResizeNWSE: cssCursorName = "nwse-resize"; break;
+            case ImGuiMouseCursor_Hand:       cssCursorName = "pointer"; break;
+            case ImGuiMouseCursor_NotAllowed: cssCursorName = "not-allowed"; break;
+            default: cssCursorName = "default"; break;
+        }
+
+        EM_ASM_ARGS({ document.body.style.cursor = UTF8ToString($0); }, cssCursorName);
+        previousCursor = currentCursor;
+    }
+#endif
+}
 #endif
 
 bool keyConfigWindowOpen { false };
@@ -705,7 +744,10 @@ void renderKeyConfigGUI()
                     const bool isSelected = selectedModifier == modValue;
 
                     if (ImGui::Selectable(modName, isSelected))
+                    {
                         KeyBindManager::setBind(modifier, modValue);
+                        appConfig::updateConfigFile();
+                    }
 
                     if (isSelected) ImGui::SetItemDefaultFocus();
                 }
@@ -1074,8 +1116,7 @@ void renderCheatsGUI()
     ImGui::End();
 }
 
-void renderImGUI()
-{
+void renderImGUI() {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
@@ -1298,12 +1339,12 @@ void renderImGUI()
                 static std::array<color, 4> tempCustomPalette{ };
 
                 const auto updateColors = []()
-				{
+                {
                     for (int i = 0; i < 4; i++)
                         colors[i] = { PPU::CUSTOM_PALETTE[i].R / 255.0f, PPU::CUSTOM_PALETTE[i].G / 255.0f, PPU::CUSTOM_PALETTE[i].B / 255.0f };
 
                     tempCustomPalette = PPU::CUSTOM_PALETTE;
-				};
+                };
 
                 ImGui::Spacing();
 
@@ -1364,10 +1405,10 @@ void renderImGUI()
         else
         {
             if (graphicsMenuWasOpen)
-			{
+            {
                 showPaletteSelection = false;
-				graphicsMenuWasOpen = false;
-			}
+                graphicsMenuWasOpen = false;
+            }
         }
         if (ImGui::BeginMenu("Audio"))
         {
@@ -1385,24 +1426,24 @@ void renderImGUI()
 
             if (ImGui::Button(gb.apu.recording ? "Stop Recording" : "Start Recording")) // TODO
             {
-//                if (gb.apu.recording)
-//                {
-//                    gb.apu.stopRecording();
-//#ifdef EMSCRIPTEN
-//                    downloadFile("Recording.wav");
-//#endif
-//                }
-//                else
-//                {
-//#ifdef EMSCRIPTEN
-//                    gb.apu.startRecording("Recording.wav"); // TODO: verify if works properly.
-//#else
-//                    const auto result { saveFileDialog("Recording", audioSaveFilterItem) };
-//
-//                    if (result.has_value())
-//                        gb.apu.startRecording(result.value());
-//#endif
-//                }
+                //                if (gb.apu.recording)
+                //                {
+                //                    gb.apu.stopRecording();
+                //#ifdef EMSCRIPTEN
+                //                    downloadFile("Recording.wav");
+                //#endif
+                //                }
+                //                else
+                //                {
+                //#ifdef EMSCRIPTEN
+                //                    gb.apu.startRecording("Recording.wav"); // TODO: verify if works properly.
+                //#else
+                //                    const auto result { saveFileDialog("Recording", audioSaveFilterItem) };
+                //
+                //                    if (result.has_value())
+                //                        gb.apu.startRecording(result.value());
+                //#endif
+                //                }
             }
             ImGui::EndMenu();
         }
@@ -1446,12 +1487,12 @@ void renderImGUI()
             ImGui::EndMenu();
         }
 
-        debugUI::updateMenu();
+        debugUI::renderMenu();
 
         if (gb.breakpointHit)
         {
             ImGui::Separator();
-			ImGui::Text("Breakpoint Hit!");
+            ImGui::Text("Breakpoint Hit!");
         }
         else if (gb.emulationPaused)
         {
@@ -1460,8 +1501,8 @@ void renderImGUI()
         }
         else if (fastForwarding)
         {
-			ImGui::Separator();
-			ImGui::Text("Fast Forward...");
+            ImGui::Separator();
+            ImGui::Text("Fast Forward...");
         }
         else if (gb.cartridge.ROMLoaded() && gb.getSaveNum() != 0)
         {
@@ -1514,7 +1555,11 @@ void renderImGUI()
     if (cheatsWindowOpen)
         renderCheatsGUI();
 
-    debugUI::updateWindows(scaleFactor);
+    debugUI::renderWindows(scaleFactor);
+
+#ifdef EMSCRIPTEN
+    emscriptenUpdateImGuiCursor();
+#endif
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -1734,8 +1779,8 @@ EM_BOOL emscripten_wheel_callback(int, const EmscriptenWheelEvent* ev, void*)
     if (ev->deltaMode == DOM_DELTA_PIXEL) multiplier = 1.0f / 100.0f;        // 100 pixels make up a step.
     else if (ev->deltaMode == DOM_DELTA_LINE) { multiplier = 1.0f / 3.0f; }  // 3 lines make up a step.
     else if (ev->deltaMode == DOM_DELTA_PAGE) { multiplier = 80.0f; }        // A page makes up 80 steps.
-    float wheel_x = static_cast<float>(ev->deltaX * -multiplier);
-    float wheel_y = static_cast<float>(ev->deltaY * -multiplier);
+    auto wheel_x = static_cast<float>(ev->deltaX * -multiplier);
+    auto wheel_y = static_cast<float>(ev->deltaY * -multiplier);
     ImGuiIO& io = ImGui::GetIO();
     io.AddMouseWheelEvent(wheel_x, wheel_y);
     return EM_TRUE;
@@ -1832,8 +1877,10 @@ bool setGLFW()
 #ifdef EMSCRIPTEN
     glfwSetWindowContentScaleCallback(window, content_scale_callback);
 
+#ifdef EMSCRIPTEN_DEFAULT_GLFW
     const auto cursor_pos_callback = [](GLFWwindow* window, double xpos, double ypos) { emscripten_cursor_moved = true; };
     glfwSetCursorPosCallback(window, cursor_pos_callback);
+#endif
 
     emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, NULL, EM_TRUE, emscripten_resize_callback);
     emscripten_set_beforeunload_callback(nullptr, unloadCallback);
@@ -1908,8 +1955,7 @@ void setImGUI()
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init(GL_VERSION_STR);
 
-// Setting up clipboard for imgui text inputs copy paste to work. REMOVE if switching to the emscripten glfw contrib port, as it should support it by default.
-#ifdef EMSCRIPTEN
+#ifdef EMSCRIPTEN_DEFAULT_GLFW
     static std::string clipboardContent {};
 
     emscripten_browser_clipboard::paste([](std::string&& paste_data, void* callback_data [[maybe_unused]]) {
@@ -1934,8 +1980,8 @@ void pollEvents(bool wait)
     else 
         glfwPollEvents();
 
-// Applying hidpi scaling to mouse pos. REMOVE if switching to the emscripten glfw contrib port, as it should support it by default.
-#ifdef EMSCRIPTEN
+// Applying hidpi scaling to mouse pos. Probably a bug in official GLFW port, contrib port should do it by default.
+#ifdef EMSCRIPTEN_DEFAULT_GLFW
     if (emscripten_cursor_moved)
     {
         double xpos, ypos;

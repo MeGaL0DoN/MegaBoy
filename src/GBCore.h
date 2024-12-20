@@ -219,7 +219,7 @@ private:
 
 	inline void vBlankHandler(const uint8_t* framebuffer, bool firstFrame)
 	{
-		for (auto& cheat : gameSharks)
+		for (const auto& cheat : gameSharks)
 		{
 			if (cheat.enable)
 				mmu.write8(cheat.addr, cheat.newData);
