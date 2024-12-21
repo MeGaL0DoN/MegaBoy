@@ -1618,6 +1618,10 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
 {
     (void)_window; (void)scancode;
 
+    // Dont provvess new key presses if ImGui is capturing keyboard input (e.g. typing in text box), but still process key releases.
+    if (ImGui::GetIO().WantCaptureKeyboard && action == GLFW_PRESS)
+		return;
+
     if (awaitingKeyBind != -1 && key != GLFW_KEY_UNKNOWN)
     {
         if (action == GLFW_PRESS)
