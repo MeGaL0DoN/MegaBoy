@@ -2,28 +2,40 @@
 #include "squareWave.h"
 #include "../Utils/bitOps.h"
 
-struct sweepWave : public squareWave
+struct sweepWaveRegs : squareWaveRegs
 {
-	uint8_t NR10 {};
+	std::atomic<uint8_t> NR10;
+};
 
-	//state s{};
+struct sweepWaveState : squareWaveState
+{
+	uint16_t shadowFrequency{};
+	bool sweepEnabled{};
+	uint8_t sweepTimer{};
+};
 
+struct sweepWave : public squareWave<sweepWaveState, sweepWaveRegs>
+{
 	void reset()
 	{
 		squareWave::reset();
+
+		regs.NR10 = 0x80;
+		regs.NRx1 = 0xBF;
+		regs.NRx2 = 0xF3;
 	}
 
 	void trigger() 
 	{
 		squareWave::trigger();
 
-		uint8_t sweepPeriod = (NR10 >> 4) & 0b111;
-		uint8_t sweepShift = NR10 & 0b111;
+		uint8_t sweepPeriod = (regs.NR10 >> 4) & 0b111;
+		uint8_t sweepShift = regs.NR10 & 0b111;
 
-		shadowFrequency = getFrequency();
+		s.shadowFrequency = getFrequency();
 
-		sweepTimer = sweepPeriod == 0 ? 8 : sweepPeriod;
-		sweepEnabled = sweepPeriod != 0 || sweepShift != 0;
+		s.sweepTimer = sweepPeriod == 0 ? 8 : sweepPeriod;
+		s.sweepEnabled = sweepPeriod != 0 || sweepShift != 0;
 
 		if (sweepShift != 0)
 			calculateFrequency();
@@ -31,24 +43,24 @@ struct sweepWave : public squareWave
 
 	void executeSweep()
 	{
-		if (sweepTimer > 0)
+		if (s.sweepTimer > 0)
 		{
-			sweepTimer--;
+			s.sweepTimer--;
 
-			if (sweepTimer == 0)
+			if (s.sweepTimer == 0)
 			{
-				uint8_t sweepPeriod = (NR10 >> 4) & 0b111;
-				sweepTimer = sweepPeriod == 0 ? 8 : sweepPeriod;
+				uint8_t sweepPeriod = (regs.NR10 >> 4) & 0b111;
+				s.sweepTimer = sweepPeriod == 0 ? 8 : sweepPeriod;
 
-				if (sweepEnabled && sweepPeriod > 0)
+				if (s.sweepEnabled && sweepPeriod > 0)
 				{
 					uint16_t newFrequency = calculateFrequency();
 
-					if (newFrequency < 2048 && (NR10 & 0b111) > 0)
+					if (newFrequency < 2048 && (regs.NR10 & 0b111) > 0)
 					{
-						shadowFrequency = newFrequency;
-						NRx3 = newFrequency & 0xFF;
-						NRx4 = (NRx4 & 0b11111000) | (newFrequency >> 8); //|= ((newFrequency & 0x700) >> 8); //
+						s.shadowFrequency = newFrequency;
+						regs.NRx3 = newFrequency & 0xFF;
+						regs.NRx4 = (regs.NRx4 & 0b11111000) | (newFrequency >> 8); 
 
 						calculateFrequency();
 					}
@@ -59,21 +71,17 @@ struct sweepWave : public squareWave
 
 	uint16_t calculateFrequency()
 	{
-		uint16_t newFrequency = shadowFrequency >> (NR10 & 0b111);
+		uint16_t newFrequency = s.shadowFrequency >> (regs.NR10 & 0b111);
+		const bool isDecrementing = getBit(regs.NR10.load(), 3);
 
-		if (getBit(NR10, 3))
-			newFrequency = shadowFrequency - newFrequency;
+		if (isDecrementing)
+			newFrequency = s.shadowFrequency - newFrequency;
 		else
-			newFrequency = shadowFrequency + newFrequency;
+			newFrequency = s.shadowFrequency + newFrequency;
 
 		if (newFrequency > 2047)
 			s.triggered = false;
 
 		return newFrequency;
 	}
-
-private:
-	uint16_t shadowFrequency{};
-	bool sweepEnabled{};
-	uint8_t sweepTimer{};
 };

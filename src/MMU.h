@@ -86,7 +86,7 @@ public:
 	std::array<uint8_t, 256> baseBootROM{};
 	std::array<uint8_t, 0x700> cgbBootROM{};
 private:
-	GBCore& gbCore;
+	GBCore& gb;
 
 	std::array<uint8_t, 0x8000> WRAM_BANKS{};
 	std::array<uint8_t, 127> HRAM{};

@@ -47,6 +47,8 @@
 static_assert(std::endian::native == std::endian::little, "This program requires a little-endian architecture.");
 static_assert(CHAR_BIT == 8, "This program requires 'char' to be 8 bits in size.");
 
+constexpr const char* APP_NAME = "MegaBoy";
+
 GBCore gb;
 GLFWwindow* window{};
 
@@ -79,7 +81,6 @@ constexpr const char* openFilterItem { ".gb,.gbc,.zip,.sav,.mbs,.bin" };
 
 double devicePixelRatio{};
 bool emscripten_saves_syncing { false };
-bool emscripten_cursor_moved { false };
 #endif
 
 const char* popupTitle { "" };
@@ -115,7 +116,7 @@ inline bool emulationRunning()
 
 inline void updateWindowTitle()
 {
-    std::string title = (gb.gameTitle.empty() ? "MegaBoy" : "MegaBoy - " + gb.gameTitle);
+    std::string title = (gb.gameTitle.empty() ? APP_NAME : "MegaBoy - " + gb.gameTitle);
 #ifndef EMSCRIPTEN
     if (emulationRunning())
         title += " (" + FPS_text + ")";
@@ -383,8 +384,8 @@ void updateSelectedFilter()
             break;
         case 2:
             scalingShader.compile(resources::omniscaleVertexShader.c_str(), resources::omniscaleFragmentShader.c_str());
-            scalingShader.setFloat2("OutputSize", PPU::SCR_WIDTH * 4, PPU::SCR_HEIGHT * 4);
             scalingShader.setFloat2("TextureSize", PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
+            scalingShader.setFloat2("OutputSize", PPU::SCR_WIDTH * 4, PPU::SCR_HEIGHT * 4);
             break;
         default:
             regularShader.compile(resources::regularVertexShader.c_str(), resources::regularFragmentShader.c_str());
@@ -562,24 +563,24 @@ inline void updateImGUIViewports()
 }
 
 #ifndef EMSCRIPTEN
-std::optional<std::filesystem::path> saveFileDialog(const std::string& defaultName, const nfdnfilteritem_t* filter)
+std::filesystem::path saveFileDialog(const std::string& defaultName, const nfdnfilteritem_t* filter)
 {
     fileDialogOpen = true;
     NFD::UniquePathN outPath;
     nfdresult_t result = NFD::SaveDialog(outPath, filter, 1, nullptr, FileUtils::nativePathFromUTF8(defaultName).c_str());
 
     fileDialogOpen = false;
-    return result == NFD_OKAY ? std::make_optional(outPath.get()) : std::nullopt;
+    return result == NFD_OKAY ? outPath.get() : std::filesystem::path();
 }
 
-std::optional<std::filesystem::path> openFileDialog(const nfdnfilteritem_t* filter)
+std::filesystem::path openFileDialog(const nfdnfilteritem_t* filter)
 {
     fileDialogOpen = true;
     NFD::UniquePathN outPath;
     nfdresult_t result = NFD::OpenDialog(outPath, filter, 1);
 
     fileDialogOpen = false;
-    return result == NFD_OKAY ? std::make_optional(outPath.get()) : std::nullopt;
+    return result == NFD_OKAY ? outPath.get() : std::filesystem::path();
 }
 #else
 void downloadFile(const char* filePath, const char* downloadName)
@@ -918,10 +919,10 @@ void renderSaveStatesGUI()
 #else
                 const auto result { saveFileDialog(filename, saveStateFilterItem) };
 
-                if (result.has_value())
+                if (!result.empty())
                 {
                     std::error_code err;
-					std::filesystem::copy(saveStatePath, *result, err);			
+					std::filesystem::copy(saveStatePath, result, err);			
                 }
 #endif
                 showSaveStatePopUp = false;
@@ -1046,7 +1047,7 @@ void renderCheatsGUI()
             ImGui::SameLine();
 
             ImGui::BeginDisabled();
-            ImGui::InputText("", cheat.str.data(), cheat.str.length());
+            ImGui::InputText("", cheat.str.data(), cheat.str.size());
             ImGui::EndDisabled();
             ImGui::PopID();
         }
@@ -1087,7 +1088,7 @@ void renderCheatsGUI()
 
         if (std::ranges::find(cheats, cheat) == cheats.end())
         {
-            cheat.str = buf.data();
+            cheat.str = buf;
             cheats.push_back(cheat);
         }
     };
@@ -1104,7 +1105,7 @@ void renderCheatsGUI()
 
         if (std::ranges::find(cheats, cheat) == cheats.end())
         {
-            cheat.str = buf.data();
+            cheat.str = buf;
             cheats.push_back(cheat);
         }
     };
@@ -1132,8 +1133,8 @@ void renderImGUI() {
 #else
                 const auto result { openFileDialog(openFilterItem) };
 
-                if (result.has_value())
-                    loadFile(*result);
+                if (!result.empty())
+                    loadFile(result);
 #endif
             }
             if (gb.cartridge.ROMLoaded())
@@ -1153,8 +1154,8 @@ void renderImGUI() {
 #else
                         const auto result { saveFileDialog(filename, saveStateFilterItem) };
 
-                        if (result.has_value())
-                            gb.saveState(*result);
+                        if (!result.empty())
+                            gb.saveState(result);
 #endif
                     }
                 }
@@ -1170,8 +1171,8 @@ void renderImGUI() {
 #else
                         const auto result { saveFileDialog(filename, batterySaveFilterItem) };
 
-                        if (result.has_value())
-                            gb.saveBattery(*result);
+                        if (!result.empty())
+                            gb.saveBattery(result);
 #endif
                     }
                 }
@@ -1618,8 +1619,8 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
 {
     (void)_window; (void)scancode;
 
-    // Dont provvess new key presses if ImGui is capturing keyboard input (e.g. typing in text box), but still process key releases.
-    if (ImGui::GetIO().WantCaptureKeyboard && action == GLFW_PRESS)
+    // Don't process new key presses if ImGui is capturing keyboard input (e.g. typing in text box), but still process key releases.
+    if (ImGui::GetIO().WantCaptureKeyboard && action != GLFW_RELEASE)
 		return;
 
     if (awaitingKeyBind != -1 && key != GLFW_KEY_UNKNOWN)
@@ -1865,7 +1866,7 @@ bool setGLFW()
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 #endif
 
-    window = glfwCreateWindow(1, 1, "MegaBoy", nullptr, nullptr);
+    window = glfwCreateWindow(1, 1, APP_NAME, nullptr, nullptr);
     if (!window)
     {
         std::cout << "Failed to create GLFW window" << std::endl;
@@ -1879,12 +1880,8 @@ bool setGLFW()
     glfwSetKeyCallback(window, key_callback);
 
 #ifdef EMSCRIPTEN
+    glfwSetWindowTitle(window, APP_NAME);
     glfwSetWindowContentScaleCallback(window, content_scale_callback);
-
-#ifdef EMSCRIPTEN_DEFAULT_GLFW
-    const auto cursor_pos_callback = [](GLFWwindow* window, double xpos, double ypos) { emscripten_cursor_moved = true; };
-    glfwSetCursorPosCallback(window, cursor_pos_callback);
-#endif
 
     emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, NULL, EM_TRUE, emscripten_resize_callback);
     emscripten_set_beforeunload_callback(nullptr, unloadCallback);
@@ -1960,13 +1957,13 @@ void setImGUI()
     ImGui_ImplOpenGL3_Init(GL_VERSION_STR);
 
 #ifdef EMSCRIPTEN_DEFAULT_GLFW
-    static std::string clipboardContent {};
+    static std::string clipboardContent{};
 
-    emscripten_browser_clipboard::paste([](std::string&& paste_data, void* callback_data [[maybe_unused]]) {
+    emscripten_browser_clipboard::paste([](std::string&& paste_data, void* callback_data [[maybe_unused]] ) {
         clipboardContent = std::move(paste_data);
     });
 
-    ImGui::GetPlatformIO().Platform_GetClipboardTextFn = [](ImGuiContext* ctx [[maybe_unused]]) {
+    ImGui::GetPlatformIO().Platform_GetClipboardTextFn = [](ImGuiContext* ctx [[maybe_unused]] ) {
         return clipboardContent.c_str();
     };
 
@@ -1974,25 +1971,13 @@ void setImGUI()
         clipboardContent = text;
         emscripten_browser_clipboard::copy(clipboardContent);
     };
-#endif
-}
 
-void pollEvents(bool wait)
-{
-    if (wait)
-        glfwWaitEvents();
-    else 
-        glfwPollEvents();
+    // Overriding imgui cursor pos callback, because official GLFW port has a bug, it doesn't apply hidpi scaling to cursor position and imgui doesn't handle it.
+    const auto cursor_pos_callback = [](GLFWwindow* window, double xpos, double ypos) {
+        ImGui_ImplGlfw_CursorPosCallback(window, xpos * devicePixelRatio, ypos * devicePixelRatio);
+    };
 
-// Applying hidpi scaling to mouse pos. Probably a bug in official GLFW port, contrib port should do it by default.
-#ifdef EMSCRIPTEN_DEFAULT_GLFW
-    if (emscripten_cursor_moved)
-    {
-        double xpos, ypos;
-        glfwGetCursorPos(window, &xpos, &ypos);
-        ImGui::GetIO().AddMousePosEvent(static_cast<float>(xpos * devicePixelRatio), static_cast<float>(ypos * devicePixelRatio));
-        emscripten_cursor_moved = false;
-    }
+    glfwSetCursorPosCallback(window, cursor_pos_callback);
 #endif
 }
 
@@ -2014,7 +1999,7 @@ void mainLoop()
 
     if (waitEvents)
     {
-        pollEvents(true);
+        glfwWaitEvents();
         lastFrameTime = currentTime;
     }
 
@@ -2029,7 +2014,7 @@ void mainLoop()
     if (shouldRender)
     {
         if (!waitEvents)
-            pollEvents(false);
+            glfwPollEvents();
     }
     else
     {
@@ -2135,12 +2120,10 @@ void runApp(int argc, char* argv[])
     {
         if (appConfig::loadLastROM && !appConfig::romPath.empty())
         {
-            const int saveNum = appConfig::saveStateNum;
-
             if (loadFile(appConfig::romPath))
             {
-                if (saveNum >= 1 && saveNum <= 9)
-                    loadState(saveNum);
+                if (appConfig::saveStateNum != 0)
+                    loadState(appConfig::saveStateNum);
             }
         }
     }

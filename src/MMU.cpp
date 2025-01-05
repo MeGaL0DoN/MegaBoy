@@ -2,7 +2,7 @@
 #include "GBCore.h"
 #include "defines.h"
 
-MMU::MMU(GBCore& gbCore) : gbCore(gbCore) {}
+MMU::MMU(GBCore& gb) : gb(gb) {}
 
 void MMU::updateFunctionPointers()
 {
@@ -55,7 +55,7 @@ void MMU::execute()
 
 	if (s.statRegChanged) [[unlikely]]
 	{
-		gbCore.ppu->regs.STAT = s.newStatVal;
+		gb.ppu->regs.STAT = s.newStatVal;
 		s.statRegChanged = false;
 	}
 }
@@ -86,7 +86,7 @@ void MMU::executeDMA()
 		s.dma.delayCycles--;
 	else
 	{
-		gbCore.ppu->OAM[s.dma.cycles++] = (this->*dma_nonblocking_read)(s.dma.sourceAddr++);
+		gb.ppu->OAM[s.dma.cycles++] = (this->*dma_nonblocking_read)(s.dma.sourceAddr++);
 
 		if (s.dma.restartRequest)
 		{
@@ -100,7 +100,7 @@ void MMU::executeDMA()
 
 void MMU::executeGHDMA()
 {
-	gbc.ghdma.cycles += gbCore.cpu.TcyclesPerM();
+	gbc.ghdma.cycles += gb.cpu.TcyclesPerM();
 
 	if (gbc.ghdma.cycles >= GHDMA_BLOCK_CYCLES)
 	{
@@ -108,7 +108,7 @@ void MMU::executeGHDMA()
 		gbc.ghdma.transferLength -= 0x10;
 
 		for (int i = 0; i < 0x10; i++)
-			gbCore.ppu->VRAM[gbc.ghdma.currentDestAddr++] = (this->*read_func)(gbc.ghdma.currentSourceAddr++);
+			gb.ppu->VRAM[gbc.ghdma.currentDestAddr++] = (this->*read_func)(gbc.ghdma.currentSourceAddr++);
 
 		if (gbc.ghdma.transferLength == 0)
 		{
@@ -138,15 +138,15 @@ void MMU::write8(uint16_t addr, uint8_t val)
 
 	if (addr <= 0x7FFF)
 	{
-		gbCore.cartridge.getMapper()->write(addr, val);
+		gb.cartridge.getMapper()->write(addr, val);
 	}
 	else if (addr <= 0x9FFF)
 	{
-		gbCore.ppu->VRAM[addr - 0x8000] = val;
+		gb.ppu->VRAM[addr - 0x8000] = val;
 	}
 	else if (addr <= 0xBFFF)
 	{
-		gbCore.cartridge.getMapper()->write(addr, val);
+		gb.cartridge.getMapper()->write(addr, val);
 	}
 	else if (addr <= 0xCFFF)
 	{
@@ -165,7 +165,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 	}
 	else if (addr <= 0xFE9F)
 	{
-		gbCore.ppu->OAM[addr - 0xFE00] = val;
+		gb.ppu->OAM[addr - 0xFE00] = val;
 	}
 	else if (addr <= 0xFEFF)
 	{
@@ -177,64 +177,64 @@ void MMU::write8(uint16_t addr, uint8_t val)
 		switch (addr)
 		{
 		case 0xFF00:
-			gbCore.joypad.writeInputReg(val);
+			gb.joypad.writeInputReg(val);
 			break;
 		case 0xFF01:
-			gbCore.serial.s.serial_reg = val;
+			gb.serial.s.serial_reg = val;
 			break;
 		case 0xFF02:
-			gbCore.serial.writeSerialControl(val);
+			gb.serial.writeSerialControl(val);
 			break;
 		case 0xFF04:
-			gbCore.cpu.s.DIV_reg = 0;
-			gbCore.cpu.s.DIV_COUNTER = 0;
+			gb.cpu.s.DIV_reg = 0;
+			gb.cpu.s.DIV_COUNTER = 0;
 			break;
 		case 0xFF05:
-			gbCore.cpu.s.TIMA_reg = val;
+			gb.cpu.s.TIMA_reg = val;
 			break;
 		case 0xFF06:
-			gbCore.cpu.s.TMA_reg = val;
+			gb.cpu.s.TMA_reg = val;
 			break;
 		case 0xFF07:
-			gbCore.cpu.s.TAC_reg = val;
+			gb.cpu.s.TAC_reg = val;
 			break;
 		case 0xFF0F:
-			gbCore.cpu.s.IF = val | 0xE0;
+			gb.cpu.s.IF = val | 0xE0;
 			break;
 		case 0xFF40:
-			gbCore.ppu->setLCDEnable(getBit(val, 7));
-			gbCore.ppu->regs.LCDC = val;
+			gb.ppu->setLCDEnable(getBit(val, 7));
+			gb.ppu->regs.LCDC = val;
 			break;
 		case 0xFF41:
 		{
-			const uint8_t maskedSTAT = (gbCore.ppu->regs.STAT & 0x87) | (val & 0xF8);
+			const uint8_t maskedSTAT = (gb.ppu->regs.STAT & 0x87) | (val & 0xF8);
 
 			// spurious STAT interrupts (DMG only)
 			if constexpr (sys == GBSystem::DMG)
 			{
-				if (gbCore.ppu->s.state == PPUMode::VBlank || gbCore.ppu->s.LY == gbCore.ppu->regs.LYC)
+				if (gb.ppu->s.state == PPUMode::VBlank || gb.ppu->s.LY == gb.ppu->regs.LYC)
 				{
 					s.newStatVal = maskedSTAT;
-					gbCore.ppu->regs.STAT = 0xFF;
+					gb.ppu->regs.STAT = 0xFF;
 					s.statRegChanged = true;
 					break;
 				}
 			}
 
-			gbCore.ppu->regs.STAT = maskedSTAT;
+			gb.ppu->regs.STAT = maskedSTAT;
 			break;
 		}
 		case 0xFF42:
-			gbCore.ppu->regs.SCY = val;
+			gb.ppu->regs.SCY = val;
 			break;
 		case 0xFF43:
-			gbCore.ppu->regs.SCX = val;
+			gb.ppu->regs.SCX = val;
 			break;
 		case 0xFF44:
 			// read only LY register
 			break;
 		case 0xFF45:
-			gbCore.ppu->regs.LYC = val;
+			gb.ppu->regs.LYC = val;
 			break;
 		case 0xFF46:
 			if constexpr (sys == GBSystem::GBC)
@@ -244,53 +244,53 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			}
 			break;
 		case 0xFF47:
-			gbCore.ppu->regs.BGP = val;
-			PPU::updatePalette(val, gbCore.ppu->BGpalette);
+			gb.ppu->regs.BGP = val;
+			PPU::updatePalette(val, gb.ppu->BGpalette);
 			break;
 		case 0xFF48:
-			gbCore.ppu->regs.OBP0 = val;
-			PPU::updatePalette(val, gbCore.ppu->OBP0palette);
+			gb.ppu->regs.OBP0 = val;
+			PPU::updatePalette(val, gb.ppu->OBP0palette);
 			break;
 		case 0xFF49:
-			gbCore.ppu->regs.OBP1 = val;
-			PPU::updatePalette(val, gbCore.ppu->OBP1palette);
+			gb.ppu->regs.OBP1 = val;
+			PPU::updatePalette(val, gb.ppu->OBP1palette);
 			break;
 		case 0xFF4A:
-			gbCore.ppu->regs.WY = val;
+			gb.ppu->regs.WY = val;
 			break;
 		case 0xFF4B:
-			gbCore.ppu->regs.WX = val;
+			gb.ppu->regs.WX = val;
 			break;
 		case 0xFF50: // BANK register used by boot ROMs
-			gbCore.cpu.executingBootROM = false;
+			gb.cpu.executingBootROM = false;
 			break;
 
 		case 0xFF4D:
 			if constexpr (sys == GBSystem::GBC)
 			{
-				if (gbCore.cpu.s.GBCdoubleSpeed != (val & 1))
-					gbCore.cpu.s.prepareSpeedSwitch = true;
+				if (gb.cpu.s.GBCdoubleSpeed != (val & 1))
+					gb.cpu.s.prepareSpeedSwitch = true;
 			}
 			break;
 		case 0xFF4F:
 			if constexpr (sys == GBSystem::GBC)
-				gbCore.ppu->setVRAMBank(val);
+				gb.ppu->setVRAMBank(val);
 			break;
 		case 0xFF68:
 			if constexpr (sys == GBSystem::GBC)
-				gbCore.ppu->gbcRegs.BCPS.writeReg(val);
+				gb.ppu->gbcRegs.BCPS.writeReg(val);
 			break;
 		case 0xFF69:
 			if constexpr (sys == GBSystem::GBC)
-				gbCore.ppu->gbcRegs.BCPS.writePaletteRAM(val);
+				gb.ppu->gbcRegs.BCPS.writePaletteRAM(val);
 			break;
 		case 0xFF6A:
 			if constexpr (sys == GBSystem::GBC)
-				gbCore.ppu->gbcRegs.OCPS.writeReg(val);
+				gb.ppu->gbcRegs.OCPS.writeReg(val);
 			break;
 		case 0xFF6B:
 			if constexpr (sys == GBSystem::GBC)
-				gbCore.ppu->gbcRegs.OCPS.writePaletteRAM(val);
+				gb.ppu->gbcRegs.OCPS.writePaletteRAM(val);
 			break;
 		case 0xFF70:
 			if constexpr (sys == GBSystem::GBC)
@@ -362,42 +362,59 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 
 		case 0xFF10: 
-			gbCore.apu.channel1.NR10 = val; 
+			gb.apu.channel1.regs.NR10 = val; 
 			break;
 		case 0xFF11:
-			gbCore.apu.channel1.NRx1 = val; 
+			gb.apu.channel1.regs.NRx1 = val; 
 			break;
 		case 0xFF12: 
-			gbCore.apu.channel1.NRx2 = val; 
+			gb.apu.channel1.regs.NRx2 = val; 
 			break;
 		case 0xFF13:
-			gbCore.apu.channel1.NRx3 = val; 
+			gb.apu.channel1.regs.NRx3 = val; 
 			break;
 		case 0xFF14: 
-			gbCore.apu.channel1.NRx4 = val; 
-			if (getBit(val, 7)) gbCore.apu.channel1.trigger();
+			gb.apu.channel1.regs.NRx4 = val; 
+			if (getBit(val, 7)) gb.apu.channel1.trigger();
 			break;
 		case 0xFF16: 
-			gbCore.apu.channel2.NRx1 = val; 
+			gb.apu.channel2.regs.NRx1 = val; 
 			break;
 		case 0xFF17:
-			gbCore.apu.channel2.NRx2 = val; 
+			gb.apu.channel2.regs.NRx2 = val; 
 			break;
 		case 0xFF18: 
-			gbCore.apu.channel2.NRx3 = val;
+			gb.apu.channel2.regs.NRx3 = val;
 			break;
 		case 0xFF19: 
-			gbCore.apu.channel2.NRx4 = val; 
-			if (getBit(val, 7)) gbCore.apu.channel2.trigger();
+			gb.apu.channel2.regs.NRx4 = val; 
+			if (getBit(val, 7)) gb.apu.channel2.trigger();
+			break;
+		case 0xFF1A:
+			gb.apu.channel3.regs.NR30 = val;
+			//gb.apu.channel3.regs.dacEnable = getBit(val, 7);
+			break;
+		case 0xFF1B:
+			gb.apu.channel3.regs.NR31 = val;
+			break;
+		case 0xFF1C:
+			gb.apu.channel3.regs.NR32 = val;
+			break;
+		case 0xFF1D:
+			gb.apu.channel3.regs.NR33 = val;
+			break;
+		case 0xFF1E:
+			gb.apu.channel3.regs.NR34 = val;
+			if (getBit(val, 7)) gb.apu.channel3.trigger();
 			break;
 
 		case 0xFF24: ////////
-			gbCore.apu.NR50 = val; 
+			gb.apu.NR50 = val; 
 			break;
 
-		//default:
-		//	if (addr >= 0xFF30 && addr <= 0xFF3F)
-		//		gbCore.apu.waveRAM[addr - 0xFF30] = val;
+		default:
+			if (addr >= 0xFF30 && addr <= 0xFF3F)
+				gb.apu.channel3.waveRAM[addr - 0xFF30] = val;
 		}
 	}
 	else if (addr <= 0xFFFE)
@@ -405,7 +422,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 		HRAM[addr - 0xFF80] = val;
 	}
 	else
-		gbCore.cpu.s.IE = val;
+		gb.cpu.s.IE = val;
 }
 
 template uint8_t MMU::read8<GBSystem::DMG, true>(uint16_t) const;
@@ -426,7 +443,7 @@ uint8_t MMU::read8(uint16_t addr) const
 			return 0xFF;
 	}
 
-	if (gbCore.cpu.executingBootROM)
+	if (gb.cpu.executingBootROM)
 	{
 		if (addr < 0x100)
 			return baseBootROM[addr];
@@ -440,9 +457,9 @@ uint8_t MMU::read8(uint16_t addr) const
 
 	if (addr <= 0x7FFF)
 	{
-		uint8_t val = gbCore.cartridge.getMapper()->read(addr);
+		uint8_t val = gb.cartridge.getMapper()->read(addr);
 
-		for (const auto& genie : gbCore.gameGenies) [[unlikely]]
+		for (const auto& genie : gb.gameGenies)
 		{
 			if (addr == genie.addr && val == genie.oldData && genie.enable)
 				return genie.newData;
@@ -452,11 +469,11 @@ uint8_t MMU::read8(uint16_t addr) const
 	}
 	if (addr <= 0x9FFF)
 	{
-		return gbCore.ppu->canAccessVRAM ? gbCore.ppu->VRAM[addr - 0x8000] : 0xFF;
+		return gb.ppu->canAccessVRAM ? gb.ppu->VRAM[addr - 0x8000] : 0xFF;
 	}
 	if (addr <= 0xBFFF)
 	{
-		return gbCore.cartridge.getMapper()->read(addr);
+		return gb.cartridge.getMapper()->read(addr);
 	}
 	if constexpr (sys == GBSystem::DMG)
 	{
@@ -476,14 +493,14 @@ uint8_t MMU::read8(uint16_t addr) const
 	}
 	if (addr <= 0xFE9F)
 	{
-		return gbCore.ppu->canAccessOAM ? gbCore.ppu->OAM[addr - 0xFE00] : 0xFF;
+		return gb.ppu->canAccessOAM ? gb.ppu->OAM[addr - 0xFE00] : 0xFF;
 	}
 	if (addr <= 0xFEFF)
 	{
 		// prohibited area
 
 		if constexpr (sys == GBSystem::DMG)
-			return gbCore.ppu->canAccessOAM ? 0x00 : 0xFF;
+			return gb.ppu->canAccessOAM ? 0x00 : 0xFF;
 		else
 			return 0xFF;
 	}
@@ -492,74 +509,74 @@ uint8_t MMU::read8(uint16_t addr) const
 		switch (addr)
 		{
 		case 0xFF00:
-			return gbCore.joypad.readInputReg();
+			return gb.joypad.readInputReg();
 		case 0xFF01:
-			return gbCore.serial.s.serial_reg;
+			return gb.serial.s.serial_reg;
 		case 0xFF02:
-			return gbCore.serial.s.serial_control;
+			return gb.serial.s.serial_control;
 		case 0xFF04:
-			return gbCore.cpu.s.DIV_reg;
+			return gb.cpu.s.DIV_reg;
 		case 0xFF05:
-			return gbCore.cpu.s.TIMA_reg;
+			return gb.cpu.s.TIMA_reg;
 		case 0xFF06:
-			return gbCore.cpu.s.TMA_reg;
+			return gb.cpu.s.TMA_reg;
 		case 0xFF07:
-			return gbCore.cpu.s.TAC_reg;
+			return gb.cpu.s.TAC_reg;
 		case 0xFF0F:
-			return gbCore.cpu.s.IF;
+			return gb.cpu.s.IF;
 		case 0xFF40:
-			return gbCore.ppu->regs.LCDC;
+			return gb.ppu->regs.LCDC;
 		case 0xFF41:
-			return gbCore.ppu->regs.STAT;
+			return gb.ppu->regs.STAT;
 		case 0xFF42:
-			return gbCore.ppu->regs.SCY;
+			return gb.ppu->regs.SCY;
 		case 0xFF43:
-			return gbCore.ppu->regs.SCX;
+			return gb.ppu->regs.SCX;
 		case 0xFF44:
-			return gbCore.ppu->s.LY;
+			return gb.ppu->s.LY;
 		case 0xFF45:
-			return gbCore.ppu->regs.LYC;
+			return gb.ppu->regs.LYC;
 		case 0xFF46:
 			return s.dma.reg;
 		case 0xFF47:
-			return gbCore.ppu->regs.BGP;
+			return gb.ppu->regs.BGP;
 		case 0xFF48:
-			return gbCore.ppu->regs.OBP0;
+			return gb.ppu->regs.OBP0;
 		case 0xFF49:
-			return gbCore.ppu->regs.OBP1;
+			return gb.ppu->regs.OBP1;
 		case 0xFF4A:
-			return gbCore.ppu->regs.WY;
+			return gb.ppu->regs.WY;
 		case 0xFF4B:
-			return gbCore.ppu->regs.WX;
+			return gb.ppu->regs.WX;
 
 		case 0xFF4D:
 			if constexpr (sys == GBSystem::GBC)
-				return 0x7E | (static_cast<uint8_t>(gbCore.cpu.s.GBCdoubleSpeed) << 7) | static_cast<uint8_t>(gbCore.cpu.s.prepareSpeedSwitch);
+				return 0x7E | (static_cast<uint8_t>(gb.cpu.s.GBCdoubleSpeed) << 7) | static_cast<uint8_t>(gb.cpu.s.prepareSpeedSwitch);
 			else
 				return 0xFF;
 		case 0xFF4F:
 			if constexpr (sys == GBSystem::GBC)
-				return gbCore.ppu->gbcRegs.VBK;
+				return gb.ppu->gbcRegs.VBK;
 			else 
 				return 0xFF;
 		case 0xFF68:
 			if constexpr (sys == GBSystem::GBC)
-				return gbCore.ppu->gbcRegs.BCPS.readReg();
+				return gb.ppu->gbcRegs.BCPS.readReg();
 			else
 				return 0xFF;
 		case 0xFF69:
 			if constexpr (sys == GBSystem::GBC)
-				return gbCore.ppu->gbcRegs.BCPS.readPaletteRAM();
+				return gb.ppu->gbcRegs.BCPS.readPaletteRAM();
 			else
 				return 0xFF;
 		case 0xFF6A:
 			if constexpr (sys == GBSystem::GBC)
-				return gbCore.ppu->gbcRegs.OCPS.readReg();
+				return gb.ppu->gbcRegs.OCPS.readReg();
 			else
 				return 0xFF;
 		case 0xFF6B:
 			if constexpr (sys == GBSystem::GBC)
-				return gbCore.ppu->gbcRegs.OCPS.readPaletteRAM();
+				return gb.ppu->gbcRegs.OCPS.readPaletteRAM();
 			else
 				return 0xFF;
 		case 0xFF70:
@@ -622,53 +639,51 @@ uint8_t MMU::read8(uint16_t addr) const
 				return 0xFF;
 
 		case 0xFF10: 
-			return gbCore.apu.channel1.NR10;
+			return gb.apu.channel1.regs.NR10 | 0x80;
 		case 0xFF11: 
-			return gbCore.apu.channel1.NRx1;
+			return gb.apu.channel1.regs.NRx1 | 0x3F;
 		case 0xFF12: 
-			return gbCore.apu.channel1.NRx2;
+			return gb.apu.channel1.regs.NRx2 | 0x00;
 		case 0xFF13: 
-			return gbCore.apu.channel1.NRx3;
+			return gb.apu.channel1.regs.NRx3 | 0xFF;
 		case 0xFF14: 
-			return gbCore.apu.channel1.NRx4;
+			return gb.apu.channel1.regs.NRx4 | 0xBF;
 		case 0xFF16: 
-			return gbCore.apu.channel2.NRx1;
+			return gb.apu.channel2.regs.NRx1 | 0x3F;
 		case 0xFF17: 
-			return gbCore.apu.channel2.NRx2;
+			return gb.apu.channel2.regs.NRx2 | 0x00;
 		case 0xFF18: 
-			return gbCore.apu.channel2.NRx3;
+			return gb.apu.channel2.regs.NRx3 | 0xFF;
 		case 0xFF19: 
-			return gbCore.apu.channel2.NRx4;
-
-			
-		//case 0xFF1A: 
-		//	return gbCore.apu.regs.NR30;
-		//case 0xFF1B:
-		//	return gbCore.apu.regs.NR31;
-		//case 0xFF1C: 
-		//	return gbCore.apu.regs.NR32;
-		//case 0xFF1D: 
-		//	return gbCore.apu.regs.NR33;
-		//case 0xFF1E: 
-		//	return gbCore.apu.regs.NR34;
+			return gb.apu.channel2.regs.NRx4 | 0xBF;		
+		case 0xFF1A: 
+			return gb.apu.channel3.regs.NR30 | 0x7F;
+		case 0xFF1B:
+			return gb.apu.channel3.regs.NR31 | 0xFF;
+		case 0xFF1C: 
+			return gb.apu.channel3.regs.NR32 | 0x9F;
+		case 0xFF1D: 
+			return gb.apu.channel3.regs.NR33 | 0xFF;
+		case 0xFF1E: 
+			return gb.apu.channel3.regs.NR34 | 0xBF;
 		//case 0xFF20: 
-		//	return gbCore.apu.regs.NR41;
+		//	return gb.apu.regs.NR41;
 		//case 0xFF21: 
-		//	return gbCore.apu.regs.NR42;
+		//	return gb.apu.regs.NR42;
 		//case 0xFF22:
-		//	return gbCore.apu.regs.NR43;
+		//	return gb.apu.regs.NR43;
 		//case 0xFF23: 
-		//	return gbCore.apu.regs.NR44;
+		//	return gb.apu.regs.NR44;
 		case 0xFF24: 
-			return gbCore.apu.NR50;// gbCore.apu.regs.NR50;
+			return gb.apu.NR50;// gb.apu.regs.NR50;
 		//case 0xFF25: 
-		//	return gbCore.apu.regs.NR51;
+		//	return gb.apu.regs.NR51;
 		//case 0xFF26:
-		//	return gbCore.apu.regs.NR52;
+		//	return gb.apu.regs.NR52;
 
 		default:
-			//if (addr >= 0xFF30 && addr <= 0xFF3F)
-			//	return gbCore.apu.waveRAM[addr - 0xFF30];
+			if (addr >= 0xFF30 && addr <= 0xFF3F)
+				return gb.apu.channel3.waveRAM[addr - 0xFF30];
 
 			return 0xFF;
 		}
@@ -678,5 +693,5 @@ uint8_t MMU::read8(uint16_t addr) const
 		return HRAM[addr - 0xFF80];
 	}
 	else
-		return gbCore.cpu.s.IE;
+		return gb.cpu.s.IE;
 }

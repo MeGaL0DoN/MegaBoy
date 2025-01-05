@@ -53,7 +53,7 @@ public:
 	void saveState(std::ostream& st) const;
 	void loadState(std::istream& st);
 private:
-	GBCore& gbCore;
+	GBCore& gb;
 
 	uint8_t handleInterrupts();
 	bool handleHaltedState();

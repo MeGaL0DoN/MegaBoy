@@ -12,9 +12,9 @@
 #include "Mappers/MBC5.h"
 #include "Mappers/HuC1.h"
 
-Cartridge::Cartridge(GBCore& gbCore) : gbCore(gbCore) { }
+Cartridge::Cartridge(GBCore& gbCore) : gb(gbCore) { }
 
-uint64_t Cartridge::getGBTotalCycles() const { return gbCore.totalCycles(); }
+uint64_t Cartridge::getGBTotalCycles() const { return gb.totalCycles(); }
 
 bool Cartridge::loadROM(std::istream& is)
 {
@@ -183,7 +183,7 @@ bool Cartridge::proccessCartridgeHeader(std::istream& is, uint32_t fileSize)
 	hasRAM = ramBanks != 0;
 	if (hasRAM) ram.resize(RAM_BANK_SIZE * ramBanks);
 
-	gbCore.gameTitle = "";
+	gb.gameTitle = "";
 	is.seekg(0x134, std::ios::beg);
 	char titleVal;
 
@@ -191,7 +191,7 @@ bool Cartridge::proccessCartridgeHeader(std::istream& is, uint32_t fileSize)
 	{
 		is.get(titleVal);
 		if (titleVal <= 0) break; // If reached the end, or found illegal character
-		gbCore.gameTitle += titleVal;
+		gb.gameTitle += titleVal;
 	}
 
 	updateSystem(readByte(0x143));

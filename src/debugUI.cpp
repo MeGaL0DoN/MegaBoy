@@ -163,7 +163,7 @@ void debugUI::extendBreakpointDisasmWindow()
     uint8_t instrLen;
     std::string disasm = disassemble(addr, &instrLen);
 
-    auto createEntry = [&addr, &instrLen, &disasm]()
+    auto createEntry = [&]()
     {
         std::array<uint8_t, 3> data{};
 
@@ -882,10 +882,14 @@ void debugUI::renderWindows(float scaleFactor)
 
         ImGui::SeparatorText("Channel Options");
 
-        ImGui::Checkbox("Channel 1", &gb.apu.enableChannel1);
-        ImGui::Checkbox("Channel 2", &gb.apu.enableChannel2);
-        ImGui::Checkbox("Channel 3", &gb.apu.enableChannel3);
-        ImGui::Checkbox("Channel 4", &gb.apu.enableChannel4);
+        for (int i = 0; i < 4; i++)
+        {
+            const auto channelStr = "Channel " + std::to_string(i + 1);
+            bool tempFlag = gb.apu.enabledChannels[i].load();
+
+            if (ImGui::Checkbox(channelStr.c_str(), &tempFlag))
+                gb.apu.enabledChannels[i].store(tempFlag);
+        }
 
         ImGui::End();
     }

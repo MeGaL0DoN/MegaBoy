@@ -58,8 +58,8 @@ private:
 	bool proccessCartridgeHeader(std::istream& is, uint32_t fileSize);
 	void updateSystem(uint8_t cgbFlag);
 
+	GBCore& gb;
 	std::unique_ptr<MBCBase> mapper { nullptr };
-	GBCore& gbCore;
 
 	bool romLoaded{ false };
 	uint8_t checksum{ 0 };

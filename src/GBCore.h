@@ -30,7 +30,7 @@ struct gameSharkCheat
 	uint8_t newData{};
 	uint16_t addr{};
 
-	std::string str{};
+	std::array<char, 9> str{};
 
 	bool operator==(const gameSharkCheat& other) const
 	{
@@ -45,7 +45,7 @@ struct gameGenieCheat
 	uint8_t oldData{};
 	uint8_t checksum{};
 
-	std::string str{};
+	std::array<char, 12> str{};
 
 	bool operator==(const gameGenieCheat& other) const
 	{
@@ -55,9 +55,10 @@ struct gameGenieCheat
 
 class GBCore
 {
-public:
 	friend class debugUI;
+	friend class CPU;
 
+public:
 	static constexpr const char* DMG_BOOTROM_NAME = "dmg_boot.bin";
 	static constexpr const char* CGB_BOOTROM_NAME = "cgb_boot.bin";
 
@@ -76,7 +77,6 @@ public:
 	}
 
 	void update(uint32_t cyclesToExecute);
-	void stepComponents();
 
 	inline void setDrawCallback(void (*callback)(const uint8_t*, bool))
 	{
@@ -202,6 +202,8 @@ private:
 	std::filesystem::path customBatterySavePath;;
 
 	std::array<bool, 0x10000> breakpoints {};
+
+	void stepComponents();
 
 	inline void setPPUDebugEnable(bool val)
 	{

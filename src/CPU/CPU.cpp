@@ -1,7 +1,7 @@
 #include "CPUInstructions.h"
 #include "../defines.h"
 
-CPU::CPU(GBCore& gbCore) : gbCore(gbCore), instructions(std::make_unique<CPUInstructions>(this))
+CPU::CPU(GBCore& gbCore) : gb(gbCore), instructions(std::make_unique<CPUInstructions>(this))
 {
 	reset();
 }
@@ -34,18 +34,18 @@ void CPU::loadState(std::istream& st)
 void CPU::addCycle()
 {
 	cycles++;
-	gbCore.stepComponents();
+	gb.stepComponents();
 	s.interruptLatch = interruptsPending();
 }
 
 void CPU::write8(uint16_t addr, uint8_t val)
 {
-	gbCore.mmu.write8(addr, val);
+	gb.mmu.write8(addr, val);
 	addCycle();
 }
 uint8_t CPU::read8(uint16_t addr)
 {
-	uint8_t val = gbCore.mmu.read8(addr);
+	uint8_t val = gb.mmu.read8(addr);
 	addCycle();
 	return val;
 }
@@ -62,7 +62,7 @@ uint8_t& CPU::getRegister(uint8_t ind)
 		case 5: return registers.L.val;
 		case 6: 
 		{
-			HL_val = gbCore.mmu.read8(registers.HL.val);
+			HL_val = gb.mmu.read8(registers.HL.val);
 			return HL_val;
 		}
 		case 7: return registers.A.val;
@@ -109,7 +109,7 @@ uint8_t CPU::execute()
 	if (handleHaltedState()) [[unlikely]]
 		return T_CYCLES;
 
-	if (gbCore.mmu.gbc.ghdma.active) [[unlikely]]
+	if (gb.mmu.gbc.ghdma.active) [[unlikely]]
 	{
 		addCycle();
 		return T_CYCLES;
