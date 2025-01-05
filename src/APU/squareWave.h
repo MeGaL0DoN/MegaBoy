@@ -23,7 +23,7 @@ struct squareWaveState
 	bool triggered {};
 };
 
-template<typename state = squareWaveState, typename regs = squareWaveRegs>
+template<typename state = squareWaveState, typename r = squareWaveRegs>
 struct squareWave
 {
 	inline void reset() 
@@ -116,5 +116,5 @@ struct squareWave
 	});
 
 	state s{};
-	regs regs{};
+	r regs{};
 };
