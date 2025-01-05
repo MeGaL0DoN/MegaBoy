@@ -38,9 +38,10 @@ add_executable(MegaBoy
         "PPU/PPUCore.h"
         "APU/APU.cpp"
         "APU/APU.h"
-        "APU/squareWave.h" 
         "APU/sweepWave.h"       
+        "APU/squareWave.h" 
         "APU/customWave.h"
+        "APU/noiseWave.h"
         "CPU/CPU.cpp"
         "CPU/CPU.h"
         "CPU/registers.h"
@@ -70,7 +71,7 @@ add_executable(MegaBoy
         "Utils/pixelOps.h"
         "Utils/fileUtils.h"
         "Utils/Shader.cpp"
-        "Utils/Shader.h" )
+        "Utils/Shader.h")
 
 include(CheckIPOSupported)
 check_ipo_supported(RESULT supported OUTPUT error)

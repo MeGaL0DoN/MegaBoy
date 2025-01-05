@@ -8,20 +8,14 @@
 
 struct customWaveRegs
 {
-	std::atomic<uint8_t> NR30;
-	std::atomic<uint8_t> NR31;
-	std::atomic<uint8_t> NR32;
-	std::atomic<uint8_t> NR33;
-	std::atomic<uint8_t> NR34;
+	std::atomic<uint8_t> NR30, NR31, NR32, NR33, NR34;
 };
 
 struct customWaveState
 {
-	bool dacEnable{};
-	bool triggered{};
 	uint8_t sampleInd{};
-	uint16_t periodTimer{};
-	uint16_t lengthTimer{};
+	uint16_t periodTimer{}, lengthTimer{};
+	bool enabled{};
 };
 
 struct customWave
@@ -57,10 +51,15 @@ struct customWave
 
 	inline void trigger()
 	{
+		if (!getBit(regs.NR30.load(), 7))
+			return; // DAC is disabled.
+
 		s.periodTimer = (2048 - getFrequency()) >> 1;
 		s.lengthTimer = 256 - regs.NR31;
-		s.triggered = true;
+		s.enabled = true;
 	}
+
+	inline void disable() { s.enabled = false; }
 
 	inline void executeLength()
 	{
@@ -69,7 +68,7 @@ struct customWave
 		s.lengthTimer--;
 
 		if (s.lengthTimer == 0)
-			s.triggered = false;
+			s.enabled = false;
 	}
 
 	inline void execute()
@@ -86,7 +85,7 @@ struct customWave
 	inline float getSample()
 	{
 		uint8_t sample = (s.sampleInd & 1) == 0 ? (waveRAM[s.sampleInd >> 1] >> 4) : (waveRAM[s.sampleInd >> 1] & 0xF);
-		return ((sample >> getVolumeShift()) / 15.f) * s.triggered;
+		return ((sample >> getVolumeShift()) / 15.f) * s.enabled;
 	}
 
 	customWaveState s{};

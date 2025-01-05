@@ -80,7 +80,7 @@ struct sweepWave : public squareWave<sweepWaveState, sweepWaveRegs>
 			newFrequency = s.shadowFrequency + newFrequency;
 
 		if (newFrequency > 2047)
-			s.triggered = false;
+			s.enabled = false;
 
 		return newFrequency;
 	}

@@ -369,6 +369,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 		case 0xFF12: 
 			gb.apu.channel1.regs.NRx2 = val; 
+			if ((val & 0xF8) == 0) gb.apu.channel1.disable();
 			break;
 		case 0xFF13:
 			gb.apu.channel1.regs.NRx3 = val; 
@@ -382,6 +383,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 		case 0xFF17:
 			gb.apu.channel2.regs.NRx2 = val; 
+			if ((val & 0xF8) == 0) gb.apu.channel2.disable();
 			break;
 		case 0xFF18: 
 			gb.apu.channel2.regs.NRx3 = val;
@@ -392,7 +394,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 		case 0xFF1A:
 			gb.apu.channel3.regs.NR30 = val;
-			//gb.apu.channel3.regs.dacEnable = getBit(val, 7);
+			if (!getBit(val, 7)) gb.apu.channel3.disable();
 			break;
 		case 0xFF1B:
 			gb.apu.channel3.regs.NR31 = val;
@@ -407,10 +409,19 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			gb.apu.channel3.regs.NR34 = val;
 			if (getBit(val, 7)) gb.apu.channel3.trigger();
 			break;
-
 		case 0xFF24: ////////
-			gb.apu.NR50 = val; 
+			gb.apu.regs.NR50 = val; 
 			break;
+		case 0xFF25:
+			gb.apu.regs.NR51 = val;
+			break;
+		case 0xFF26:
+		{
+			const bool apuEnable = getBit(val, 7);
+			if (!apuEnable) gb.apu.reset();
+			gb.apu.regs.apuEnable = apuEnable;
+			break;
+		}
 
 		default:
 			if (addr >= 0xFF30 && addr <= 0xFF3F)
@@ -674,12 +685,14 @@ uint8_t MMU::read8(uint16_t addr) const
 		//	return gb.apu.regs.NR43;
 		//case 0xFF23: 
 		//	return gb.apu.regs.NR44;
+
+		//TODO NR50 AND NR51.
 		case 0xFF24: 
-			return gb.apu.NR50;// gb.apu.regs.NR50;
-		//case 0xFF25: 
-		//	return gb.apu.regs.NR51;
-		//case 0xFF26:
-		//	return gb.apu.regs.NR52;
+			return gb.apu.regs.NR50;
+		case 0xFF25: 
+			return gb.apu.regs.NR51;
+		case 0xFF26:
+			return gb.apu.getNR52();
 
 		default:
 			if (addr >= 0xFF30 && addr <= 0xFF3F)

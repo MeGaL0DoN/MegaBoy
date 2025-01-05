@@ -5,12 +5,20 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <atomic>
 
 #include "squareWave.h"
 #include "sweepWave.h"
 #include "customWave.h"
+#include "noiseWave.h"
 
 class GBCore;
+
+struct globalAPURegs
+{
+	std::atomic<uint8_t> NR50, NR51;
+	std::atomic<bool> apuEnable; // Instead of NR52, since it is the only writable bit.
+};
 
 class APU
 {
@@ -22,10 +30,10 @@ public:
 	explicit APU(GBCore& gbCore);
 	~APU();
 
-	void execute();
-	void generateSample();
+	void execute(uint32_t cycles);
+	int16_t generateSample();
 
-	uint8_t getSample() const { return (sample * volume) * 255; }
+	inline bool enabled() { return regs.apuEnable; }
 
 	static constexpr uint32_t CPU_FREQUENCY = 1053360;
 	static constexpr uint32_t SAMPLE_RATE = 44100;
@@ -41,8 +49,6 @@ public:
 
 	std::ofstream recordingStream;
 	std::vector<int16_t> recordingBuffer;
-
-	uint8_t NR50{};
 private:
 	void executeFrameSequencer();
 	void initMiniAudio();
@@ -58,6 +64,19 @@ private:
 	sweepWave channel1{};
 	squareWave<> channel2{};
 	customWave channel3{};
+	noiseWave channel4{};
+
+	globalAPURegs regs{};
+
+	inline uint8_t getNR52()
+	{
+		uint8_t NR52 = setBit(0x70, 7, regs.apuEnable);
+		NR52 = setBit(NR52, 3, channel4.s.enabled);
+		NR52 = setBit(NR52, 2, channel3.s.enabled);
+		NR52 = setBit(NR52, 1, channel2.s.enabled);
+		NR52 = setBit(NR52, 0, channel1.s.enabled);
+		return NR52;
+	}
 
 	uint16_t frameSequencerCycles{};
 	uint8_t frameSequencerStep{};

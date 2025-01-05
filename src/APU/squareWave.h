@@ -7,20 +7,14 @@
 
 struct squareWaveRegs
 {
-	std::atomic<uint8_t> NRx1;
-	std::atomic<uint8_t> NRx2;
-	std::atomic<uint8_t> NRx3;
-	std::atomic<uint8_t> NRx4;
+	std::atomic<uint8_t> NRx1, NRx2, NRx3, NRx4;
 };
 
 struct squareWaveState
 {
-	uint8_t dutyStep {};
-	uint8_t amplitude {};
-	uint8_t lengthTimer {};
-	uint8_t envelopePeriodTimer {};
 	uint16_t freqPeriodTimer {};
-	bool triggered {};
+	uint8_t dutyStep {}, amplitude {}, lengthTimer {}, envelopePeriodTimer {};
+	bool enabled {};
 };
 
 template<typename state = squareWaveState, typename r = squareWaveRegs>
@@ -43,14 +37,19 @@ struct squareWave
 
 	inline void trigger()
 	{
+		if ((regs.NRx2 & 0xF8) == 0)
+			return; // DAC is disabled.
+
 		s.lengthTimer = 64 - (regs.NRx1 & 0b00111111);
 		s.envelopePeriodTimer = regs.NRx2 & 0b111;
 		s.amplitude = (regs.NRx2 >> 4) & 0b1111;
-		s.triggered = true;
+		s.enabled = true;
 
 		s.freqPeriodTimer = 2048 - getFrequency();
 		s.dutyStep = 0;
 	}
+
+	inline void disable() { s.enabled = false; }
 
 	inline void executeEnvelope()
 	{
@@ -87,7 +86,7 @@ struct squareWave
 		s.lengthTimer--;
 
 		if (s.lengthTimer == 0)
-			s.triggered = false;
+			s.enabled = false;
 	}
 
 	inline void execute()
@@ -104,7 +103,7 @@ struct squareWave
 	inline float getSample()
 	{
 		uint8_t dutyType = regs.NRx1 >> 6;
-		return DUTY_TABLE[dutyType][s.dutyStep] * (s.amplitude / 15.f) * s.triggered;
+		return DUTY_TABLE[dutyType][s.dutyStep] * (s.amplitude / 15.f) * s.enabled;
 	}
 
 	static constexpr auto DUTY_TABLE = std::to_array<std::array<uint8_t, 8>>
