@@ -46,7 +46,9 @@ public:
 	std::atomic<float> volume { 0.5 };
 	std::array<std::atomic<bool>, 4> enabledChannels { true, true, true, true };
 
-	bool recording{ false };
+	std::atomic<bool> isRecording{ false };
+	std::atomic<float> recordedSeconds { 0.f };
+
 	void startRecording(const std::filesystem::path& filePath);
 	void stopRecording();
 

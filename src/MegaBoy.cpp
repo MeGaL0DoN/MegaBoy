@@ -1420,31 +1420,45 @@ void renderImGUI() {
 
             static int volume { static_cast<int>(gb.apu.volume * 100) };
 
+            ImGui::PushItemFlag(ImGuiItemFlags_NoTabStop, true);
+
             if (ImGui::SliderInt("Volume", &volume, 0, 100))
                 gb.apu.volume = static_cast<float>(volume / 100.0);
 
+            ImGui::PopItemFlag();
+
             ImGui::SeparatorText("Misc.");
 
-            if (ImGui::Button(gb.apu.recording ? "Stop Recording" : "Start Recording")) // TODO
+            if (gb.apu.isRecording)
             {
-                //                if (gb.apu.recording)
-                //                {
-                //                    gb.apu.stopRecording();
-                //#ifdef EMSCRIPTEN
-                //                    downloadFile("Recording.wav");
-                //#endif
-                //                }
-                //                else
-                //                {
-                //#ifdef EMSCRIPTEN
-                //                    gb.apu.startRecording("Recording.wav"); // TODO: verify if works properly.
-                //#else
-                //                    const auto result { saveFileDialog("Recording", audioSaveFilterItem) };
-                //
-                //                    if (result.has_value())
-                //                        gb.apu.startRecording(result.value());
-                //#endif
-                //                }
+                if (ImGui::Button("Stop Recording"))
+                {
+                    gb.apu.stopRecording();
+#ifdef EMSCRIPTEN
+                    downloadFile("Recording.wav");
+#endif
+                }
+
+                ImGui::SameLine();
+
+                const auto minutes = static_cast<int>(gb.apu.recordedSeconds) / 60;
+                const auto seconds = static_cast<int>(gb.apu.recordedSeconds) % 60;
+
+                ImGui::Text("%d:%02d", minutes, seconds);
+            }
+            else
+            {
+                if (ImGui::Button("Start Recording"))
+                {
+#ifdef EMSCRIPTEN
+                    gb.apu.startRecording("Recording.wav"); // TODO: verify if works properly.
+#else
+                    const auto result{ saveFileDialog("Recording", audioSaveFilterItem) };
+
+                    if (!result.empty())
+                        gb.apu.startRecording(result);
+#endif
+                }
             }
             ImGui::EndMenu();
         }

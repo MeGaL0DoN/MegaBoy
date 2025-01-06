@@ -14,7 +14,7 @@ APU::~APU()
 	if (soundDevice != nullptr)
 		ma_device_uninit(soundDevice.get());
 
-	if (recording)
+	if (isRecording)
 		stopRecording();
 }
 
@@ -84,10 +84,10 @@ void sound_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, 
 		pOutput16[i * 2 + 1] = samples.second;
 	}
 
-	if (apu.recording)
+	if (apu.isRecording)
 	{
-		size_t bufferLen = apu.recordingBuffer.size();
-		size_t newBufferLen = bufferLen + (frameCount * APU::CHANNELS);
+		const size_t bufferLen = apu.recordingBuffer.size();
+		const size_t newBufferLen = bufferLen + (frameCount * APU::CHANNELS);
 
 		apu.recordingBuffer.resize(newBufferLen);
 		std::memcpy(&apu.recordingBuffer[bufferLen], pOutput16, sizeof(int16_t) * frameCount * APU::CHANNELS);
@@ -97,14 +97,16 @@ void sound_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, 
 			apu.recordingStream.write(reinterpret_cast<char*>(apu.recordingBuffer.data()), newBufferLen * sizeof(int16_t));
 			apu.recordingBuffer.clear();
 		}
+
+		apu.recordedSeconds += (static_cast<float>(frameCount) / APU::SAMPLE_RATE);
 	}
 }
 
 void APU::startRecording(const std::filesystem::path& filePath)
 {
-	recording = true;
-	recordingStream = std::ofstream(filePath);
-	recordingBuffer.reserve(APU::SAMPLE_RATE);
+	isRecording = true;
+	recordingStream = std::ofstream { filePath, std::ios::binary };
+	recordingBuffer.reserve(SAMPLE_RATE);
 	writeWAVHeader();
 }
 
@@ -113,9 +115,9 @@ void APU::startRecording(const std::filesystem::path& filePath)
 void APU::writeWAVHeader()
 {
 	constexpr uint16_t BITS_PER_SAMPLE = sizeof(int16_t) * CHAR_BIT;
-	constexpr uint32_t BYTE_RATE = (SAMPLE_RATE * sizeof(int16_t) * CHANNELS) / CHAR_BIT;
+	constexpr uint32_t BYTE_RATE = SAMPLE_RATE * sizeof(int16_t) * CHANNELS;
 	constexpr uint32_t SECTION_CHUNK_SIZE = 16;
-	constexpr uint16_t BLOCK_ALIGN = (BITS_PER_SAMPLE * CHANNELS) / 8;
+	constexpr uint16_t BLOCK_ALIGN = (BITS_PER_SAMPLE * CHANNELS) / CHAR_BIT;
 	constexpr uint16_t PCM_FORMAT = 1;
 
 	recordingStream.write("RIFF", 4);
@@ -141,10 +143,14 @@ void APU::writeWAVHeader()
 
 void APU::stopRecording()
 {
-	recording = false;
+	isRecording = false;
+	recordedSeconds = 0.f;
 
 	if (!recordingBuffer.empty())
-		recordingStream.write(reinterpret_cast<char*>(&recordingBuffer[0]), recordingBuffer.size() * sizeof(int16_t));
+	{
+		recordingStream.write(reinterpret_cast<char*>(recordingBuffer.data()), recordingBuffer.size() * sizeof(int16_t));
+		recordingBuffer.clear();
+	}
 
 	recordingStream.seekp(0, std::ios::end);
 	const uint32_t fileSize = static_cast<uint32_t>(recordingStream.tellp()) - 8;
@@ -157,7 +163,6 @@ void APU::stopRecording()
 	WRITE(dataSize);
 
 	recordingStream.close();
-	recordingBuffer.clear();
 }
 
 #undef WRITE
