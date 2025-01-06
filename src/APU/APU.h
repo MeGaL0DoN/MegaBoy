@@ -35,6 +35,9 @@ public:
 
 	inline bool enabled() { return regs.apuEnable; }
 
+	void saveState(std::ostream& st) const;
+	void loadState(std::istream& st);
+
 	static constexpr uint32_t CPU_FREQUENCY = 1053360;
 	static constexpr uint32_t SAMPLE_RATE = 44100;
 	static constexpr uint32_t CYCLES_PER_SAMPLE = CPU_FREQUENCY / SAMPLE_RATE;

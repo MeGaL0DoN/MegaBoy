@@ -14,8 +14,8 @@ struct customWaveRegs
 struct customWaveState
 {
 	uint8_t sampleInd{};
-	uint16_t periodTimer{}, lengthTimer{};
-	bool enabled { true };
+	uint16_t freqPeriodTimer{}, lengthTimer{};
+	bool enabled{};
 };
 
 struct customWave
@@ -55,7 +55,7 @@ struct customWave
 
 	inline void trigger()
 	{
-		s.periodTimer = (2048 - getFrequency()) >> 1;
+		s.freqPeriodTimer = (2048 - getFrequency()) >> 1;
 		s.lengthTimer = s.lengthTimer == 0 ? 256 : s.lengthTimer;
 		s.enabled = dacEnabled();
 		s.sampleInd = 0;
@@ -76,11 +76,11 @@ struct customWave
 
 	inline void execute()
 	{
-		s.periodTimer--;
+		s.freqPeriodTimer--;
 
-		if (s.periodTimer == 0)
+		if (s.freqPeriodTimer == 0)
 		{
-			s.periodTimer = (2048 - getFrequency()) >> 1;
+			s.freqPeriodTimer = (2048 - getFrequency()) >> 1;
 			s.sampleInd = (s.sampleInd + 1) & 31;
 		}
 	}

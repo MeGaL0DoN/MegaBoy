@@ -1985,16 +1985,12 @@ void mainLoop()
 {
     constexpr double MAX_DELTA_TIME = 0.1;
 
-    static double lastFrameTime{ glfwGetTime() };
-    static double lastRenderTime { lastFrameTime };
-    static double gbTimer { 0.0 };
-    static double secondsTimer { 0.0 };
+    static double lastFrameTime { glfwGetTime() }, lastRenderTime { lastFrameTime };
+    static double gbTimer { 0.0 }, secondsTimer { 0.0 };
     static double executeTimes { 0.0 };
-    static int frameCount{ 0 };
-    static int gbFrameCount{ 0 };
+    static int frameCount { 0 }, gbFrameCount { 0 };
 
     const bool waitEvents = (gb.emulationPaused && !fadeEffectActive) || !gb.cartridge.ROMLoaded();
-
     const double currentTime = glfwGetTime();
 
     if (waitEvents)

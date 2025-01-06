@@ -18,15 +18,32 @@ APU::~APU()
 		stopRecording();
 }
 
+void APU::saveState(std::ostream& st) const
+{
+	ST_WRITE(regs);
+	ST_WRITE(frameSequencerCycles);
+	ST_WRITE(frameSequencerStep);
+	ST_WRITE(channel1);
+	ST_WRITE(channel2);
+	ST_WRITE(channel3.s); ST_WRITE(channel3.regs); ST_WRITE_ARR(channel3.waveRAM);
+	ST_WRITE(channel4);
+}
+
+void APU::loadState(std::istream& st)
+{
+	ST_READ(regs);
+	ST_READ(frameSequencerCycles);
+	ST_READ(frameSequencerStep);
+	ST_READ(channel1);
+	ST_READ(channel2);
+	ST_READ(channel3.s); ST_READ(channel3.regs); ST_READ_ARR(channel3.waveRAM);
+	ST_READ(channel4); 
+}
+
 void APU::reset()
 {
 	if (soundDevice == nullptr)
 		initMiniAudio();
-
-	channel1.reset();
-	channel2.reset();
-	channel3.reset();
-	channel4.reset();
 
 	regs.NR50 = 0x77;
 	regs.NR51 = 0xF3;
@@ -34,6 +51,11 @@ void APU::reset()
 
 	frameSequencerCycles = 0;
 	frameSequencerStep = 0;
+
+	channel1.reset();
+	channel2.reset();
+	channel3.reset();
+	channel4.reset();
 }
 
 void sound_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
@@ -166,7 +188,7 @@ void APU::executeFrameSequencer()
 			channel1.executeLength();
 			channel2.executeLength();
 			channel3.executeLength();
-			// TODO ADD CHANNEL 4.
+			channel4.executeLength();
 
 			if (frameSequencerStep == 2 || frameSequencerStep == 6)
 				channel1.executeSweep();
@@ -175,7 +197,7 @@ void APU::executeFrameSequencer()
 		{
 			channel1.executeEnvelope();
 			channel2.executeEnvelope();
-			// TODO ADD CHANNEL 4.
+			channel4.executeEnvelope();
 		}
 
 		frameSequencerCycles = 0;

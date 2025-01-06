@@ -14,7 +14,7 @@ struct squareWaveState
 {
 	uint16_t freqPeriodTimer {};
 	uint8_t dutyStep {}, amplitude {}, lengthTimer {}, envelopePeriodTimer {};
-	bool enabled { true };
+	bool enabled {};
 };
 
 template<typename state = squareWaveState, typename r = squareWaveRegs>

@@ -10,8 +10,8 @@ struct sweepWaveRegs : squareWaveRegs
 struct sweepWaveState : squareWaveState
 {
 	uint16_t shadowFrequency{};
-	bool sweepEnabled{};
 	uint8_t sweepTimer{};
+	bool sweepEnabled{};
 };
 
 struct sweepWave : public squareWave<sweepWaveState, sweepWaveRegs>
