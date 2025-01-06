@@ -10,15 +10,17 @@ struct noiseWaveRegs
 
 struct noiseWaveState
 {
-	bool enabled{};
+	bool enabled { true };
 };
 
 struct noiseWave
 {
 	inline void reset()
 	{
-
+		s = {};
 	}
+
+	inline bool dacEnabled() { return (regs.NR42 & 0xF8) != 0; }
 
 	inline void trigger()
 	{
@@ -26,6 +28,8 @@ struct noiseWave
 	}
 
 	inline void disable() { s.enabled = false; }
+
+	inline void reloadLength() {}
 
 	inline void execute()
 	{

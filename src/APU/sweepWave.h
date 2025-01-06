@@ -29,11 +29,10 @@ struct sweepWave : public squareWave<sweepWaveState, sweepWaveRegs>
 	{
 		squareWave::trigger();
 
-		uint8_t sweepPeriod = (regs.NR10 >> 4) & 0b111;
-		uint8_t sweepShift = regs.NR10 & 0b111;
+		const uint8_t sweepPeriod = (regs.NR10 >> 4) & 0b111;
+		const uint8_t sweepShift = regs.NR10 & 0b111;
 
 		s.shadowFrequency = getFrequency();
-
 		s.sweepTimer = sweepPeriod == 0 ? 8 : sweepPeriod;
 		s.sweepEnabled = sweepPeriod != 0 || sweepShift != 0;
 
@@ -49,14 +48,15 @@ struct sweepWave : public squareWave<sweepWaveState, sweepWaveRegs>
 
 			if (s.sweepTimer == 0)
 			{
-				uint8_t sweepPeriod = (regs.NR10 >> 4) & 0b111;
+				const uint8_t sweepPeriod = (regs.NR10 >> 4) & 0b111;
 				s.sweepTimer = sweepPeriod == 0 ? 8 : sweepPeriod;
 
-				if (s.sweepEnabled && sweepPeriod > 0)
+				if (s.sweepEnabled && sweepPeriod != 0)
 				{
-					uint16_t newFrequency = calculateFrequency();
+					const uint16_t newFrequency = calculateFrequency();
+					const uint8_t sweepShift = (regs.NR10 & 0b111);
 
-					if (newFrequency < 2048 && (regs.NR10 & 0b111) > 0)
+					if (newFrequency < 2048 && sweepShift != 0)
 					{
 						s.shadowFrequency = newFrequency;
 						regs.NRx3 = newFrequency & 0xFF;
@@ -71,8 +71,9 @@ struct sweepWave : public squareWave<sweepWaveState, sweepWaveRegs>
 
 	uint16_t calculateFrequency()
 	{
-		uint16_t newFrequency = s.shadowFrequency >> (regs.NR10 & 0b111);
+		const uint8_t sweepShift = (regs.NR10 & 0b111);
 		const bool isDecrementing = getBit(regs.NR10.load(), 3);
+		uint16_t newFrequency = s.shadowFrequency >> sweepShift;
 
 		if (isDecrementing)
 			newFrequency = s.shadowFrequency - newFrequency;

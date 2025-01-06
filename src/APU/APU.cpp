@@ -7,7 +7,7 @@
 #include "../Utils/bitOps.h"
  
 APU::APU(GBCore& gbCore) : gb(gbCore)
-{ }
+{}
 
 APU::~APU()
 {
@@ -53,13 +53,13 @@ void sound_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, 
 		return;
 	}
 
-	for (uint32_t i = 0; i < frameCount; i++)
+	for (ma_uint32 i = 0; i < frameCount; i++)
 	{
 		apu.execute(APU::CYCLES_PER_SAMPLE);
-		int16_t sample = apu.generateSample();
+		const auto samples = apu.generateSamples();
 
-		pOutput16[i * 2] = sample;
-		pOutput16[i * 2 + 1] = sample;
+		pOutput16[i * 2] = samples.first;
+		pOutput16[i * 2 + 1] = samples.second;
 	}
 
 	if (apu.recording)
@@ -91,7 +91,7 @@ void APU::startRecording(const std::filesystem::path& filePath)
 void APU::writeWAVHeader()
 {
 	constexpr uint16_t BITS_PER_SAMPLE = sizeof(int16_t) * CHAR_BIT;
-	constexpr uint32_t BYTE_RATE = (SAMPLE_RATE * sizeof(int16_t) * CHANNELS) / 8;
+	constexpr uint32_t BYTE_RATE = (SAMPLE_RATE * sizeof(int16_t) * CHANNELS) / CHAR_BIT;
 	constexpr uint32_t SECTION_CHUNK_SIZE = 16;
 	constexpr uint16_t BLOCK_ALIGN = (BITS_PER_SAMPLE * CHANNELS) / 8;
 	constexpr uint16_t PCM_FORMAT = 1;
@@ -196,16 +196,31 @@ void APU::execute(uint32_t cycles)
 	}
 }
 
-int16_t APU::generateSample()
+std::pair<int16_t, int16_t> APU::generateSamples() 
 {
-	sample = 0;
+	float leftSample = 0.f, rightSample = 0.f;
+	const uint8_t nr51 = regs.NR51.load();
 
-	sample += channel1.getSample() * enabledChannels[0];
-	sample += channel2.getSample() * enabledChannels[1];
-	sample += channel3.getSample() * enabledChannels[2];
-	sample += channel4.getSample() * enabledChannels[3];
+	const float sample1 = channel1.getSample() * enabledChannels[0], sample2 = channel2.getSample() * enabledChannels[1],
+				sample3 = channel3.getSample() * enabledChannels[2], sample4 = channel4.getSample() * enabledChannels[3];
 
-	sample /= 4;
+	leftSample += sample1 * getBit(nr51, 4);
+	rightSample += sample1 * getBit(nr51, 0);
 
-	return (sample * volume) * INT16_MAX;
+	leftSample += sample2 * getBit(nr51, 5);
+	rightSample += sample2 * getBit(nr51, 1);
+
+	leftSample += sample3 * getBit(nr51, 6);
+	rightSample += sample3 * getBit(nr51, 2);
+
+	leftSample += sample4 * getBit(nr51, 7);
+	rightSample += sample4 * getBit(nr51, 3);
+
+	const uint8_t leftVolume = ((regs.NR50 & 0x70) >> 4) + 1, rightVolume = (regs.NR50 & 0x7) + 1;
+	const float scaleFactor = (volume * INT16_MAX) / 4.0f;
+
+	leftSample *= scaleFactor * (leftVolume / 8.f);
+	rightSample *= scaleFactor * (rightVolume / 8.f);
+
+	return std::make_pair(static_cast<int16_t>(leftSample), static_cast<int16_t>(rightSample));
 }

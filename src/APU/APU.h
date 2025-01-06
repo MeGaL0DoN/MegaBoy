@@ -31,7 +31,7 @@ public:
 	~APU();
 
 	void execute(uint32_t cycles);
-	int16_t generateSample();
+	std::pair<int16_t, int16_t> generateSamples();
 
 	inline bool enabled() { return regs.apuEnable; }
 
@@ -58,8 +58,6 @@ private:
 	std::unique_ptr<ma_device> soundDevice;
 
 	GBCore& gb;
-
-	float sample{};
 
 	sweepWave channel1{};
 	squareWave<> channel2{};

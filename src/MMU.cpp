@@ -366,10 +366,11 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 		case 0xFF11:
 			gb.apu.channel1.regs.NRx1 = val; 
+			gb.apu.channel1.reloadLength();
 			break;
 		case 0xFF12: 
 			gb.apu.channel1.regs.NRx2 = val; 
-			if ((val & 0xF8) == 0) gb.apu.channel1.disable();
+			if (!gb.apu.channel1.dacEnabled()) gb.apu.channel1.disable();
 			break;
 		case 0xFF13:
 			gb.apu.channel1.regs.NRx3 = val; 
@@ -380,10 +381,11 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 		case 0xFF16: 
 			gb.apu.channel2.regs.NRx1 = val; 
+			gb.apu.channel2.reloadLength();
 			break;
 		case 0xFF17:
 			gb.apu.channel2.regs.NRx2 = val; 
-			if ((val & 0xF8) == 0) gb.apu.channel2.disable();
+			if (!gb.apu.channel2.dacEnabled()) gb.apu.channel2.disable();
 			break;
 		case 0xFF18: 
 			gb.apu.channel2.regs.NRx3 = val;
@@ -394,10 +396,11 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 		case 0xFF1A:
 			gb.apu.channel3.regs.NR30 = val;
-			if (!getBit(val, 7)) gb.apu.channel3.disable();
+			if (!gb.apu.channel3.dacEnabled()) gb.apu.channel3.disable();
 			break;
 		case 0xFF1B:
 			gb.apu.channel3.regs.NR31 = val;
+			gb.apu.channel3.reloadLength();
 			break;
 		case 0xFF1C:
 			gb.apu.channel3.regs.NR32 = val;
@@ -409,7 +412,22 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			gb.apu.channel3.regs.NR34 = val;
 			if (getBit(val, 7)) gb.apu.channel3.trigger();
 			break;
-		case 0xFF24: ////////
+		case 0xFF20:
+			gb.apu.channel4.regs.NR41 = val;
+			gb.apu.channel4.reloadLength();
+			break;
+		case 0xFF21:
+			gb.apu.channel4.regs.NR42 = val;
+			if (!gb.apu.channel4.dacEnabled()) gb.apu.channel4.disable();
+			break;
+		case 0xFF22:
+			gb.apu.channel4.regs.NR43 = val;
+			break;
+		case 0xFF23:
+			gb.apu.channel4.regs.NR44 = val;
+			if (getBit(val, 7)) gb.apu.channel4.trigger();
+			break;
+		case 0xFF24: 
 			gb.apu.regs.NR50 = val; 
 			break;
 		case 0xFF25:
@@ -654,39 +672,37 @@ uint8_t MMU::read8(uint16_t addr) const
 		case 0xFF11: 
 			return gb.apu.channel1.regs.NRx1 | 0x3F;
 		case 0xFF12: 
-			return gb.apu.channel1.regs.NRx2 | 0x00;
+			return gb.apu.channel1.regs.NRx2; // | 0x00;
 		case 0xFF13: 
-			return gb.apu.channel1.regs.NRx3 | 0xFF;
+			return 0xFF; // gb.apu.channel1.regs.NRx3 | 0xFF;
 		case 0xFF14: 
 			return gb.apu.channel1.regs.NRx4 | 0xBF;
 		case 0xFF16: 
 			return gb.apu.channel2.regs.NRx1 | 0x3F;
 		case 0xFF17: 
-			return gb.apu.channel2.regs.NRx2 | 0x00;
+			return gb.apu.channel2.regs.NRx2; // | 0x00;
 		case 0xFF18: 
-			return gb.apu.channel2.regs.NRx3 | 0xFF;
+			return 0xFF; // gb.apu.channel2.regs.NRx3 | 0xFF;
 		case 0xFF19: 
 			return gb.apu.channel2.regs.NRx4 | 0xBF;		
 		case 0xFF1A: 
 			return gb.apu.channel3.regs.NR30 | 0x7F;
 		case 0xFF1B:
-			return gb.apu.channel3.regs.NR31 | 0xFF;
+			return 0xFF; // gb.apu.channel3.regs.NR31 | 0xFF;
 		case 0xFF1C: 
 			return gb.apu.channel3.regs.NR32 | 0x9F;
 		case 0xFF1D: 
-			return gb.apu.channel3.regs.NR33 | 0xFF;
+			return 0xFF; // gb.apu.channel3.regs.NR33 | 0xFF;
 		case 0xFF1E: 
 			return gb.apu.channel3.regs.NR34 | 0xBF;
-		//case 0xFF20: 
-		//	return gb.apu.regs.NR41;
-		//case 0xFF21: 
-		//	return gb.apu.regs.NR42;
-		//case 0xFF22:
-		//	return gb.apu.regs.NR43;
-		//case 0xFF23: 
-		//	return gb.apu.regs.NR44;
-
-		//TODO NR50 AND NR51.
+		case 0xFF20: 
+			return 0xFF; // gb.apu.channel4.regs.NR41 | 0xFF;
+		case 0xFF21: 
+			return gb.apu.channel4.regs.NR42; // | 0x00;
+		case 0xFF22:
+			return gb.apu.channel4.regs.NR43; // | 0x00;
+		case 0xFF23: 
+			return gb.apu.channel4.regs.NR44 | 0xBF;
 		case 0xFF24: 
 			return gb.apu.regs.NR50;
 		case 0xFF25: 

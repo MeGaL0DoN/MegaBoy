@@ -15,7 +15,7 @@ struct customWaveState
 {
 	uint8_t sampleInd{};
 	uint16_t periodTimer{}, lengthTimer{};
-	bool enabled{};
+	bool enabled { true };
 };
 
 struct customWave
@@ -37,6 +37,8 @@ struct customWave
 		return regs.NR33 | ((regs.NR34 & 0b111) << 8);
 	}
 
+	inline bool dacEnabled() { return getBit(regs.NR30.load(), 7); }
+
 	inline uint8_t getVolumeShift()
 	{
 		switch (regs.NR32 & 0b01100000)
@@ -49,21 +51,22 @@ struct customWave
 		}
 	}
 
+	inline void disable() { s.enabled = false; }
+
 	inline void trigger()
 	{
-		if (!getBit(regs.NR30.load(), 7))
-			return; // DAC is disabled.
-
 		s.periodTimer = (2048 - getFrequency()) >> 1;
-		s.lengthTimer = 256 - regs.NR31;
-		s.enabled = true;
+		s.lengthTimer = s.lengthTimer == 0 ? 256 : s.lengthTimer;
+		s.enabled = dacEnabled();
+		s.sampleInd = 0;
 	}
 
-	inline void disable() { s.enabled = false; }
+	inline void reloadLength() { s.lengthTimer = 256 - regs.NR31; }
 
 	inline void executeLength()
 	{
-		if (!getBit(regs.NR34.load(), 6) || s.lengthTimer == 0) return;
+		if (!getBit(regs.NR34.load(), 6) || s.lengthTimer == 0) 
+			return;
 
 		s.lengthTimer--;
 
@@ -84,7 +87,7 @@ struct customWave
 
 	inline float getSample()
 	{
-		uint8_t sample = (s.sampleInd & 1) == 0 ? (waveRAM[s.sampleInd >> 1] >> 4) : (waveRAM[s.sampleInd >> 1] & 0xF);
+		const uint8_t sample = (s.sampleInd & 1) == 0 ? (waveRAM[s.sampleInd >> 1] >> 4) : (waveRAM[s.sampleInd >> 1] & 0xF);
 		return ((sample >> getVolumeShift()) / 15.f) * s.enabled;
 	}
 

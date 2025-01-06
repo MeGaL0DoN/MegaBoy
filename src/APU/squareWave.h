@@ -14,7 +14,7 @@ struct squareWaveState
 {
 	uint16_t freqPeriodTimer {};
 	uint8_t dutyStep {}, amplitude {}, lengthTimer {}, envelopePeriodTimer {};
-	bool enabled {};
+	bool enabled { true };
 };
 
 template<typename state = squareWaveState, typename r = squareWaveRegs>
@@ -30,30 +30,28 @@ struct squareWave
 		regs.NRx4 = 0xBF;
 	}
 
+	inline bool dacEnabled() { return (regs.NRx2 & 0xF8) != 0; }
+
 	inline uint16_t getFrequency()
 	{
 		return regs.NRx3 | ((regs.NRx4 & 0b111) << 8);
 	}
 
+	inline void disable() { s.enabled = false; }
+
 	inline void trigger()
 	{
-		if ((regs.NRx2 & 0xF8) == 0)
-			return; // DAC is disabled.
-
-		s.lengthTimer = 64 - (regs.NRx1 & 0b00111111);
 		s.envelopePeriodTimer = regs.NRx2 & 0b111;
-		s.amplitude = (regs.NRx2 >> 4) & 0b1111;
-		s.enabled = true;
-
-		s.freqPeriodTimer = 2048 - getFrequency();
 		s.dutyStep = 0;
+		s.freqPeriodTimer = 2048 - getFrequency();
+		s.amplitude = (regs.NRx2 >> 4) & 0b1111;
+		s.lengthTimer = s.lengthTimer == 0 ? 64 : s.lengthTimer;
+		s.enabled = dacEnabled();
 	}
-
-	inline void disable() { s.enabled = false; }
 
 	inline void executeEnvelope()
 	{
-		uint8_t period = regs.NRx2 & 0b111;
+		const uint8_t period = regs.NRx2 & 0b111;
 		if (period == 0) return; 
 
 		if (s.envelopePeriodTimer > 0)
@@ -63,7 +61,7 @@ struct squareWave
 			if (s.envelopePeriodTimer == 0)
 			{
 				s.envelopePeriodTimer = period;		
-				bool increaseVol = regs.NRx2 & 0b1000;
+				const bool increaseVol = regs.NRx2 & 0b1000;
 
 				if (increaseVol)
 				{
@@ -79,9 +77,12 @@ struct squareWave
 		}
 	}
 
+	inline void reloadLength() { s.lengthTimer = 64 - (regs.NRx1 & 0b00111111); }
+
 	inline void executeLength()
 	{
-		if (!getBit(regs.NRx4.load(), 6) || s.lengthTimer == 0) return;
+		if (!getBit(regs.NRx4.load(), 6) || s.lengthTimer == 0) 
+			return;
 
 		s.lengthTimer--;
 
@@ -96,13 +97,13 @@ struct squareWave
 		if (s.freqPeriodTimer == 0)
 		{
 			s.freqPeriodTimer = 2048 - getFrequency();
-			s.dutyStep = (s.dutyStep + 1) % 8;
+			s.dutyStep = (s.dutyStep + 1) & 7;
 		}
 	}
 
 	inline float getSample()
 	{
-		uint8_t dutyType = regs.NRx1 >> 6;
+		const uint8_t dutyType = regs.NRx1 >> 6;
 		return DUTY_TABLE[dutyType][s.dutyStep] * (s.amplitude / 15.f) * s.enabled;
 	}
 
