@@ -15,7 +15,7 @@ namespace appConfig
 	inline bool integerScaling { true };
 	inline bool bilinearFiltering { false };
 
-	inline bool enableAudio { false }; // TODO: set to true by default later.
+	inline bool enableAudio { false };
 
 	inline int filter { 1 };
 	inline int palette { 0 };

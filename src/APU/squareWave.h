@@ -43,7 +43,6 @@ struct squareWave
 	{
 		s.envelopePeriodTimer = regs.NRx2 & 0b111;
 		s.dutyStep = 0;
-		s.freqPeriodTimer = 2048 - getFrequency();
 		s.amplitude = (regs.NRx2 >> 4) & 0b1111;
 		s.lengthTimer = s.lengthTimer == 0 ? 64 : s.lengthTimer;
 		s.enabled = dacEnabled();
@@ -92,13 +91,13 @@ struct squareWave
 
 	inline void execute()
 	{
-		s.freqPeriodTimer--;
-
 		if (s.freqPeriodTimer == 0)
 		{
 			s.freqPeriodTimer = 2048 - getFrequency();
 			s.dutyStep = (s.dutyStep + 1) & 7;
 		}
+
+		s.freqPeriodTimer--;
 	}
 
 	inline float getSample()

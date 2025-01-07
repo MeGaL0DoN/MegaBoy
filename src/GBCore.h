@@ -1,6 +1,7 @@
 #pragma once
 #include <filesystem>
 #include <span>
+#include <atomic>
 
 #include "MMU.h"
 #include "CPU/CPU.h"
@@ -109,7 +110,7 @@ public:
 
 	FileLoadResult loadState(const std::filesystem::path& path);
 	FileLoadResult loadState(int num);
-	bool loadSaveStateThumbnail(const std::filesystem::path& path, std::span<uint8_t> framebuffer);
+	bool loadSaveStateThumbnail(const std::filesystem::path& path, std::span<uint8_t> framebuffer) const;
 
 	constexpr bool canSaveStateNow() const { return cartridge.ROMLoaded() && !cpu.isExecutingBootROM(); }
 
@@ -176,8 +177,8 @@ public:
 	std::vector<gameGenieCheat> gameGenies{};
 	std::vector<gameSharkCheat> gameSharks{};
 
-	bool breakpointHit{ false };
-	bool emulationPaused { false };
+	std::atomic<bool> breakpointHit { false };
+	std::atomic<bool> emulationPaused { false };
 
 	std::string gameTitle { };
 
@@ -236,7 +237,7 @@ private:
 												 : std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::GBC>>(mmu, cpu) };
 
 		ppu->setDebugEnable(ppuDebugEnable);
-		ppu->drawCallback = std::bind(&GBCore::vBlankHandler, this, std::placeholders::_1, std::placeholders::_2);
+		ppu->drawCallback = [this](const uint8_t* framebuf, bool firstFrame) { vBlankHandler(framebuf, firstFrame); };
 	}
 
 	bool loadROM(std::istream& st, const std::filesystem::path& filePath);

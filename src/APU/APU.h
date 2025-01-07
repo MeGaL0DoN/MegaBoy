@@ -38,16 +38,19 @@ public:
 	void saveState(std::ostream& st) const;
 	void loadState(std::istream& st);
 
-	static constexpr uint32_t CPU_FREQUENCY = 1053360;
-	static constexpr uint32_t SAMPLE_RATE = 44100;
+	static constexpr uint32_t CPU_FREQUENCY = 1048576;
+	static constexpr uint32_t SAMPLE_RATE = 48000;
 	static constexpr uint32_t CYCLES_PER_SAMPLE = CPU_FREQUENCY / SAMPLE_RATE;
 	static constexpr uint16_t CHANNELS = 2;
 
 	std::atomic<float> volume { 0.5 };
 	std::array<std::atomic<bool>, 4> enabledChannels { true, true, true, true };
 
-	std::atomic<bool> isRecording{ false };
+	std::atomic<bool> isRecording { false };
 	std::atomic<float> recordedSeconds { 0.f };
+
+	static inline std::atomic<bool> IsMainThreadBlocked { false };
+	static inline std::atomic<double> LastMainThreadTime { 0.0 };
 
 	void startRecording(const std::filesystem::path& filePath);
 	void stopRecording();

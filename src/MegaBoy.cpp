@@ -565,21 +565,29 @@ inline void updateImGUIViewports()
 #ifndef EMSCRIPTEN
 std::filesystem::path saveFileDialog(const std::string& defaultName, const nfdnfilteritem_t* filter)
 {
+    APU::IsMainThreadBlocked = true;
     fileDialogOpen = true;
+
     NFD::UniquePathN outPath;
     nfdresult_t result = NFD::SaveDialog(outPath, filter, 1, nullptr, FileUtils::nativePathFromUTF8(defaultName).c_str());
 
+    APU::IsMainThreadBlocked = false;
     fileDialogOpen = false;
+
     return result == NFD_OKAY ? outPath.get() : std::filesystem::path();
 }
 
 std::filesystem::path openFileDialog(const nfdnfilteritem_t* filter)
 {
+    APU::IsMainThreadBlocked = true;
     fileDialogOpen = true;
+
     NFD::UniquePathN outPath;
     nfdresult_t result = NFD::OpenDialog(outPath, filter, 1);
 
+    APU::IsMainThreadBlocked = false;
     fileDialogOpen = false;
+
     return result == NFD_OKAY ? outPath.get() : std::filesystem::path();
 }
 #else
@@ -1435,7 +1443,9 @@ void renderImGUI() {
                 {
                     gb.apu.stopRecording();
 #ifdef EMSCRIPTEN
-                    downloadFile("Recording.wav");
+                    downloadFile("recording.wav", "MegaBoy - Recording.wav");
+                    std::error_code err;
+                    std::filesystem::remove("recording.wav", err);
 #endif
                 }
 
@@ -1451,9 +1461,9 @@ void renderImGUI() {
                 if (ImGui::Button("Start Recording"))
                 {
 #ifdef EMSCRIPTEN
-                    gb.apu.startRecording("Recording.wav"); // TODO: verify if works properly.
+                    gb.apu.startRecording("recording.wav");
 #else
-                    const auto result{ saveFileDialog("Recording", audioSaveFilterItem) };
+                    const auto result{ saveFileDialog("MegaBoy - Recording", audioSaveFilterItem) };
 
                     if (!result.empty())
                         gb.apu.startRecording(result);
@@ -2059,6 +2069,8 @@ void mainLoop()
         if (emulationRunning())
 		{
             const auto execStart = glfwGetTime();
+            APU::LastMainThreadTime = execStart;
+
             gb.update(GBCore::CYCLES_PER_FRAME);
 
             executeTimes += (glfwGetTime() - execStart);

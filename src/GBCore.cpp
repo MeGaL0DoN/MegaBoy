@@ -622,7 +622,7 @@ void GBCore::readGBState(std::istream& st)
 	cartridge.getMapper()->loadState(st);
 }
 
-bool GBCore::loadSaveStateThumbnail(const std::filesystem::path& path, std::span<uint8_t> framebuffer)
+bool GBCore::loadSaveStateThumbnail(const std::filesystem::path& path, std::span<uint8_t> framebuffer) const
 {
 	if (!cartridge.ROMLoaded())
 		return false;

@@ -40,12 +40,11 @@ struct noiseWave
 
 	inline void trigger()
 	{
-		s.enabled = true;
-		s.freqPeriodTimer = getPeriodTimer();
 		s.envelopePeriodTimer = regs.NR42 & 0b111;
 		s.amplitude = (regs.NR42 >> 4) & 0b1111;
 		s.lengthTimer = s.lengthTimer == 0 ? 64 : s.lengthTimer;
 		s.LFSR = 0x7FFF;
+		s.enabled = dacEnabled();
 	}
 
 	inline void executeEnvelope()
@@ -91,8 +90,6 @@ struct noiseWave
 
 	inline void execute()
 	{
-		s.freqPeriodTimer--;
-
 		if (s.freqPeriodTimer == 0)
 		{
 			s.freqPeriodTimer = getPeriodTimer();
@@ -104,6 +101,8 @@ struct noiseWave
 			if (smallWidthMode)
 				s.LFSR = setBit(s.LFSR, 6, static_cast<bool>(xorResult));
 		}
+
+		s.freqPeriodTimer--;
 	}
 
 	inline float getSample()

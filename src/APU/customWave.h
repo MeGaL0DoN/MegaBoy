@@ -55,10 +55,9 @@ struct customWave
 
 	inline void trigger()
 	{
-		s.freqPeriodTimer = (2048 - getFrequency()) >> 1;
 		s.lengthTimer = s.lengthTimer == 0 ? 256 : s.lengthTimer;
-		s.enabled = dacEnabled();
 		s.sampleInd = 0;
+		s.enabled = dacEnabled();
 	}
 
 	inline void reloadLength() { s.lengthTimer = 256 - regs.NR31; }
@@ -76,13 +75,13 @@ struct customWave
 
 	inline void execute()
 	{
-		s.freqPeriodTimer--;
-
 		if (s.freqPeriodTimer == 0)
 		{
 			s.freqPeriodTimer = (2048 - getFrequency()) >> 1;
 			s.sampleInd = (s.sampleInd + 1) & 31;
 		}
+
+		s.freqPeriodTimer--;
 	}
 
 	inline float getSample()

@@ -1,5 +1,6 @@
 #define MINIAUDIO_IMPLEMENTATION
 #include <MiniAudio/miniaudio.h>
+#include <GLFW/glfw3.h>
 
 #include <cstring>
 #include "APU.h"
@@ -64,7 +65,8 @@ void sound_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, 
 	auto& apu = gb->apu;
 	auto* pOutput16 = static_cast<int16_t*>(pOutput);
 
-	const bool emulationStopped = gb->emulationPaused || !gb->cartridge.ROMLoaded();
+	const bool mainThreadBlocked = APU::IsMainThreadBlocked || ((glfwGetTime() - APU::LastMainThreadTime) > 0.1);
+	const bool emulationStopped = gb->emulationPaused || gb->breakpointHit || !gb->cartridge.ROMLoaded() || mainThreadBlocked;
 
 	if (!appConfig::enableAudio || emulationStopped || !apu.enabled())
 	{
