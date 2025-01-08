@@ -281,7 +281,10 @@ inline void loadState(int num)
                                                 : gb.loadState(num);
 
     if (result == FileLoadResult::SuccessSaveState)
+    {
+        debugUI::signalSaveStateChange();
         return;
+    }
 
     if (result == FileLoadResult::FileError)
         activateInfoPopUp("Save State Doesn't Exist!");
@@ -908,7 +911,9 @@ void renderSaveStatesGUI()
             if (ImGui::Button("Copy", buttonSize))
             {
                 // Instead of passing the number pass the path, so save state is just copied, without becoming the active one.
-                gb.loadState(saveStatePath);
+                if (gb.loadState(saveStatePath) == FileLoadResult::SuccessSaveState)
+                    debugUI::signalSaveStateChange();
+
                 showSaveStatePopUp = false;
             }
 

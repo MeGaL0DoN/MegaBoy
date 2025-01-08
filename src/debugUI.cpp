@@ -65,6 +65,11 @@ void debugUI::signalROMreset()
     removeTempBreakpoint();
     showBreakpointHitWindow = false;
 }
+void debugUI::signalSaveStateChange()
+{
+    removeTempBreakpoint();
+    showBreakpointHitWindow = false;
+}
 
 void debugUI::signalVBlank() 
 {
@@ -453,8 +458,9 @@ void debugUI::renderWindows(float scaleFactor)
             if (ImGui::InputInt("##addr", &breakpointAddr, 0, 0, ImGuiInputTextFlags_CharsHexadecimal))
                 breakpointAddr = std::clamp(breakpointAddr, 0, 0xFFFF);
 
-            ImGui::PopItemWidth();
+            const bool textBoxEnterWasPressed = ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_Enter);
 
+            ImGui::PopItemWidth();
             ImGui::SameLine();
 
             if (std::ranges::find(breakpoints, breakpointAddr) == breakpoints.end())
@@ -462,7 +468,7 @@ void debugUI::renderWindows(float scaleFactor)
                 ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.4f, 0.8f, 1.0f));
                 ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.5f, 0.9f, 1.0f));
 
-                if (ImGui::Button("Add"))
+                if (ImGui::Button("Add") || textBoxEnterWasPressed)
                 {
                     breakpoints.push_back(static_cast<uint16_t>(breakpointAddr));
                     gb.breakpoints[breakpointAddr] = true;
@@ -650,6 +656,7 @@ void debugUI::renderWindows(float scaleFactor)
                 if (gb.cpu.s.halted)
                 {
                     gb.breakpointHit = false;
+                    gb.breakpoints[gb.cpu.s.PC] = false;
 
                     gb.cpu.setHaltExitEvent([]()
                     {
@@ -672,6 +679,12 @@ void debugUI::renderWindows(float scaleFactor)
                         extendBreakpointDisasmWindow();
                     }
                 }
+            }
+
+            if (gb.cpu.s.halted)
+            {
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("CPU Halted!");
             }
 
             ImGui::PopStyleColor(2);

@@ -17,6 +17,7 @@ public:
 
 	static void signalVBlank();
 	static void signalROMreset();
+	static void signalSaveStateChange();
 	static void signalBreakpoint();
 private:
 	enum class VRAMTab 

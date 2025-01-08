@@ -3,6 +3,7 @@
 #include <GLFW/glfw3.h>
 
 #include <cstring>
+#include <thread>
 #include "APU.h"
 #include "../GBCore.h"
 #include "../Utils/bitOps.h"
@@ -44,7 +45,14 @@ void APU::loadState(std::istream& st)
 void APU::reset()
 {
 	if (soundDevice == nullptr)
+	{
+#ifdef EMSCRIPTEN
 		initMiniAudio();
+#else
+		std::thread t([this] { initMiniAudio(); }); // Because it can block main thread for a second or more.
+		t.detach();
+#endif
+	}
 
 	regs.NR50 = 0x77;
 	regs.NR51 = 0xF3;
