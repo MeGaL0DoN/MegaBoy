@@ -10,6 +10,8 @@ if(MSVC)
     )
 elseif(MINGW)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static")
+elseif(APPLE)
+	enable_language(OBJC)
 endif()
 
 add_executable(MegaBoy

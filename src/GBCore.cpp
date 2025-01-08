@@ -381,8 +381,7 @@ void GBCore::writeFrameBuffer(std::ostream& st) const
 	
 	if (isCompressed)
 	{
-		uint32_t compressedSize32 { static_cast<uint32_t>(compressedSize) };
-		ST_WRITE(compressedSize32);
+		st.write(reinterpret_cast<const char*>(&compressedSize), sizeof(uint32_t));
 		st.write(reinterpret_cast<const char*>(compressedBuffer.data()), compressedSize);
 	}
 	else
@@ -561,8 +560,8 @@ FileLoadResult GBCore::loadState(std::istream& is)
 		readGBState(st);
 	else
 	{
-		uint32_t uncompressedSize;
-		ST_READ(uncompressedSize);
+		mz_ulong uncompressedSize { };
+		st.read(reinterpret_cast<char*>(&uncompressedSize), sizeof(uint32_t));
 
 		const auto compressedSize { static_cast<mz_ulong>(FileUtils::remainingBytes(st)) };
 
@@ -570,7 +569,7 @@ FileLoadResult GBCore::loadState(std::istream& is)
 		st.read(reinterpret_cast<char*>(compressedBuffer.data()), compressedSize);
 
 		std::vector<uint8_t> buffer(uncompressedSize);
-		int status = mz_uncompress(reinterpret_cast<unsigned char*>(buffer.data()), reinterpret_cast<mz_ulong*>(&uncompressedSize), compressedBuffer.data(), compressedSize);
+		int status = mz_uncompress(reinterpret_cast<unsigned char*>(buffer.data()), &uncompressedSize, compressedBuffer.data(), compressedSize);
 
 		if (status != MZ_OK)
 			return FileLoadResult::CorruptSaveState;
