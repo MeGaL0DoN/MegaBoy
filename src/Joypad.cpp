@@ -43,9 +43,9 @@ void Joypad::update(int key, int action)
 uint8_t Joypad::readInputReg() const
 {
 	if (!readButtons && !readDpad)
-		return 0xCF;
+		return 0xFF;
 
-	uint8_t keyState{ 0xF0 };
+	uint8_t keyState { 0xF0 };
 
 	if (readDpad)
 	{
