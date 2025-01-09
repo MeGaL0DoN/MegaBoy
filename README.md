@@ -7,7 +7,7 @@ MegaBoy, a Gameboy/Color emulator written in C++, with GLFW/ImGui frontend.
 
 ## Getting Started
 1. Open the web version and try online [Here](https://megal0don.github.io/MegaBoy/), or download desktop build from [Releases](https://github.com/MeGaL0DoN/MegaBoy/releases)
-2. Drag and Drop ROM file into the window, or select ROM file using File->Load
+2. Drag and Drop ROM file into the window, or select ROM file using File → Load
 3. Play!
 ### Default Controls
 <table style="width:100%">
@@ -46,11 +46,17 @@ MegaBoy, a Gameboy/Color emulator written in C++, with GLFW/ImGui frontend.
 #### All controls can be rebinded in the settings!
 
 ## Screenshots
-| ![Screenshot 2025-01-08 012833](https://github.com/user-attachments/assets/f31cda15-81cb-424b-b828-cc05c75e4106) | ![Screenshot 2025-01-08 012507](https://github.com/user-attachments/assets/5f07df43-75d5-408c-8884-8f394b398f8e) | ![Screenshot 2025-01-08 011831](https://github.com/user-attachments/assets/e464a0ac-79dd-41eb-814b-1f6688c3026b) | ![Screenshot 2025-01-08 013812](https://github.com/user-attachments/assets/ebef2f8b-0f67-4b78-978a-e29e342840a6) |
-|---------------------------------|---------------------------------|---------------------------------|---------------------------------|
+| ![Screenshot 2025-01-08 012833](https://github.com/user-attachments/assets/f31cda15-81cb-424b-b828-cc05c75e4106) | ![Screenshot 2025-01-08 012507](https://github.com/user-attachments/assets/5f07df43-75d5-408c-8884-8f394b398f8e) | ![Screenshot 2025-01-08 011831](https://github.com/user-attachments/assets/e464a0ac-79dd-41eb-814b-1f6688c3026b) |
+|---------------------------------|---------------------------------|---------------------------------|
 
-| ![Screenshot 2025-01-08 013240](https://github.com/user-attachments/assets/7901d9cd-dff7-48d7-89c8-64dbfead17b1) | ![Screenshot 2025-01-08 155242](https://github.com/user-attachments/assets/d5af8e16-d0b1-47d8-8234-dc9c75a00b0f) | ![Screenshot 2025-01-08 155855](https://github.com/user-attachments/assets/5cd47cd3-7b11-4938-b9f7-361f807c777b) | ![Screenshot 2025-01-08 160643](https://github.com/user-attachments/assets/0fa898ac-d017-4ab1-a0b1-76094c5c668a) |
-|---------------------------------|---------------------------------|---------------------------------|---------------------------------|
+![Screenshot 2025-01-09 144741](https://github.com/user-attachments/assets/8e8d9467-0805-494b-b009-98875f278aa4) | ![Screenshot 2025-01-09 144125](https://github.com/user-attachments/assets/fe74018d-4d1f-4743-a989-2b3a2523adc4) | ![Screenshot 2025-01-09 144547](https://github.com/user-attachments/assets/625658cb-649a-405e-96bc-83c1ff13ebea) |
+|---------------------------------|---------------------------------|---------------------------------|
+
+| ![Screenshot 2025-01-08 013240](https://github.com/user-attachments/assets/7901d9cd-dff7-48d7-89c8-64dbfead17b1) | ![Screenshot 2025-01-09 145157](https://github.com/user-attachments/assets/55fbd527-2a0d-46f6-b0b1-61fb4a2bc0ca) | ![Screenshot 2025-01-08 155855](https://github.com/user-attachments/assets/5cd47cd3-7b11-4938-b9f7-361f807c777b) | 
+|---------------------------------|---------------------------------|---------------------------------|
+
+#### Debugger
+![Screenshot 2025-01-08 010444](https://github.com/user-attachments/assets/18830ce0-81b3-46eb-a5ec-385ae245e27f)
 
 ## Features
 * M cycle accurate Sharp LR35902 CPU emulation.
@@ -64,9 +70,9 @@ MegaBoy, a Gameboy/Color emulator written in C++, with GLFW/ImGui frontend.
 * Web version also saves battery and save states persistently, so you won't lose your progress.
 * GUI with minimal debugger.
 * Boot ROM support - drag and drop or open file 'dmg_boot.bin' ('cgb_boot.bin' for gameboy color games).
-* Game Genie and Game Shark cheats..
+* Game Genie and Game Shark cheats (Emulation → Enter Cheat).
 * Can load zipped ROMs.
-* Can take game screenshots.
+* Can take game screenshots (Saved in screenshots folder near emulator executable).
 * Fast-forward.
 * Shaders (currrently coming with LCD and Upscaling).
 * Palette selection for DMG.
@@ -91,13 +97,15 @@ This project uses CMake as build system, allowing it to be build for different p
 3. Note: to build for the web, you need the [Emscripten](https://emscripten.org/) toolchain installed, and must configure CMake to use it.
 
 ## Upcoming Features
+#### Planned Features
 - [ ] More accurate audio emulation
 - [ ] Add MBC6, MBC7, HuC-3
+#### Maybe Features
 - [ ] Online Multiplayer
 - [ ] Mobile-Friendly web interface.
 
 ## Resources Used
-It wouldn't be possible to make MegaBoy without these resources:
+### It wouldn't be possible to make MegaBoy without these resources:
 
 * Pan Docs: https://gbdev.io/pandocs/
 * Gbops opcode table: https://izik1.github.io/gbops/
@@ -105,6 +113,17 @@ It wouldn't be possible to make MegaBoy without these resources:
 * SM83 SingleStepTests by originaldave_: https://github.com/SingleStepTests/sm83
 * NightShade's Sound Emulation: https://nightshade256.github.io/2021/03/27/gb-sound-emulation.html
 * EmuDev discord server! https://discord.gg/dkmJAes
+  
+### Libraries
+* [GLFW](https://github.com/glfw/glfw) - Window management and input.
+* [glad](https://github.com/Dav1dde/glad) - Used to load OpenGL functions.
+* [ImGui](https://github.com/ocornut/imgui) - User interface.
+* [miniaudio](https://github.com/mackron/miniaudio) - Audio.
+* [mINI](https://github.com/metayeti/mINI) - INI file writer.
+* [miniz](https://github.com/richgel999/miniz) - Zip compression/decompression.
+* [nativefiledialog-extended](https://github.com/richgel999/miniz) - Cross platform (desktop) file dialogs.
+* [emscripten_browser_file](https://github.com/Armchair-Software/emscripten-browser-file) - File dialog for the web.
+* [emscripten_browser_clipboard](https://github.com/Armchair-Software/emscripten-browser-clipboard) - Clipboard management for the web.
 
 ## License
 This project is licensed under the MIT License - see the LICENSE.md file for details
