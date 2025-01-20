@@ -137,7 +137,7 @@ struct ppuState
 {
 	bool lycFlag{ false };
 	bool blockStat{ false };
-	bool lcdWasEnabled { false };
+	bool lcdSkipFrame { false };
 	bool latchWindowEnable{ false };
 
 	uint8_t LY{ 0 };

@@ -40,14 +40,14 @@ void PPUCore<sys>::setLCDEnable(bool val)
 
 	if (val)
 	{
-		s.lcdWasEnabled = true;
+		s.lcdSkipFrame = s.videoCycles >= LCD_CLEAR_CYCLES;
 		regs.LCDC = setBit(regs.LCDC, 7);
 	}
 	else
 	{
+		s.videoCycles = 0;
 		s.LY = 0;
 		s.WLY = 0;
-		clearBuffer();
 		SetPPUMode(PPUMode::HBlank);
 		regs.LCDC = resetBit(regs.LCDC, 7);
 	}
@@ -215,7 +215,21 @@ void PPUCore<sys>::SetPPUMode(PPUMode PPUState)
 template <GBSystem sys>
 void PPUCore<sys>::execute(uint8_t cycles)
 {
-	if (!LCDEnabled()) return;
+	if (!LCDEnabled())
+	{
+		// LCD is not cleared immediately after being disabled. The game "Bug's Life" depends on this behavior, as it keeps disabling and enabling lcd very often.
+		// I am not sure after how long exactly it gets cleared, but I am assuming its 4560 cycles (VBlank duration).
+
+		if (s.videoCycles < LCD_CLEAR_CYCLES)
+		{
+			s.videoCycles += cycles;
+
+			if (s.videoCycles >= LCD_CLEAR_CYCLES)
+				clearBuffer();
+		}
+
+		return;
+	}
 
 	for (int i = 0; i < cycles; i++)
 	{
@@ -263,10 +277,9 @@ void PPUCore<sys>::handleHBlank()
 			SetPPUMode(PPUMode::VBlank);
 			cpu.requestInterrupt(Interrupt::VBlank);
 
-			// First frame after enabling LCD is blank.
-			if (s.lcdWasEnabled)
+			if (s.lcdSkipFrame)
 			{
-				s.lcdWasEnabled = false;
+				s.lcdSkipFrame = false;
 				clearBuffer();
 			}
 			else

@@ -30,6 +30,7 @@ private:
 	static constexpr uint16_t TOTAL_SCANLINE_CYCLES = 456;
 	static constexpr uint16_t OAM_SCAN_CYCLES = 20 * 4;
 	static constexpr uint16_t DEFAULT_VBLANK_CYCLES = 114 * 4;
+	static constexpr uint16_t LCD_CLEAR_CYCLES = DEFAULT_VBLANK_CYCLES * 10;
 
 	inline void invokeDrawCallback(bool firstFrame = false) 
 	{
