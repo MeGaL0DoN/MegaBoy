@@ -8,7 +8,7 @@ bool CPU::interruptsPending()
 	return s.IE & s.IF & 0x1F;
 }
 
-uint8_t CPU::handleInterrupts()
+void CPU::handleInterrupts()
 {
 	if (s.IME && s.interruptLatch) [[unlikely]]
 	{
@@ -27,16 +27,12 @@ uint8_t CPU::handleInterrupts()
 		}
 		else
 			s.PC = 0x00;
-
-		return 5;
 	}
 	else if (interruptsPending()) [[unlikely]]
 	{
 		// halt bug
 		exitHalt();
 	}
-
-	return 0;
 }
 
 void CPU::requestInterrupt(Interrupt interrupt)

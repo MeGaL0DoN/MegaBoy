@@ -8,15 +8,13 @@ void MMU::updateFunctionPointers()
 {
 	if (System::Current() == GBSystem::DMG)
 	{
-		read_func = &MMU::read8<GBSystem::DMG, true>;
+		read_func = &MMU::read8<GBSystem::DMG>;
 		write_func = &MMU::write8<GBSystem::DMG>;
-		dma_nonblocking_read = &MMU::read8<GBSystem::DMG, false>;
 	}
 	else if (System::Current() == GBSystem::GBC)
 	{
-		read_func = &MMU::read8<GBSystem::GBC, false>;
+		read_func = &MMU::read8<GBSystem::GBC>;
 		write_func = &MMU::write8<GBSystem::GBC>;
-		dma_nonblocking_read = read_func;
 	}
 }
 
@@ -48,7 +46,7 @@ void MMU::loadState(std::istream& st)
 
 void MMU::execute()
 {
-	if (gbc.ghdma.active) [[unlikely]]
+	if (gbc.ghdma.active && !gb.cpu.s.halted) [[unlikely]]
 		executeGHDMA();
 	else if (s.dma.transfer) [[unlikely]]
 		executeDMA();
@@ -65,6 +63,7 @@ void MMU::startDMATransfer()
 	if (s.dma.transfer)
 	{
 		s.dma.restartRequest = true;
+		s.dma.delayCycles = 1;
 		return;
 	}
 
@@ -74,21 +73,22 @@ void MMU::startDMATransfer()
 
 	if (s.dma.restartRequest)
 	{
-		s.dma.delayCycles = 1;
+		s.dma.delayCycles = 0;
 		s.dma.restartRequest = false;
 	}
-	else s.dma.delayCycles = 2;
+	else
+		s.dma.delayCycles = 2;
 }
 
 void MMU::executeDMA()
 {
-	if (s.dma.delayCycles > 0)
+	if (s.dma.delayCycles > 0 && !s.dma.restartRequest)
 		s.dma.delayCycles--;
 	else
 	{
-		gb.ppu->OAM[s.dma.cycles++] = (this->*dma_nonblocking_read)(s.dma.sourceAddr++);
+		gb.ppu->OAM[s.dma.cycles++] = (this->*read_func)(s.dma.sourceAddr++);
 
-		if (s.dma.restartRequest)
+		if (s.dma.restartRequest && s.dma.delayCycles-- == 0)
 		{
 			s.dma.transfer = false;
 			startDMATransfer();
@@ -115,6 +115,8 @@ void MMU::executeGHDMA()
 			gbc.ghdma.status = GHDMAStatus::None;
 			gbc.ghdma.active = false;
 		}
+		else if (gbc.ghdma.status == GHDMAStatus::HDMA)
+			gbc.ghdma.active = false;
 	}
 }
 
@@ -124,18 +126,6 @@ template void MMU::write8<GBSystem::GBC>(uint16_t, uint8_t);
 template <GBSystem sys>
 void MMU::write8(uint16_t addr, uint8_t val)
 {
-	if constexpr (sys == GBSystem::DMG)
-	{
-		if (addr == 0xFF46)
-		{
-			s.dma.reg = val;
-			startDMATransfer();
-			return;
-		}
-		else if (dmaInProgress() && (addr < 0xFF80 || addr > 0xFFFE)) // during DMA only HRAM can be accessed. (only on DMG)
-			return;
-	}
-
 	if (addr <= 0x7FFF)
 	{
 		gb.cartridge.getMapper()->write(addr, val);
@@ -165,7 +155,8 @@ void MMU::write8(uint16_t addr, uint8_t val)
 	}
 	else if (addr <= 0xFE9F)
 	{
-		gb.ppu->OAM[addr - 0xFE00] = val;
+		if (gb.ppu->canAccessOAM && !dmaInProgress())
+			gb.ppu->OAM[addr - 0xFE00] = val;
 	}
 	else if (addr <= 0xFEFF)
 	{
@@ -237,11 +228,8 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			gb.ppu->regs.LYC = val;
 			break;
 		case 0xFF46:
-			if constexpr (sys == GBSystem::GBC)
-			{
-				s.dma.reg = val;
-				startDMATransfer();
-			}
+			s.dma.reg = val;
+			startDMATransfer();
 			break;
 		case 0xFF47:
 			gb.ppu->regs.BGP = val;
@@ -334,7 +322,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 					if (getBit(val, 7))
 					{
 						gbc.ghdma.status = GHDMAStatus::HDMA;
-						gbc.ghdma.active = false;
+						gbc.ghdma.active = gb.ppu->s.state == PPUMode::HBlank;
 					}
 					else
 					{
@@ -454,24 +442,12 @@ void MMU::write8(uint16_t addr, uint8_t val)
 		gb.cpu.s.IE = val;
 }
 
-template uint8_t MMU::read8<GBSystem::DMG, true>(uint16_t) const;
-template uint8_t MMU::read8<GBSystem::DMG, false>(uint16_t) const;
+template uint8_t MMU::read8<GBSystem::DMG>(uint16_t) const;
+template uint8_t MMU::read8<GBSystem::GBC>(uint16_t) const;
 
-template uint8_t MMU::read8<GBSystem::GBC, true>(uint16_t) const;
-template uint8_t MMU::read8<GBSystem::GBC, false>(uint16_t) const;
-
-template <GBSystem sys, bool dmaBlocking>
+template <GBSystem sys>
 uint8_t MMU::read8(uint16_t addr) const
 {
-	if constexpr (dmaBlocking)
-	{
-		if (addr == 0xFF46)
-			return s.dma.reg;
-
-		if (dmaInProgress() && (addr < 0xFF80 || addr > 0xFFFE))
-			return 0xFF;
-	}
-
 	if (gb.cpu.executingBootROM)
 	{
 		if (addr < 0x100)
@@ -522,7 +498,7 @@ uint8_t MMU::read8(uint16_t addr) const
 	}
 	if (addr <= 0xFE9F)
 	{
-		return gb.ppu->canAccessOAM ? gb.ppu->OAM[addr - 0xFE00] : 0xFF;
+		return gb.ppu->canAccessOAM && !dmaInProgress() ? gb.ppu->OAM[addr - 0xFE00] : 0xFF;
 	}
 	if (addr <= 0xFEFF)
 	{

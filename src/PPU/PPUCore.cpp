@@ -245,17 +245,17 @@ void PPUCore<sys>::execute(uint8_t cycles)
 template <GBSystem sys>
 void PPUCore<sys>::handleHBlank()
 {
-	if constexpr (sys == GBSystem::GBC)
-	{
-		if (s.videoCycles == MMU::GHDMA_BLOCK_CYCLES)
-			mmu.gbc.ghdma.active = false;
-	}
-
 	if (s.videoCycles >= s.HBLANK_CYCLES)
 	{
 		s.videoCycles -= s.HBLANK_CYCLES;
 		s.LY++;
 		if (bgFIFO.s.fetchingWindow) s.WLY++;
+
+		if constexpr (sys == GBSystem::GBC)
+		{
+			if (mmu.gbc.ghdma.status == GHDMAStatus::HDMA)
+				mmu.gbc.ghdma.active = false;
+		}
 
 		if (s.LY == 144)
 		{

@@ -22,6 +22,7 @@ void debugUI::renderMenu()
         if (ImGui::MenuItem("Disassembly"))
         {
             showDisassembly = !showDisassembly;
+            gb.enableBreakpointChecks(showDisassembly);
         }
         if (ImGui::MenuItem("VRAM View"))
         {
@@ -359,7 +360,7 @@ void debugUI::renderWindows(float scaleFactor)
         ImGui::Spacing();
         ImGui::SameLine();
         ImGui::Text("| TIMA: %02X", gb.cpu.s.TIMA_reg);
-        ImGui::Text("Cycles: %llu", gb.totalCycles());
+        ImGui::Text("Cycles: %llu", (gb.totalCycles() / 4)); // Displaying M cycles
         ImGui::Text("Frequency: %.3f MHz", gb.cpu.s.GBCdoubleSpeed ? 2.097 : 1.048);
         ImGui::Text("Halted: %s", gb.cpu.s.halted ? "True" : "False");
 
@@ -451,44 +452,99 @@ void debugUI::renderWindows(float scaleFactor)
         if (!romDisassemblyView)
         {
             static int breakpointAddr{};
-            ImGui::SeparatorText("Breakpoint Address");
+            static int breakpointOpcode{};
 
-            ImGui::PushItemWidth(200 * scaleFactor);
-
-            if (ImGui::InputInt("##addr", &breakpointAddr, 0, 0, ImGuiInputTextFlags_CharsHexadecimal))
-                breakpointAddr = std::clamp(breakpointAddr, 0, 0xFFFF);
-
-            const bool textBoxEnterWasPressed = ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_Enter);
-
-            ImGui::PopItemWidth();
-            ImGui::SameLine();
-
-            if (std::ranges::find(breakpoints, breakpointAddr) == breakpoints.end())
+            const auto renderBreakpointControl = [&](const char* label, int& value, auto& breakpointArr, auto& breakpointList, int maxValue)
             {
-                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.4f, 0.8f, 1.0f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.5f, 0.9f, 1.0f));
+                ImGui::PushID(label);
+                ImGui::SeparatorText(label);
 
-                if (ImGui::Button("Add") || textBoxEnterWasPressed)
+                ImGui::PushItemWidth(200 * scaleFactor);
+
+                if (ImGui::InputInt("##input", &value, 0, 0, ImGuiInputTextFlags_CharsHexadecimal))
+                    value = std::clamp(value, 0, maxValue);
+
+                ImGui::PopItemWidth();
+
+                ImGui::SameLine();
+                const bool exists = std::ranges::find(breakpointList, value) != breakpointList.end();
+
+                ImGui::PushStyleColor(ImGuiCol_Button, exists ? ImVec4(0.8f, 0.2f, 0.2f, 1.0f) : ImVec4(0.2f, 0.4f, 0.8f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, exists ? ImVec4(0.9f, 0.3f, 0.3f, 1.0f) : ImVec4(0.3f, 0.5f, 0.9f, 1.0f));
+
+                const bool textBoxEnterWasPressed = ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_Enter);
+                const char* buttonLabel = exists ? "Remove" : "Add";
+
+                if (ImGui::Button(buttonLabel) || (!exists && textBoxEnterWasPressed))
                 {
-                    breakpoints.push_back(static_cast<uint16_t>(breakpointAddr));
-                    gb.breakpoints[breakpointAddr] = true;
-                }
-            }
-            else
+                    breakpointArr[value] = !exists;
+                    if (exists)
+                    {
+                        breakpointList.erase (
+                            std::remove(breakpointList.begin(), breakpointList.end(), value),
+                            breakpointList.end()
+                        );
+                    }
+                    else
+                       breakpointList.push_back(value);
+                };
+
+                ImGui::PopStyleColor(2);
+                ImGui::PopID();
+            };
+
+            const auto renderBreakpointItems = [](auto& breakpointArr, auto& breakpointList, const char* formatStr) 
             {
-                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
-
-                if (ImGui::Button("Remove"))
+                for (auto it = breakpointList.begin(); it != breakpointList.end(); ) 
                 {
-                    gb.breakpoints[breakpointAddr] = false;
-                    breakpoints.erase(std::remove(breakpoints.begin(), breakpoints.end(), static_cast<uint16_t>(breakpointAddr)), breakpoints.end());
-                }
-            }
+                    bool incrementIt = true;
+                    ImGui::PushID(*it);
 
-            ImGui::PopStyleColor(2);
+                    ImGui::Text(formatStr, *it);
+                    ImGui::SameLine();
+
+                    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
+
+                    if (ImGui::Button("Remove")) 
+                    {
+                        breakpointArr[*it] = false;
+                        it = breakpointList.erase(it);
+                        incrementIt = false;
+                    }
+                    else 
+                    {
+                        const bool breakpointEnabled = breakpointArr[*it];
+                        ImGui::SameLine();
+
+                        const auto [btnColor, btnHoverColor] = breakpointEnabled ?
+                            std::make_pair(ImVec4(0.15f, 0.6f, 0.15f, 1.0f), ImVec4(0.2f, 0.7f, 0.2f, 1.0f)) :
+                            std::make_pair(ImVec4(0.6f, 0.6f, 0.15f, 1.0f), ImVec4(0.7f, 0.7f, 0.2f, 1.0f));
+
+                        ImGui::PushStyleColor(ImGuiCol_Button, btnColor);
+                        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, btnHoverColor);
+
+                        if (ImGui::Button(breakpointEnabled ? "Enabled" : "Disabled"))
+                            breakpointArr[*it] = !breakpointEnabled;
+
+                        ImGui::PopStyleColor(2);
+                    }
+
+                    ImGui::PopStyleColor(2);
+
+                    if (incrementIt)
+                        it++;
+
+                    ImGui::PopID();
+                }
+            };
+ 
+            renderBreakpointControl("Breakpoint on Address", breakpointAddr, gb.breakpoints, breakpoints, 0xFFFF);
+            renderBreakpointControl("Breakpoint on Opcode", breakpointOpcode, gb.opcodeBreakpoints, opcodeBreakpoints, 0xFF);
 
             static bool showBreakpoints{ false };
+
+            ImGui::Spacing();
 
             if (ImGui::ArrowButton("##arrow", ImGuiDir_Right))
 				showBreakpoints = !showBreakpoints;
@@ -496,58 +552,23 @@ void debugUI::renderWindows(float scaleFactor)
             ImGui::SameLine();
             ImGui::Text("Breakpoints");
 
-            if (showBreakpoints)
+            if (showBreakpoints) 
             {
-                if (ImGui::BeginChild("Breakpoint List", ImVec2(0, 100 * scaleFactor), true))
+                if (ImGui::BeginChild("Breakpoint List", ImVec2(0, 150), ImGuiChildFlags_Borders))
                 {
-                    for (auto it = breakpoints.begin(); it != breakpoints.end(); )
+                    ImGui::PushID(0);
+                    renderBreakpointItems(gb.breakpoints, breakpoints, "%04X");
+                    ImGui::PopID();
+
+                    if (!breakpoints.empty() && !opcodeBreakpoints.empty())
                     {
-                        bool incrementIt = true;
-                        ImGui::PushID(*it);
-
-                        ImGui::Text("0x%04X", *it);
-                        ImGui::SameLine();
-
-                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
-                        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
-
-                        if (ImGui::Button("Remove"))
-                        {
-                            gb.breakpoints[*it] = false;
-                            it = breakpoints.erase(it); 
-                            incrementIt = false;
-                        }
-                        else
-                        {
-                            const bool breakpointEnabled = gb.breakpoints[*it];
-                            ImGui::SameLine();
-
-                            if (breakpointEnabled)
-                            {
-                                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.15f, 0.6f, 0.15f, 1.0f));
-                                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.2f, 0.7f, 0.2f, 1.0f));
-                            }
-                            else
-                            {
-                                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.6f, 0.15f, 1.0f));
-                                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.7f, 0.7f, 0.2f, 1.0f));
-                            }
-
-                            if (ImGui::Button(breakpointEnabled ? "Enabled" : "Disabled"))
-                                gb.breakpoints[*it] = !breakpointEnabled;
-
-                            ImGui::PopStyleColor(2);
-                        }
-
-                        ImGui::PopStyleColor(2);
-
-                        if (incrementIt)
-                            it++;
-
-                        ImGui::PopID();
+                        ImGui::Spacing();
+                        ImGui::Separator();
+                        ImGui::Spacing();
                     }
-                }
 
+                    renderBreakpointItems(gb.opcodeBreakpoints, opcodeBreakpoints, "0x%02X");
+                }
                 ImGui::EndChild();
             }
         }
@@ -807,6 +828,9 @@ void debugUI::renderWindows(float scaleFactor)
         }
 
         ImGui::End();
+
+        if (!showDisassembly)
+            gb.enableBreakpointChecks(false);
     }
     if (showVRAMView)
     {

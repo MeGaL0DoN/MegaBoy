@@ -68,6 +68,8 @@ private:
 	static inline int memoryRomBank {0};
 
 	static inline std::vector<uint16_t> breakpoints{};
+	static inline std::vector<uint8_t> opcodeBreakpoints{};
+
 	static inline std::vector<instructionDisasmEntry> romDisassembly;
 	static inline std::vector<instructionDisasmEntry> breakpointDisassembly;
 

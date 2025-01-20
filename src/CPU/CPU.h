@@ -55,7 +55,7 @@ public:
 private:
 	GBCore& gb;
 
-	uint8_t handleInterrupts();
+	void handleInterrupts();
 	bool handleHaltedState();
 
 	void executeMain();

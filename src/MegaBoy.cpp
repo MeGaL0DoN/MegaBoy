@@ -2076,7 +2076,7 @@ void mainLoop()
             const auto execStart = glfwGetTime();
             APU::LastMainThreadTime = execStart;
 
-            gb.update(GBCore::CYCLES_PER_FRAME);
+            gb.emulateFrame();
 
             executeTimes += (glfwGetTime() - execStart);
             gbFrameCount++;

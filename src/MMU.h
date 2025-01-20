@@ -97,10 +97,9 @@ private:
 	template <GBSystem sys>
 	void write8(uint16_t addr, uint8_t val);
 
-	template <GBSystem sys, bool dmaBlocking>
+	template <GBSystem sys>
 	uint8_t read8(uint16_t addr) const;
 
 	void(MMU::*write_func)(uint16_t, uint8_t) { nullptr };
 	uint8_t(MMU::*read_func)(uint16_t) const { nullptr };
-	uint8_t(MMU::*dma_nonblocking_read)(uint16_t) const { nullptr };
 };

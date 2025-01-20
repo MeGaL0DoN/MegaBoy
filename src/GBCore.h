@@ -77,7 +77,7 @@ public:
 		return isBootROMValid(st, path);
 	}
 
-	void update(uint32_t cyclesToExecute);
+	constexpr void emulateFrame() { (this->*emulateFrameFunc)(); }
 
 	inline void setDrawCallback(void (*callback)(const uint8_t*, bool))
 	{
@@ -203,6 +203,17 @@ private:
 	std::filesystem::path customBatterySavePath;;
 
 	std::array<bool, 0x10000> breakpoints {};
+	std::array<bool, 0x100> opcodeBreakpoints {};
+
+	void (GBCore::*emulateFrameFunc)() { &GBCore::_emulateFrame<false> };
+
+	inline void enableBreakpointChecks(bool val)
+	{
+		emulateFrameFunc = val ? &GBCore::_emulateFrame<true> : &GBCore::_emulateFrame<false>;
+	}
+
+	template<bool checkBreakpoints>
+	void _emulateFrame();
 
 	void stepComponents();
 

@@ -79,7 +79,7 @@ bool CPU::handleHaltedState()
 		return false;
 
 	addCycle();
-	cycles += handleInterrupts();
+	handleInterrupts();
 
 	if (s.stopState)
 	{
@@ -124,7 +124,7 @@ uint8_t CPU::execute()
 	}
 
 	executeMain();
-	cycles += handleInterrupts();
+	handleInterrupts();
 	return T_CYCLES;
 }
 
