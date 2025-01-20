@@ -41,6 +41,7 @@ void PPUCore<sys>::setLCDEnable(bool val)
 	if (val)
 	{
 		s.lcdSkipFrame = s.videoCycles >= LCD_CLEAR_CYCLES;
+		s.videoCycles = 0;
 		regs.LCDC = setBit(regs.LCDC, 7);
 	}
 	else
@@ -377,6 +378,7 @@ void PPUCore<sys>::resetPixelTransferState()
 	bgFIFO.reset();
 	objFIFO.reset();
 	s.xPosCounter = 0;
+	s.latchWindowEnable = WindowEnable();
 }
 
 template <GBSystem sys>
