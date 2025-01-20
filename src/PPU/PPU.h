@@ -138,6 +138,7 @@ struct ppuState
 	bool lycFlag{ false };
 	bool blockStat{ false };
 	bool lcdWasEnabled { false };
+	bool latchWindowEnable{ false };
 
 	uint8_t LY{ 0 };
 	uint8_t WLY{ 0 };

@@ -249,6 +249,7 @@ void PPUCore<sys>::handleHBlank()
 	{
 		s.videoCycles -= s.HBLANK_CYCLES;
 		s.LY++;
+		s.latchWindowEnable = WindowEnable();
 		if (bgFIFO.s.fetchingWindow) s.WLY++;
 
 		if constexpr (sys == GBSystem::GBC)
@@ -377,7 +378,7 @@ void PPUCore<sys>::handlePixelTransfer()
 
 	if (!bgFIFO.s.fetchingWindow)
 	{
-		if (WindowEnable() && s.LY >= regs.WY && s.xPosCounter >= regs.WX - 7 && regs.WX != 0)
+		if (s.latchWindowEnable && s.LY >= regs.WY && s.xPosCounter >= regs.WX - 7 && regs.WX != 0)
 		{
 			bgFIFO.reset();
 			bgFIFO.s.fetchingWindow = true;
