@@ -84,6 +84,15 @@ private:
 		return NR52;
 	}
 
+	inline uint8_t readPCM12()
+	{
+		return (channel2.getSample() << 4) | channel1.getSample();
+	}
+	inline uint8_t readPCM34()
+	{
+		return (channel4.getSample() << 4) | channel3.getSample();
+	}
+
 	uint16_t frameSequencerCycles{};
 	uint8_t frameSequencerStep{};
 };

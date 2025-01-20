@@ -645,6 +645,16 @@ uint8_t MMU::read8(uint16_t addr) const
 				return gbc.FF75;
 			else
 				return 0xFF;
+		case 0xFF76:
+			if constexpr (sys == GBSystem::GBC)
+				return gb.apu.readPCM12();
+			else
+				return 0xFF;
+		case 0xFF77:
+			if constexpr (sys == GBSystem::GBC)
+				return gb.apu.readPCM34();
+			else
+				return 0xFF;
 
 		case 0xFF10: 
 			return gb.apu.channel1.regs.NR10 | 0x80;

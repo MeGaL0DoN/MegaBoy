@@ -11,7 +11,7 @@ class GBCore;
 class Cartridge
 {
 public:
-	static constexpr uint32_t MIN_ROM_SIZE = 0x8000;
+	static constexpr uint32_t MIN_ROM_SIZE = 0x4000;
 	static constexpr uint32_t MAX_ROM_SIZE = 0x800000;
 
 	static constexpr uint32_t ROM_BANK_SIZE = 0x4000;

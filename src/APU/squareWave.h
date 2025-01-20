@@ -100,10 +100,10 @@ struct squareWave
 		s.freqPeriodTimer--;
 	}
 
-	inline float getSample()
+	inline uint8_t getSample()
 	{
 		const uint8_t dutyType = regs.NRx1 >> 6;
-		return DUTY_TABLE[dutyType][s.dutyStep] * (s.amplitude / 15.f) * s.enabled;
+		return DUTY_TABLE[dutyType][s.dutyStep] * s.amplitude * s.enabled;
 	}
 
 	static constexpr auto DUTY_TABLE = std::to_array<std::array<uint8_t, 8>>

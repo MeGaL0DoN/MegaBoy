@@ -27,9 +27,17 @@ bool Cartridge::loadROM(std::istream& is)
 	if (!proccessCartridgeHeader(is, size))
 		return false;
 
-	rom.resize(size);
-	rom.shrink_to_fit();
+	// 16 KB
+	if (size == MIN_ROM_SIZE)
+	{
+		// Pad to 32 KB
+		rom.resize(MIN_ROM_SIZE * 2);
+		std::memset(rom.data() + MIN_ROM_SIZE, 0xFF, MIN_ROM_SIZE);
+	}
+	else
+		rom.resize(size);
 
+	rom.shrink_to_fit();
 	is.seekg(0, std::ios::beg);
 	is.read(reinterpret_cast<char*>(rom.data()), size);
 
@@ -88,7 +96,7 @@ bool Cartridge::proccessCartridgeHeader(std::istream& is, uint32_t fileSize)
 
 	const uint16_t romBanks = 1 << (readByte(0x148) + 1);
 
-	if (romBanks == 0 || romBanks > fileSize / ROM_BANK_SIZE) 
+	if (romBanks > std::max(fileSize, MIN_ROM_SIZE * 2) / ROM_BANK_SIZE) 
 		return false;
 
 	const bool initialHasBattery = hasBattery;

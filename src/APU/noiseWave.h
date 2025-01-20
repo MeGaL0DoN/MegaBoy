@@ -105,10 +105,10 @@ struct noiseWave
 		s.freqPeriodTimer--;
 	}
 
-	inline float getSample()
+	inline uint8_t getSample()
 	{
 		const uint8_t baseAmplitude = ~s.LFSR & 0x01;
-		return baseAmplitude * (s.amplitude / 15.f) * s.enabled;
+		return baseAmplitude * s.amplitude * s.enabled;
 	}
 
 	noiseWaveState s{};

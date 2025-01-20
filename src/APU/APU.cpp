@@ -238,8 +238,8 @@ std::pair<int16_t, int16_t> APU::generateSamples()
 	float leftSample = 0.f, rightSample = 0.f;
 	const uint8_t nr51 = regs.NR51.load();
 
-	const float sample1 = channel1.getSample() * enabledChannels[0], sample2 = channel2.getSample() * enabledChannels[1],
-				sample3 = channel3.getSample() * enabledChannels[2], sample4 = channel4.getSample() * enabledChannels[3];
+	const float sample1 = (channel1.getSample() / 15.f) * enabledChannels[0], sample2 = (channel2.getSample() / 15.f) * enabledChannels[1],
+				sample3 = (channel3.getSample() / 15.f) * enabledChannels[2], sample4 = (channel4.getSample() / 15.f) * enabledChannels[3];
 
 	leftSample += sample1 * getBit(nr51, 4);
 	rightSample += sample1 * getBit(nr51, 0);
