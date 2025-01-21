@@ -5,10 +5,12 @@
 #include <iostream>
 #include <memory>
 #include <functional>
+#include <random>
 
 #include "../defines.h"
 #include "../Utils/pixelOps.h"
 #include "../Utils/bitOps.h"
+#include "../Utils/rngOps.h"
 
 using color = PixelOps::color;
 
@@ -155,6 +157,12 @@ struct ppuGBCPaletteData
 	std::array<uint8_t, 64> paletteRAM{};
 	uint8_t regValue{ 0x00 };
 	bool autoIncrement{ false };
+
+	ppuGBCPaletteData()
+	{
+		for (uint8_t& i : paletteRAM)
+			i = RngOps::gen8bit();
+	}
 
 	inline uint8_t readReg() const
 	{

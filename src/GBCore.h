@@ -92,7 +92,6 @@ public:
 	inline FileLoadResult loadFile(const std::filesystem::path& filePath, bool loadBatteryOnRomload)
 	{
 		std::ifstream st { filePath, std::ios::in | std::ios::binary };
-		if (!st) return FileLoadResult::FileError;
 		return loadFile(st, filePath, loadBatteryOnRomload);
 	}
 

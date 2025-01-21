@@ -2019,7 +2019,7 @@ void mainLoop()
     static double executeTimes { 0.0 };
     static int frameCount { 0 }, gbFrameCount { 0 };
 
-    const bool waitEvents = (gb.emulationPaused && !fadeEffectActive) || !gb.cartridge.ROMLoaded();
+    const bool waitEvents = !emulationRunning() && !fadeEffectActive;
     const double currentTime = glfwGetTime();
 
     if (waitEvents)

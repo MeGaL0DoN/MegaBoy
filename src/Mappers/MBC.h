@@ -4,6 +4,7 @@
 #include "MBCBase.h"
 #include "../defines.h"
 #include "../Utils/fileUtils.h"
+#include "../Utils/rngOps.h"
 #include "../Cartridge.h"
 
 struct MBCstate
@@ -75,5 +76,9 @@ protected:
 	std::vector<uint8_t>& ram;
 	T s;
 
-	virtual void resetBatteryState() { std::ranges::fill(ram, 0); }
+	virtual void resetBatteryState()
+	{
+		for (uint8_t& i : ram)
+			i = RngOps::gen8bit();
+	}
 };

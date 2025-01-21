@@ -119,6 +119,9 @@ bool GBCore::isSaveStateFile(std::istream& st)
 
 FileLoadResult GBCore::loadFile(std::istream& st, std::filesystem::path filePath, bool loadBatteryOnRomload)
 {
+	if (!st)
+		return FileLoadResult::FileError;
+
 	autoSave();
 	const bool isSaveState { isSaveStateFile(st) };
 

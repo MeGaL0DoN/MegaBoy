@@ -3,6 +3,7 @@
 #include <array>
 #include <iostream>
 #include "gbSystem.h"
+#include "Utils/rngOps.h"
 
 class GBCore;
 class Cartridge;
@@ -32,6 +33,14 @@ public:
 	{
 		s = {};
 		updateFunctionPointers();
+
+		const int wramSize = System::Current() == GBSystem::DMG ? 0x2000 : 0x8000;
+
+		for (int i = 0; i < wramSize; i++)
+			WRAM_BANKS[i] = RngOps::gen8bit();
+
+		for (uint8_t& i : HRAM)
+			i = RngOps::gen8bit();
 	}
 
 	void saveState(std::ostream& st) const;
