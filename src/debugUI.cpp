@@ -734,6 +734,7 @@ void debugUI::renderWindows(float scaleFactor)
                 {
                     gb.breakpointHit = false;
                     setTempBreakpoint(gb.cpu.s.PC + 3);
+                    gb.cycleCounter += gb.cpu.execute();
                 }
                 else
                 {

@@ -140,7 +140,6 @@ struct ppuState
 	bool lycFlag{ false };
 	bool blockStat{ false };
 	bool lcdSkipFrame { false };
-	bool latchWindowEnable{ false };
 
 	uint8_t LY{ 0 };
 	uint8_t WLY{ 0 };
@@ -305,6 +304,8 @@ protected:
 	ppuState s{};
 	BGPixelFIFO bgFIFO{};
 	ObjPixelFIFO objFIFO{};
+
+	bool latchWindowEnable{};
 
 	bool canAccessOAM{};
 	bool canAccessVRAM{};

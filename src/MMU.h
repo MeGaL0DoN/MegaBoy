@@ -34,10 +34,18 @@ public:
 		s = {};
 		updateFunctionPointers();
 
-		const int wramSize = System::Current() == GBSystem::DMG ? 0x2000 : 0x8000;
-
-		for (int i = 0; i < wramSize; i++)
+		for (int i = 0; i < 0x2000; i++)
 			WRAM_BANKS[i] = RngOps::gen8bit();
+
+		if (System::Current() == GBSystem::GBC)
+		{
+			// WRAM Bank 2 is zeroed instead.
+			for (int i = 0x2000; i < 0x3000; i++)
+				WRAM_BANKS[i] = 0;
+
+			for (int i = 0x3000; i < 0x8000; i++)
+				WRAM_BANKS[i] = RngOps::gen8bit();
+		}
 
 		for (uint8_t& i : HRAM)
 			i = RngOps::gen8bit();
@@ -84,6 +92,9 @@ public:
 	{
 		GHDMAstate ghdma{};
 		uint8_t wramBank{ 1 };
+
+		// Infrared port
+		uint8_t FF56 { 0x3E };
 
 		// undocumented CGB registers
 		uint8_t FF72{ 0x00 }, FF73{ 0x00 }, FF74{ 0x00 }, FF75 { 0x8F };

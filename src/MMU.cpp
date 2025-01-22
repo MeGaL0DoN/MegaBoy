@@ -38,7 +38,7 @@ void MMU::loadState(std::istream& st)
 	if (System::Current() == GBSystem::GBC)
 		ST_READ(gbc);
 
-	uint16_t WRAMSize = System::Current() == GBSystem::GBC ? 0x8000 : 0x2000;
+	const uint16_t WRAMSize = System::Current() == GBSystem::GBC ? 0x8000 : 0x2000;
 
 	st.read(reinterpret_cast<char*>(WRAM_BANKS.data()), WRAMSize);
 	ST_READ_ARR(HRAM);
@@ -332,6 +332,9 @@ void MMU::write8(uint16_t addr, uint8_t val)
 				}
 			}
 			break;
+		case 0xFF56:
+			gbc.FF56 = val;
+			break;
 		case 0xFF72:
 			if constexpr (sys == GBSystem::GBC)
 				gbc.FF72 = val;
@@ -618,6 +621,11 @@ uint8_t MMU::read8(uint16_t addr) const
 				const uint8_t lengthVal = (gbc.ghdma.transferLength - 1) / 0x10;
 				return ((gbc.ghdma.status == GHDMAStatus::None) << 7) | lengthVal;
 			}
+			else
+				return 0xFF;
+		case 0xFF56:
+			if constexpr (sys == GBSystem::GBC)
+				return gbc.FF56 | 0x3C;
 			else
 				return 0xFF;
 		case 0xFF6C: // OPRI, bit 0 is always off in cgb mode?

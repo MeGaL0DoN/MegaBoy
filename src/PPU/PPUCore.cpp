@@ -108,6 +108,7 @@ void PPUCore<sys>::loadState(std::istream& st)
 	{
 		bgFIFO.loadState(st);
 		objFIFO.loadState(st);
+		latchWindowEnable = WindowEnable();
 	}
 	if (s.state == PPUMode::OAMSearch || s.state == PPUMode::PixelTransfer)
 	{
@@ -264,7 +265,6 @@ void PPUCore<sys>::handleHBlank()
 	{
 		s.videoCycles -= s.HBLANK_CYCLES;
 		s.LY++;
-		s.latchWindowEnable = WindowEnable();
 		if (bgFIFO.s.fetchingWindow) s.WLY++;
 
 		if constexpr (sys == GBSystem::GBC)
@@ -378,7 +378,7 @@ void PPUCore<sys>::resetPixelTransferState()
 	bgFIFO.reset();
 	objFIFO.reset();
 	s.xPosCounter = 0;
-	s.latchWindowEnable = WindowEnable();
+	latchWindowEnable = WindowEnable();
 }
 
 template <GBSystem sys>
@@ -393,7 +393,7 @@ void PPUCore<sys>::handlePixelTransfer()
 
 	if (!bgFIFO.s.fetchingWindow)
 	{
-		if (s.latchWindowEnable && s.LY >= regs.WY && s.xPosCounter >= regs.WX - 7 && regs.WX != 0)
+		if (latchWindowEnable && s.LY >= regs.WY && s.xPosCounter >= regs.WX - 7 && regs.WX != 0)
 		{
 			bgFIFO.reset();
 			bgFIFO.s.fetchingWindow = true;
