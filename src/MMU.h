@@ -65,7 +65,7 @@ public:
 	};
 
 	static constexpr uint8_t DMA_CYCLES = 160;
-	static constexpr uint8_t GHDMA_BLOCK_CYCLES = 32;
+	static constexpr uint8_t GHDMA_BLOCK_CYCLES = 8 * 4;
 
 	struct GHDMAstate
 	{

@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cstring>
 #include "PPUCore.h"
+#include "../GBCore.h"
 #include "../Utils/bitOps.h"
 
 template class PPUCore<GBSystem::DMG>;
@@ -40,7 +41,7 @@ void PPUCore<sys>::setLCDEnable(bool val)
 
 	if (val)
 	{
-		s.lcdSkipFrame = s.videoCycles >= LCD_CLEAR_CYCLES;
+		s.lcdSkipFrame = s.videoCycles >= TOTAL_VBLANK_CYCLES;
 		s.videoCycles = 0;
 		regs.LCDC = setBit(regs.LCDC, 7);
 	}
@@ -50,6 +51,7 @@ void PPUCore<sys>::setLCDEnable(bool val)
 		s.LY = 0;
 		s.WLY = 0;
 		SetPPUMode(PPUMode::HBlank);
+		dotsUntilVBlank = GBCore::CYCLES_PER_FRAME - TOTAL_VBLANK_CYCLES;
 		regs.LCDC = resetBit(regs.LCDC, 7);
 	}
 }
@@ -161,13 +163,13 @@ void PPUCore<sys>::updateInterrupts()
 		switch (s.state)
 		{
 		case PPUMode::HBlank:
-			if (HBlank_STAT()) interrupt = true;
+			interrupt = HBlank_STAT();
 			break;
 		case PPUMode::VBlank:
-			if (VBlank_STAT()) interrupt = true;
+			interrupt = VBlank_STAT();
 			break;
 		case PPUMode::OAMSearch:
-			if (OAM_STAT()) interrupt = true;
+			interrupt = OAM_STAT();
 			break;
 		default:
 			break;
@@ -181,15 +183,15 @@ void PPUCore<sys>::updateInterrupts()
 }
 
 template <GBSystem sys>
-void PPUCore<sys>::SetPPUMode(PPUMode PPUState)
+void PPUCore<sys>::SetPPUMode(PPUMode mode)
 {
-	regs.STAT = setBit(regs.STAT, 1, static_cast<uint8_t>(PPUState) & 0x2);
-	regs.STAT = setBit(regs.STAT, 0, static_cast<uint8_t>(PPUState) & 0x1);
+	regs.STAT = setBit(regs.STAT, 1, static_cast<uint8_t>(mode) & 0x2);
+	regs.STAT = setBit(regs.STAT, 0, static_cast<uint8_t>(mode) & 0x1);
 
-	switch (PPUState)
+	switch (mode)
 	{
 	case PPUMode::HBlank:
-		s.HBLANK_CYCLES = TOTAL_SCANLINE_CYCLES - OAM_SCAN_CYCLES - s.videoCycles;
+		s.hblankLineCycles = TOTAL_SCANLINE_CYCLES - OAM_SCAN_CYCLES - s.videoCycles;
 		canAccessOAM = true; canAccessVRAM = true;
 
 		if constexpr (sys == GBSystem::GBC)
@@ -199,7 +201,8 @@ void PPUCore<sys>::SetPPUMode(PPUMode PPUState)
 		}
 		break;
 	case PPUMode::VBlank:
-		s.VBLANK_CYCLES = DEFAULT_VBLANK_CYCLES;
+		dotsUntilVBlank = GBCore::CYCLES_PER_FRAME;
+		s.vblankLineCycles = DEFAULT_VBLANK_LINE_CYCLES;
 		canAccessOAM = true; canAccessVRAM = true;
 		break;
 	case PPUMode::OAMSearch:
@@ -211,7 +214,7 @@ void PPUCore<sys>::SetPPUMode(PPUMode PPUState)
 		break;
 	}
 
-	s.state = PPUState;
+	s.state = mode;
 }
 
 template <GBSystem sys>
@@ -222,11 +225,11 @@ void PPUCore<sys>::execute(uint8_t cycles)
 		// LCD is not cleared immediately after being disabled. The game "Bug's Life" depends on this behavior, as it keeps disabling and enabling lcd very often.
 		// I am not sure after how long exactly it gets cleared, but I am assuming its 4560 cycles (VBlank duration).
 
-		if (s.videoCycles < LCD_CLEAR_CYCLES)
+		if (s.videoCycles < TOTAL_VBLANK_CYCLES)
 		{
 			s.videoCycles += cycles;
 
-			if (s.videoCycles >= LCD_CLEAR_CYCLES)
+			if (s.videoCycles >= TOTAL_VBLANK_CYCLES)
 				clearBuffer();
 		}
 
@@ -236,6 +239,7 @@ void PPUCore<sys>::execute(uint8_t cycles)
 	for (int i = 0; i < cycles; i++)
 	{
 		s.videoCycles++;
+		dotsUntilVBlank--;
 
 		switch (s.state)
 		{
@@ -261,9 +265,9 @@ void PPUCore<sys>::execute(uint8_t cycles)
 template <GBSystem sys>
 void PPUCore<sys>::handleHBlank()
 {
-	if (s.videoCycles >= s.HBLANK_CYCLES)
+	if (s.videoCycles >= s.hblankLineCycles)
 	{
-		s.videoCycles -= s.HBLANK_CYCLES;
+		s.videoCycles -= s.hblankLineCycles;
 		s.LY++;
 		if (bgFIFO.s.fetchingWindow) s.WLY++;
 
@@ -346,18 +350,18 @@ void PPUCore<sys>::handleOAMSearch()
 template <GBSystem sys>
 void PPUCore<sys>::handleVBlank()
 {
-	if (s.videoCycles >= s.VBLANK_CYCLES)
+	if (s.videoCycles >= s.vblankLineCycles)
 	{
-		s.videoCycles -= s.VBLANK_CYCLES;
+		s.videoCycles -= s.vblankLineCycles;
 		s.LY++;
 
 		switch (s.LY)
 		{
 		case 153:
-			s.VBLANK_CYCLES = 4;
+			s.vblankLineCycles = 4;
 			break;
 		case 154:
-			s.VBLANK_CYCLES = 452;
+			s.vblankLineCycles = 452;
 			s.LY = 0;
 			s.WLY = 0;
 			break;
@@ -366,7 +370,7 @@ void PPUCore<sys>::handleVBlank()
 			SetPPUMode(PPUMode::OAMSearch);
 			break;
 		default:
-			s.VBLANK_CYCLES = DEFAULT_VBLANK_CYCLES;
+			s.vblankLineCycles = DEFAULT_VBLANK_LINE_CYCLES;
 			break;
 		}
 	}
@@ -431,14 +435,14 @@ void PPUCore<sys>::executeBGFetcher()
 
 			if (!bgFIFO.s.fetchingWindow)
 			{
-				uint16_t yOffset = (static_cast<uint8_t>(s.LY + regs.SCY) / 8) * 32;
-				uint8_t xOffset = (bgFIFO.s.fetchX + (regs.SCX / 8)) & 0x1F;
+				const uint16_t yOffset = (static_cast<uint8_t>(s.LY + regs.SCY) / 8) * 32;
+				const uint8_t xOffset = (bgFIFO.s.fetchX + (regs.SCX / 8)) & 0x1F;
 				tileMapInd = BGTileMapAddr() + ((yOffset + xOffset) & 0x3FF);
 			}
 			else
 			{
-				uint16_t yOffset = (s.WLY / 8) * 32;
-				uint8_t xOffset = bgFIFO.s.fetchX & 0x1F;
+				const uint16_t yOffset = (s.WLY / 8) * 32;
+				const uint8_t xOffset = bgFIFO.s.fetchX & 0x1F;
 				tileMapInd = WindowTileMapAddr() + ((yOffset + xOffset) & 0x3FF);
 			}
 
@@ -712,11 +716,9 @@ void PPUCore<sys>::renderTileMap(uint8_t* buffer, uint16_t tileMapAddr)
 	{
 		for (uint16_t x = 0; x < 32; x++)
 		{
-			uint16_t tileMapInd = tileMapAddr + y * 32 + x;
-			uint8_t tileMap = VRAM_BANK0[tileMapInd];
-
-			uint16_t screenX = x * 8;
-			uint16_t screenY = y * 8;
+			const uint16_t tileMapInd = tileMapAddr + y * 32 + x;
+			const uint8_t tileMap = VRAM_BANK0[tileMapInd];
+			const uint16_t screenX = x * 8, screenY = y * 8;
 
 			if constexpr (sys == GBSystem::GBC)
 			{
@@ -727,19 +729,15 @@ void PPUCore<sys>::renderTileMap(uint8_t* buffer, uint16_t tileMapAddr)
 				const uint8_t* bank = getBit(attributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data();
 				const uint8_t cgbPalette = attributes & 0x7;
 
-				const int8_t yStart = (yFlip ? 7 : 0);
-				const int8_t yEnd = yFlip ? -1 : 8;
-				const int8_t yStep = yFlip ? -1 : 1;
+				const int8_t yStart = (yFlip ? 7 : 0), yEnd = (yFlip ? -1 : 8), yStep = (yFlip ? -1 : 1);
 
 				for (int8_t tileY = yStart; tileY != yEnd; tileY += yStep)
 				{
-					uint8_t yPos{ static_cast<uint8_t>(tileY + screenY) };
-					uint8_t lsbLineByte{ bank[getBGTileAddr(tileMap) + tileY * 2] };
-					uint8_t msbLineByte{ bank[getBGTileAddr(tileMap) + tileY * 2 + 1] };
+					const uint8_t yPos { static_cast<uint8_t>(tileY + screenY) };
+					const uint8_t lsbLineByte{ bank[getBGTileAddr(tileMap) + tileY * 2] };
+					const uint8_t msbLineByte{ bank[getBGTileAddr(tileMap) + tileY * 2 + 1] };
 
-					const int8_t xStart = (xFlip ? 0 : 7);
-					const int8_t xEnd = xFlip ? 8 : -1;
-					const int8_t xStep = xFlip ? 1 : -1;
+					const int8_t xStart = (xFlip ? 0 : 7), xEnd = (xFlip ? 8 : -1), xStep = (xFlip ? 1 : -1);
 
 					for (int8_t tileX = xStart; tileX != xEnd; tileX += xStep)
 					{
@@ -753,9 +751,9 @@ void PPUCore<sys>::renderTileMap(uint8_t* buffer, uint16_t tileMapAddr)
 			{
 				for (uint8_t tileY = 0; tileY < 8; tileY++)
 				{
-					const uint8_t yPos{ static_cast<uint8_t>(tileY + screenY) };
-					const uint8_t lsbLineByte{ VRAM_BANK0[getBGTileAddr(tileMap) + tileY * 2] };
-					const uint8_t msbLineByte{ VRAM_BANK0[getBGTileAddr(tileMap) + tileY * 2 + 1] };
+					const uint8_t yPos { static_cast<uint8_t>(tileY + screenY) };
+					const uint8_t lsbLineByte { VRAM_BANK0[getBGTileAddr(tileMap) + tileY * 2] };
+					const uint8_t msbLineByte { VRAM_BANK0[getBGTileAddr(tileMap) + tileY * 2 + 1] };
 
 					for (int8_t tileX = 7; tileX >= 0; tileX--)
 					{

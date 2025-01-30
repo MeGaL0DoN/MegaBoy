@@ -17,11 +17,11 @@ void CPU::handleInterrupts()
 
 		s.IME = false;
 		exitHalt();
-		uint8_t interrupt = s.IE & s.IF;
+		const uint8_t interrupt = s.IE & s.IF;
 
 		if (interrupt) [[likely]]
 		{
-			uint8_t interrruptBit{ static_cast<uint8_t>(std::countr_zero(interrupt)) };
+			const uint8_t interrruptBit { static_cast<uint8_t>(std::countr_zero(interrupt)) };
 			s.PC = 0x0040 + interrruptBit * 8;
 			s.IF = resetBit(s.IF, interrruptBit);
 		}
@@ -29,10 +29,7 @@ void CPU::handleInterrupts()
 			s.PC = 0x00;
 	}
 	else if (interruptsPending()) [[unlikely]]
-	{
-		// halt bug
 		exitHalt();
-	}
 }
 
 void CPU::requestInterrupt(Interrupt interrupt)

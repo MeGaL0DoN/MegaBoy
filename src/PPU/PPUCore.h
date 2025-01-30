@@ -20,17 +20,17 @@ public:
 
 	void refreshDMGScreenColors(const std::array<color, 4>& newColors) override;
 
-	void renderTileData(uint8_t* buffer, int vramBank) override;
 	inline void renderBGTileMap(uint8_t* buffer) override { renderTileMap(buffer, BGTileMapAddr()); }
 	inline void renderWindowTileMap(uint8_t* buffer) override { renderTileMap(buffer, WindowTileMapAddr()); }
+	void renderTileData(uint8_t* buffer, int vramBank) override;
 private:
 	MMU& mmu;
 	CPU& cpu;
 
 	static constexpr uint16_t TOTAL_SCANLINE_CYCLES = 456;
 	static constexpr uint16_t OAM_SCAN_CYCLES = 20 * 4;
-	static constexpr uint16_t DEFAULT_VBLANK_CYCLES = 114 * 4;
-	static constexpr uint16_t LCD_CLEAR_CYCLES = DEFAULT_VBLANK_CYCLES * 10;
+	static constexpr uint16_t DEFAULT_VBLANK_LINE_CYCLES = 114 * 4;
+	static constexpr uint16_t TOTAL_VBLANK_CYCLES = DEFAULT_VBLANK_LINE_CYCLES * 10;
 
 	inline void invokeDrawCallback(bool firstFrame = false) 
 	{

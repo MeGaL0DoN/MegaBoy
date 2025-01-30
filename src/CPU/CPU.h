@@ -20,6 +20,10 @@ class GBCore;
 
 class CPU
 {
+	friend CPUInstructions;
+	friend class MMU;
+	friend class debugUI;
+
 public:
 	uint8_t execute();
 	void requestInterrupt(Interrupt interrupt);
@@ -29,10 +33,6 @@ public:
 
 	explicit CPU(GBCore& gbCore);
 	~CPU();
-
-	friend CPUInstructions;
-	friend class MMU;
-	friend class debugUI;
 
 	void reset();
 

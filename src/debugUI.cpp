@@ -24,6 +24,10 @@ void debugUI::renderMenu()
             showDisassembly = !showDisassembly;
             gb.enableBreakpointChecks(showDisassembly);
         }
+        if (ImGui::MenuItem("PPU View"))
+        {
+            showPPUView = !showPPUView;
+        }
         if (ImGui::MenuItem("VRAM View"))
         {
             showVRAMView = !showVRAMView;
@@ -121,8 +125,8 @@ void debugUI::signalVBlank()
 
 inline void displayImage(uint32_t texture, uint16_t width, uint16_t height, int& scale)
 {
-    float windowWidth = ImGui::GetWindowWidth();
-    float textWidth = ImGui::CalcTextSize("Scale: 00").x + ImGui::GetFrameHeight() * 2 + ImGui::GetStyle().ItemSpacing.x * 2;
+    const float windowWidth = ImGui::GetWindowWidth();
+    const float textWidth = ImGui::CalcTextSize("Scale: 00").x + ImGui::GetFrameHeight() * 2 + ImGui::GetStyle().ItemSpacing.x * 2;
     ImGui::SetCursorPosX((windowWidth - textWidth) * 0.5f);
 
     if (ImGui::ArrowButton("##left", ImGuiDir_Left))
@@ -249,583 +253,589 @@ void debugUI::signalBreakpoint()
 }
 
 #include "CPU/regDefines.h"
+#include <ImGUI/imgui_internal.h>
 
 void debugUI::renderWindows(float scaleFactor)
 {
     if (showMemoryView)
     {
         ImGui::SetNextWindowSize(ImVec2(-1.f, scaleFactor * 327), ImGuiCond_Appearing);
-        ImGui::Begin("Memory View", &showMemoryView);
 
-        ImGui::RadioButton("Memory Space", &romMemoryView, 0);
-        ImGui::SameLine();
-        ImGui::RadioButton("ROM Banks", &romMemoryView, 1);
-        ImGui::Spacing();
-
-        if (romMemoryView)
+        if (ImGui::Begin("Memory View", &showMemoryView))
         {
-            const std::string romBankText = "ROM Bank (Total: " + std::to_string(gb.cartridge.romBanks) + ")";
-            ImGui::Text("%s", romBankText.c_str());
+            ImGui::RadioButton("Memory Space", &romMemoryView, 0);
             ImGui::SameLine();
-
-            ImGui::PushItemWidth(150 * scaleFactor);
-
-            if (ImGui::InputInt("##rombank", &memoryRomBank, 1, 1, ImGuiInputTextFlags_CharsDecimal))
-            {
-                if (gb.cartridge.ROMLoaded())
-                    memoryRomBank = std::clamp(memoryRomBank, 0, static_cast<int>(gb.cartridge.romBanks - 1));
-                else
-                    memoryRomBank = 0;
-            }
-
-            ImGui::PopItemWidth();
+            ImGui::RadioButton("ROM Banks", &romMemoryView, 1);
             ImGui::Spacing();
-        }
 
-        constexpr const char* header = "Offset 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F                    ";
-        ImGui::Text(header);
-
-        ImGui::Spacing();
-        ImGui::Separator();
-        ImGui::Spacing();
-
-        ImGui::BeginChild("content");
-        ImGuiListClipper clipper;
-
-        auto printMem = [&clipper](uint16_t viewStartAddr, uint8_t(*readFunc)(uint16_t))
-        {
-            std::string memoryData(72, '\0');
-
-            auto drawList = ImGui::GetWindowDrawList();
-            const float charWidth = ImGui::CalcTextSize("0").x;
-            const float vertLineX = ImGui::GetCursorScreenPos().x + (charWidth * 53.1f);
-
-            while (clipper.Step())
+            if (romMemoryView)
             {
-                const float startY = ImGui::GetCursorScreenPos().y;
+                const std::string romBankText = "ROM Bank (Total: " + std::to_string(gb.cartridge.romBanks) + ")";
+                ImGui::Text("%s", romBankText.c_str());
+                ImGui::SameLine();
 
-                for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++)
+                ImGui::PushItemWidth(150 * scaleFactor);
+
+                if (ImGui::InputInt("##rombank", &memoryRomBank, 1, 1, ImGuiInputTextFlags_CharsDecimal))
                 {
-                    memoryData = "0x" + hexOps::toHexStr<true>(static_cast<uint16_t>(viewStartAddr + i * 16)) + " ";
-
                     if (gb.cartridge.ROMLoaded())
-                    {
-                        std::array<uint8_t, 16> data{};
-
-                        for (int j = 0; j < 16; j++)
-                        {
-                            data[j] = readFunc(static_cast<uint16_t>(i * 16 + j));
-                            memoryData += hexOps::toHexStr<false>(data[j]) + " ";
-                        }
-
-                        memoryData += " ";
-
-                        for (int j = 0; j < 16; j++)
-                            memoryData += (data[j] >= 32 && data[j] <= 126) ? static_cast<char>(data[j]) : '.';
-                    }
+                        memoryRomBank = std::clamp(memoryRomBank, 0, static_cast<int>(gb.cartridge.romBanks - 1));
                     else
-                        memoryData += "ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff  ................";
-
-                    ImGui::Text("%s", memoryData.c_str());
+                        memoryRomBank = 0;
                 }
 
-                const float endY = ImGui::GetCursorScreenPos().y;
-                drawList->AddLine(ImVec2(vertLineX, startY), ImVec2(vertLineX, endY), ImGui::GetColorU32(ImGuiCol_Separator), 1.0f);
+                ImGui::PopItemWidth();
+                ImGui::Spacing();
             }
-        };
 
-        if (romMemoryView)
-        {
-            clipper.Begin(1024);
-            printMem(memoryRomBank == 0 ? 0 : 0x4000, [](uint16_t addr) { return gb.cartridge.rom[(memoryRomBank * 0x4000) + addr]; });
-        }
-        else
-        {
-            clipper.Begin(4096);
-            printMem(0, [](uint16_t addr) { return gb.mmu.read8(addr); });
+            constexpr const char* header = "Offset 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F                    ";
+            ImGui::Text(header);
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            if (ImGui::BeginChild("content"))
+            {
+                ImGuiListClipper clipper;
+
+                auto printMem = [&clipper](uint16_t viewStartAddr, uint8_t(*readFunc)(uint16_t))
+                {
+                    std::string memoryData(72, '\0');
+
+                    auto drawList = ImGui::GetWindowDrawList();
+                    const float charWidth = ImGui::CalcTextSize("0").x;
+                    const float vertLineX = ImGui::GetCursorScreenPos().x + (charWidth * 53.1f);
+
+                    while (clipper.Step())
+                    {
+                        const float startY = ImGui::GetCursorScreenPos().y;
+
+                        for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++)
+                        {
+                            memoryData = "0x" + hexOps::toHexStr<true>(static_cast<uint16_t>(viewStartAddr + i * 16)) + " ";
+
+                            if (gb.cartridge.ROMLoaded())
+                            {
+                                std::array<uint8_t, 16> data{};
+
+                                for (int j = 0; j < 16; j++)
+                                {
+                                    data[j] = readFunc(static_cast<uint16_t>(i * 16 + j));
+                                    memoryData += hexOps::toHexStr<false>(data[j]) + " ";
+                                }
+
+                                memoryData += " ";
+
+                                for (int j = 0; j < 16; j++)
+                                    memoryData += (data[j] >= 32 && data[j] <= 126) ? static_cast<char>(data[j]) : '.';
+                            }
+                            else
+                                memoryData += "ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff  ................";
+
+                            ImGui::Text("%s", memoryData.c_str());
+                        }
+
+                        const float endY = ImGui::GetCursorScreenPos().y;
+                        drawList->AddLine(ImVec2(vertLineX, startY), ImVec2(vertLineX, endY), ImGui::GetColorU32(ImGuiCol_Separator), 1.0f);
+                    }
+                };
+
+                if (romMemoryView)
+                {
+                    clipper.Begin(1024);
+                    printMem(memoryRomBank == 0 ? 0 : 0x4000, [](uint16_t addr) { return gb.cartridge.rom[(memoryRomBank * 0x4000) + addr]; });
+                }
+                else
+                {
+                    clipper.Begin(4096);
+                    printMem(0, [](uint16_t addr) { return gb.mmu.read8(addr); });
+                }
+            }
+
+            ImGui::EndChild();
         }
 
-        ImGui::EndChild();
         ImGui::End();
     }
     if (showCPUView)
     {
-        ImGui::Begin("CPU View", &showCPUView, ImGuiWindowFlags_NoResize);
+        if (ImGui::Begin("CPU View", &showCPUView, ImGuiWindowFlags_NoResize))
+        {
+            ImGui::Text("PC: %04X", gb.cpu.s.PC);
+            ImGui::SameLine();
+            ImGui::Text("| SP: %04X", gb.cpu.s.SP.val);
+            ImGui::Text("DIV: %02X", gb.cpu.s.DIV_reg);
+            ImGui::SameLine();
+            ImGui::Spacing();
+            ImGui::SameLine();
+            ImGui::Text("| TIMA: %02X", gb.cpu.s.TIMA_reg);
+            ImGui::Text("Cycles: %llu", (gb.totalCycles() / gb.cpu.TcyclesPerM())); // Displaying M cycles
+            ImGui::Text("Frequency: %.3f MHz", gb.cpu.s.GBCdoubleSpeed ? 2.097 : 1.048);
+            ImGui::Text("Halted: %s", gb.cpu.s.halted ? "True" : "False");
 
-        ImGui::Text("PC: %04X", gb.cpu.s.PC);
-        ImGui::SameLine();
-        ImGui::Text("| SP: %04X", gb.cpu.s.SP.val);
-        ImGui::Text("DIV: %02X", gb.cpu.s.DIV_reg);
-        ImGui::SameLine();
-        ImGui::Spacing();
-        ImGui::SameLine();
-        ImGui::Text("| TIMA: %02X", gb.cpu.s.TIMA_reg);
-        ImGui::Text("Cycles: %llu", (gb.totalCycles() / 4)); // Displaying M cycles
-        ImGui::Text("Frequency: %.3f MHz", gb.cpu.s.GBCdoubleSpeed ? 2.097 : 1.048);
-        ImGui::Text("Halted: %s", gb.cpu.s.halted ? "True" : "False");
+            ImGui::SeparatorText("Registers");
 
-        ImGui::SeparatorText("Registers");
+            ImGui::Text("A: %02X", gb.cpu.registers.A.val);
+            ImGui::SameLine();
+            ImGui::Text("F: %02X", gb.cpu.registers.F.val);
+            ImGui::Text("B: %02X", gb.cpu.registers.B.val);
+            ImGui::SameLine();
+            ImGui::Text("C: %02X", gb.cpu.registers.C.val);
+            ImGui::Text("D: %02X", gb.cpu.registers.D.val);
+            ImGui::SameLine();
+            ImGui::Text("E: %02X", gb.cpu.registers.E.val);
+            ImGui::Text("H: %02X", gb.cpu.registers.H.val);
+            ImGui::SameLine();
+            ImGui::Text("L: %02X", gb.cpu.registers.L.val);
 
-        ImGui::Text("A: %02X", gb.cpu.registers.A.val);
-        ImGui::SameLine();
-        ImGui::Text("F: %02X", gb.cpu.registers.F.val);
-        ImGui::Text("B: %02X", gb.cpu.registers.B.val);
-        ImGui::SameLine();
-        ImGui::Text("C: %02X", gb.cpu.registers.C.val);
-        ImGui::Text("D: %02X", gb.cpu.registers.D.val);
-        ImGui::SameLine();
-        ImGui::Text("E: %02X", gb.cpu.registers.E.val);
-        ImGui::Text("H: %02X", gb.cpu.registers.H.val);
-        ImGui::SameLine();
-        ImGui::Text("L: %02X", gb.cpu.registers.L.val);
+            ImGui::SeparatorText("Flags");
+            ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
 
-        ImGui::SeparatorText("Flags");
-        ImGui::BeginDisabled();
+            bool zero = gb.cpu.getFlag(FlagType::Zero);
+            bool carry = gb.cpu.getFlag(FlagType::Carry);
+            bool halfCarry = gb.cpu.getFlag(FlagType::HalfCarry);
+            bool negative = gb.cpu.getFlag(FlagType::Subtract);
 
-        bool zero = gb.cpu.getFlag(FlagType::Zero);
-        bool carry = gb.cpu.getFlag(FlagType::Carry);
-        bool halfCarry = gb.cpu.getFlag(FlagType::HalfCarry);
-        bool negative = gb.cpu.getFlag(FlagType::Subtract);
+            ImGui::Checkbox("Z", &zero);
+            ImGui::SameLine();
+            ImGui::Spacing();
+            ImGui::SameLine();
+            ImGui::Checkbox("C", &carry);
+            ImGui::Checkbox("H", &halfCarry);
+            ImGui::SameLine();
+            ImGui::Spacing();
+            ImGui::SameLine();
+            ImGui::Checkbox("N", &negative);
 
-        ImGui::Checkbox("Z", &zero);
-        ImGui::SameLine();
-        ImGui::Spacing();
-        ImGui::SameLine();
-        ImGui::Checkbox("C", &carry);
-        ImGui::Checkbox("H", &halfCarry);
-        ImGui::SameLine();
-        ImGui::Spacing();
-        ImGui::SameLine();
-        ImGui::Checkbox("N", &negative);
+            ImGui::SeparatorText("Interrupts");
 
-        ImGui::EndDisabled();
+            bool ime = gb.cpu.s.IME;
+            bool vBlank = getBit(gb.cpu.s.IE, 0);
+            bool lcdStat = getBit(gb.cpu.s.IE, 1);
+            bool timer = getBit(gb.cpu.s.IE, 2);
+            bool serial = getBit(gb.cpu.s.IE, 3);
+            bool joypad = getBit(gb.cpu.s.IE, 4);
 
-        ImGui::SeparatorText("Interrupts");
-        ImGui::BeginDisabled();
+            ImGui::Checkbox("Master Enable", &ime);
 
-        bool ime = gb.cpu.s.IME;
-        bool vBlank = getBit(gb.cpu.s.IE, 0);
-        bool lcdStat = getBit(gb.cpu.s.IE, 1);
-        bool timer = getBit(gb.cpu.s.IE, 2);
-        bool serial = getBit(gb.cpu.s.IE, 3);
-        bool joypad = getBit(gb.cpu.s.IE, 4);
+            ImGui::Checkbox("VBlank", &vBlank);
+            ImGui::SameLine();
+            ImGui::Checkbox("LCD STAT", &lcdStat);
+            ImGui::Checkbox("Timer", &timer);
+            ImGui::SameLine();
+            ImGui::Spacing();
+            ImGui::SameLine();
+            ImGui::Checkbox("Serial", &serial);
+            ImGui::Checkbox("Joypad", &joypad);
 
-        ImGui::Checkbox("Master Enable", &ime);
-
-        ImGui::Checkbox("VBlank", &vBlank);
-        ImGui::SameLine();
-        ImGui::Checkbox("LCD STAT", &lcdStat);
-        ImGui::Checkbox("Timer", &timer);
-        ImGui::SameLine();
-        ImGui::Spacing();
-        ImGui::SameLine();
-        ImGui::Checkbox("Serial", &serial);
-        ImGui::Checkbox("Joypad", &joypad);
-
-        ImGui::EndDisabled();
+            ImGui::PopItemFlag();
+        }
 
         ImGui::End();
     }
     if (showDisassembly)
     {
         ImGui::SetNextWindowSize(ImVec2(280.0f * (static_cast<float>(showBreakpointHitWindow) + 1) * scaleFactor, 450 * scaleFactor), ImGuiCond_Appearing);
-        ImGui::Begin("Disassembly", &showDisassembly);
 
-        static bool firstTimeBreakpointWindow { true };
-
-        if (showBreakpointHitWindow && firstTimeBreakpointWindow)
+        if (ImGui::Begin("Disassembly", &showDisassembly))
         {
-            ImVec2 windowSize = ImGui::GetWindowSize();
-            ImGui::SetWindowSize(ImVec2(windowSize.x * 2, windowSize.y));
-            firstTimeBreakpointWindow = false;
-        }
+            static bool firstTimeBreakpointWindow{ true };
 
-        if (showBreakpointHitWindow)
-            ImGui::Columns(2);
-
-        ImGui::SeparatorText("Disassembly View");
-
-        ImGui::RadioButton("Memory Space", &romDisassemblyView, 0);
-        ImGui::SameLine();
-        ImGui::RadioButton("ROM Banks", &romDisassemblyView, 1);
-
-        if (!romDisassemblyView)
-        {
-            static int breakpointAddr{};
-            static int breakpointOpcode{};
-
-            const auto renderBreakpointControl = [&](const char* label, int& value, auto& breakpointArr, auto& breakpointList, int maxValue)
+            if (showBreakpointHitWindow && firstTimeBreakpointWindow)
             {
-                ImGui::PushID(label);
-                ImGui::SeparatorText(label);
+                ImVec2 windowSize = ImGui::GetWindowSize();
+                ImGui::SetWindowSize(ImVec2(windowSize.x * 2, windowSize.y));
+                firstTimeBreakpointWindow = false;
+            }
 
-                ImGui::PushItemWidth(200 * scaleFactor);
+            if (showBreakpointHitWindow)
+                ImGui::Columns(2);
 
-                if (ImGui::InputInt("##input", &value, 0, 0, ImGuiInputTextFlags_CharsHexadecimal))
-                    value = std::clamp(value, 0, maxValue);
+            ImGui::SeparatorText("Disassembly View");
 
-                ImGui::PopItemWidth();
+            ImGui::RadioButton("Memory Space", &romDisassemblyView, 0);
+            ImGui::SameLine();
+            ImGui::RadioButton("ROM Banks", &romDisassemblyView, 1);
 
-                ImGui::SameLine();
-                const bool exists = std::ranges::find(breakpointList, value) != breakpointList.end();
-
-                ImGui::PushStyleColor(ImGuiCol_Button, exists ? ImVec4(0.8f, 0.2f, 0.2f, 1.0f) : ImVec4(0.2f, 0.4f, 0.8f, 1.0f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, exists ? ImVec4(0.9f, 0.3f, 0.3f, 1.0f) : ImVec4(0.3f, 0.5f, 0.9f, 1.0f));
-
-                const bool textBoxEnterWasPressed = ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_Enter);
-                const char* buttonLabel = exists ? "Remove" : "Add";
-
-                if (ImGui::Button(buttonLabel) || (!exists && textBoxEnterWasPressed))
-                {
-                    breakpointArr[value] = !exists;
-                    if (exists)
-                    {
-                        breakpointList.erase (
-                            std::remove(breakpointList.begin(), breakpointList.end(), value),
-                            breakpointList.end()
-                        );
-                    }
-                    else
-                       breakpointList.push_back(value);
-                };
-
-                ImGui::PopStyleColor(2);
-                ImGui::PopID();
-            };
-
-            const auto renderBreakpointItems = [](auto& breakpointArr, auto& breakpointList, const char* formatStr) 
+            if (!romDisassemblyView)
             {
-                for (auto it = breakpointList.begin(); it != breakpointList.end(); ) 
-                {
-                    bool incrementIt = true;
-                    ImGui::PushID(*it);
+                static int breakpointAddr{};
+                static int breakpointOpcode{};
 
-                    ImGui::Text(formatStr, *it);
+                const auto renderBreakpointControl = [&](const char* label, int& value, auto& breakpointArr, auto& breakpointList, int maxValue)
+                {
+                    ImGui::PushID(label);
+                    ImGui::SeparatorText(label);
+
+                    ImGui::PushItemWidth(200 * scaleFactor);
+
+                    if (ImGui::InputInt("##input", &value, 0, 0, ImGuiInputTextFlags_CharsHexadecimal))
+                        value = std::clamp(value, 0, maxValue);
+
+                    ImGui::PopItemWidth();
+
                     ImGui::SameLine();
+                    const bool exists = std::ranges::find(breakpointList, value) != breakpointList.end();
 
-                    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
-                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
+                    ImGui::PushStyleColor(ImGuiCol_Button, exists ? ImVec4(0.8f, 0.2f, 0.2f, 1.0f) : ImVec4(0.2f, 0.4f, 0.8f, 1.0f));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, exists ? ImVec4(0.9f, 0.3f, 0.3f, 1.0f) : ImVec4(0.3f, 0.5f, 0.9f, 1.0f));
 
-                    if (ImGui::Button("Remove")) 
+                    const bool textBoxEnterWasPressed = ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_Enter);
+                    const char* buttonLabel = exists ? "Remove" : "Add";
+
+                    if (ImGui::Button(buttonLabel) || (!exists && textBoxEnterWasPressed))
                     {
-                        breakpointArr[*it] = false;
-                        it = breakpointList.erase(it);
-                        incrementIt = false;
-                    }
-                    else 
-                    {
-                        const bool breakpointEnabled = breakpointArr[*it];
-                        ImGui::SameLine();
-
-                        const auto [btnColor, btnHoverColor] = breakpointEnabled ?
-                            std::make_pair(ImVec4(0.15f, 0.6f, 0.15f, 1.0f), ImVec4(0.2f, 0.7f, 0.2f, 1.0f)) :
-                            std::make_pair(ImVec4(0.6f, 0.6f, 0.15f, 1.0f), ImVec4(0.7f, 0.7f, 0.2f, 1.0f));
-
-                        ImGui::PushStyleColor(ImGuiCol_Button, btnColor);
-                        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, btnHoverColor);
-
-                        if (ImGui::Button(breakpointEnabled ? "Enabled" : "Disabled"))
-                            breakpointArr[*it] = !breakpointEnabled;
-
-                        ImGui::PopStyleColor(2);
-                    }
+                        breakpointArr[value] = !exists;
+                        if (exists)
+                        {
+                            breakpointList.erase (
+                                std::remove(breakpointList.begin(), breakpointList.end(), value),
+                                breakpointList.end()
+                            );
+                        }
+                        else
+                            breakpointList.push_back(value);
+                    };
 
                     ImGui::PopStyleColor(2);
-
-                    if (incrementIt)
-                        it++;
-
                     ImGui::PopID();
-                }
-            };
- 
-            renderBreakpointControl("Breakpoint on Address", breakpointAddr, gb.breakpoints, breakpoints, 0xFFFF);
-            renderBreakpointControl("Breakpoint on Opcode", breakpointOpcode, gb.opcodeBreakpoints, opcodeBreakpoints, 0xFF);
+                };
 
-            static bool showBreakpoints{ false };
-
-            ImGui::Spacing();
-
-            if (ImGui::ArrowButton("##arrow", ImGuiDir_Right))
-				showBreakpoints = !showBreakpoints;
-
-            ImGui::SameLine();
-            ImGui::Text("Breakpoints");
-
-            if (showBreakpoints) 
-            {
-                if (ImGui::BeginChild("Breakpoint List", ImVec2(0, 150), ImGuiChildFlags_Borders))
+                const auto renderBreakpointItems = [](auto& breakpointArr, auto& breakpointList, const char* formatStr)
                 {
-                    ImGui::PushID(0);
-                    renderBreakpointItems(gb.breakpoints, breakpoints, "%04X");
-                    ImGui::PopID();
-
-                    if (!breakpoints.empty() && !opcodeBreakpoints.empty())
+                    for (auto it = breakpointList.begin(); it != breakpointList.end(); )
                     {
-                        ImGui::Spacing();
-                        ImGui::Separator();
-                        ImGui::Spacing();
-                    }
+                        bool incrementIt = true;
+                        ImGui::PushID(*it);
 
-                    renderBreakpointItems(gb.opcodeBreakpoints, opcodeBreakpoints, "0x%02X");
-                }
-                ImGui::EndChild();
-            }
-        }
-        else
-        {
-            std::string romBankText = "ROM Bank (Total: " + std::to_string(gb.cartridge.romBanks) + ")";
-            ImGui::SeparatorText(romBankText.c_str());
+                        ImGui::Text(formatStr, *it);
+                        ImGui::SameLine();
 
-            ImGui::PushItemWidth(200 * scaleFactor);
+                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
+                        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
 
-            if (ImGui::InputInt("##rombank", &dissasmRomBank, 1, 1, ImGuiInputTextFlags_CharsDecimal))
-            {
-                if (gb.cartridge.ROMLoaded())
-                {
-                    dissasmRomBank = std::clamp(dissasmRomBank, 0, static_cast<int>(gb.cartridge.romBanks - 1));
-                    romDisassembly.resize(0);
-                }
-                else
-                    dissasmRomBank = 0;
-            }
-
-            ImGui::PopItemWidth();
-
-            if (romDisassembly.empty() && gb.cartridge.ROMLoaded())
-                disassembleRom();
-        }
-
-        const auto displayDisasm = [](uint16_t instrAddr, const std::string& disasm)
-        {
-            if (instrAddr == gb.cpu.s.PC) [[unlikely]]
-                ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "%s", disasm.c_str());
-            else if (gb.breakpoints[instrAddr]) [[unlikely]]
-                ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%s", disasm.c_str());
-            else [[likely]]
-                ImGui::Text("%s", disasm.c_str());
-        };
-
-        ImGui::SeparatorText("Disassembly");
-        if (ImGui::BeginChild("Disassembly") && gb.cartridge.ROMLoaded()) 
-        {
-            ImGuiListClipper clipper;
-
-            if (romDisassemblyView)
-            {
-                clipper.Begin(static_cast<int>(romDisassembly.size()));
-
-                while (clipper.Step())
-                {
-                    for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++)
-                    {
-                        const auto& disasm = romDisassembly[i];
-                        const bool isPcInBank = dissasmRomBank == 0 || dissasmRomBank == gb.cartridge.getMapper()->getCurrentRomBank();
-
-                        if (isPcInBank)
-                            displayDisasm(disasm.addr, disasm.str);
+                        if (ImGui::Button("Remove"))
+                        {
+                            breakpointArr[*it] = false;
+                            it = breakpointList.erase(it);
+                            incrementIt = false;
+                        }
                         else
-                            ImGui::Text("%s", disasm.str.c_str());
+                        {
+                            const bool breakpointEnabled = breakpointArr[*it];
+                            ImGui::SameLine();
+
+                            const auto [btnColor, btnHoverColor] = breakpointEnabled ?
+                                std::make_pair(ImVec4(0.15f, 0.6f, 0.15f, 1.0f), ImVec4(0.2f, 0.7f, 0.2f, 1.0f)) :
+                                std::make_pair(ImVec4(0.6f, 0.6f, 0.15f, 1.0f), ImVec4(0.7f, 0.7f, 0.2f, 1.0f));
+
+                            ImGui::PushStyleColor(ImGuiCol_Button, btnColor);
+                            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, btnHoverColor);
+
+                            if (ImGui::Button(breakpointEnabled ? "Enabled" : "Disabled"))
+                                breakpointArr[*it] = !breakpointEnabled;
+
+                            ImGui::PopStyleColor(2);
+                        }
+
+                        ImGui::PopStyleColor(2);
+
+                        if (incrementIt)
+                            it++;
+
+                        ImGui::PopID();
                     }
+                };
+
+                renderBreakpointControl("Breakpoint on Address", breakpointAddr, gb.breakpoints, breakpoints, 0xFFFF);
+                renderBreakpointControl("Breakpoint on Opcode", breakpointOpcode, gb.opcodeBreakpoints, opcodeBreakpoints, 0xFF);
+
+                static bool showBreakpoints{ false };
+
+                ImGui::Spacing();
+
+                if (ImGui::ArrowButton("##arrow", ImGuiDir_Right))
+                    showBreakpoints = !showBreakpoints;
+
+                ImGui::SameLine();
+                ImGui::Text("Breakpoints");
+
+                if (showBreakpoints)
+                {
+                    if (ImGui::BeginChild("Breakpoint List", ImVec2(0, 150), ImGuiChildFlags_Borders))
+                    {
+                        ImGui::PushID(0);
+                        renderBreakpointItems(gb.breakpoints, breakpoints, "%04X");
+                        ImGui::PopID();
+
+                        if (!breakpoints.empty() && !opcodeBreakpoints.empty())
+                        {
+                            ImGui::Spacing();
+                            ImGui::Separator();
+                            ImGui::Spacing();
+                        }
+
+                        renderBreakpointItems(gb.opcodeBreakpoints, opcodeBreakpoints, "0x%02X");
+                    }
+                    ImGui::EndChild();
                 }
             }
             else
             {
-                uint32_t instrAddr {0};
-                uint8_t instrLen {0};
+                std::string romBankText = "ROM Bank (Total: " + std::to_string(gb.cartridge.romBanks) + ")";
+                ImGui::SeparatorText(romBankText.c_str());
 
-                clipper.Begin(0x10000);
-                clipper.Step();
+                ImGui::PushItemWidth(200 * scaleFactor);
 
-                displayDisasm(static_cast<uint16_t>(instrAddr), disassemble(instrAddr, &instrLen));
-                instrAddr += instrLen;
-
-                while (clipper.Step())
+                if (ImGui::InputInt("##rombank", &dissasmRomBank, 1, 1, ImGuiInputTextFlags_CharsDecimal))
                 {
-                    if (clipper.DisplayStart != 1)
-                        instrAddr = clipper.DisplayStart;
-
-                    for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++)
+                    if (gb.cartridge.ROMLoaded())
                     {
-                        if (instrAddr > 0xFFFF) break;
-                        displayDisasm(static_cast<uint16_t>(instrAddr), disassemble(instrAddr, &instrLen));
-                        instrAddr += instrLen;
+                        dissasmRomBank = std::clamp(dissasmRomBank, 0, static_cast<int>(gb.cartridge.romBanks - 1));
+                        romDisassembly.resize(0);
                     }
+                    else
+                        dissasmRomBank = 0;
                 }
-            }
-        }
-        ImGui::EndChild();
 
-        if (showBreakpointHitWindow)
-        {
-            const static auto setTempBreakpoint = [](uint16_t addr)
+                ImGui::PopItemWidth();
+
+                if (romDisassembly.empty() && gb.cartridge.ROMLoaded())
+                    disassembleRom();
+            }
+
+            const auto displayDisasm = [](uint16_t instrAddr, const std::string& disasm)
             {
-                tempBreakpointAddr = addr;
-                gb.breakpoints[addr] = true;
+                if (instrAddr == gb.cpu.s.PC) [[unlikely]]
+                    ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "%s", disasm.c_str());
+                else if (gb.breakpoints[instrAddr]) [[unlikely]]
+                    ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%s", disasm.c_str());
+                else [[likely]]
+                    ImGui::Text("%s", disasm.c_str());
             };
 
-            ImGui::NextColumn();
-            ImGui::SeparatorText("Debug");
-
-            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10, 0));
-
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.7f, 0.2f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.8f, 0.3f, 1.0f));
-
-            if (ImGui::Button("Continue"))
+            ImGui::SeparatorText("Disassembly");
+            if (ImGui::BeginChild("Disassembly") && gb.cartridge.ROMLoaded())
             {
-                if (gb.cpu.s.halted)
-                {
-                    gb.breakpointHit = false;
-                    gb.breakpoints[gb.cpu.s.PC] = false;
+                ImGuiListClipper clipper;
 
-                    gb.cpu.setHaltExitEvent([]()
+                if (romDisassemblyView)
+                {
+                    clipper.Begin(static_cast<int>(romDisassembly.size()));
+
+                    while (clipper.Step())
                     {
-                        setTempBreakpoint(gb.cpu.s.PC);
-                        gb.cpu.setHaltExitEvent(nullptr);
-                    });
+                        for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++)
+                        {
+                            const auto& disasm = romDisassembly[i];
+                            const bool isPcInBank = dissasmRomBank == 0 || dissasmRomBank == gb.cartridge.getMapper()->getCurrentRomBank();
+
+                            if (isPcInBank)
+                                displayDisasm(disasm.addr, disasm.str);
+                            else
+                                ImGui::Text("%s", disasm.str.c_str());
+                        }
+                    }
                 }
                 else
                 {
-                    if (tempBreakpointAddr == -1 && stepOutStartSPVal == -1)
+                    uint32_t instrAddr{ 0 };
+                    uint8_t instrLen{ 0 };
+
+                    clipper.Begin(0x10000);
+                    clipper.Step();
+
+                    displayDisasm(static_cast<uint16_t>(instrAddr), disassemble(instrAddr, &instrLen));
+                    instrAddr += instrLen;
+
+                    while (clipper.Step())
                     {
-                        gb.cycleCounter += gb.cpu.execute();
+                        if (clipper.DisplayStart != 1)
+                            instrAddr = clipper.DisplayStart;
+
+                        for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++)
+                        {
+                            if (instrAddr > 0xFFFF) break;
+                            displayDisasm(static_cast<uint16_t>(instrAddr), disassemble(instrAddr, &instrLen));
+                            instrAddr += instrLen;
+                        }
+                    }
+                }
+            }
+            ImGui::EndChild();
+
+            if (showBreakpointHitWindow)
+            {
+                const static auto setTempBreakpoint = [](uint16_t addr)
+                {
+                    tempBreakpointAddr = addr;
+                    gb.breakpoints[addr] = true;
+                };
+
+                ImGui::NextColumn();
+                ImGui::SeparatorText("Debug");
+
+                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10, 0));
+
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.7f, 0.2f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.8f, 0.3f, 1.0f));
+
+                if (ImGui::Button("Continue"))
+                {
+                    if (gb.cpu.s.halted)
+                    {
                         gb.breakpointHit = false;
-                        showBreakpointHitWindow = false;
+                        gb.breakpoints[gb.cpu.s.PC] = false;
+
+                        gb.cpu.setHaltExitEvent([]()
+                        {
+                            setTempBreakpoint(gb.cpu.s.PC);
+                            gb.cpu.setHaltExitEvent(nullptr);
+                        });
                     }
                     else
                     {
-                        gb.breakpointHit = true;
-                        removeTempBreakpoint();
+                        if (tempBreakpointAddr == -1 && stepOutStartSPVal == -1)
+                        {
+                            gb.cycleCounter += gb.cpu.execute();
+                            gb.breakpointHit = false;
+                            showBreakpointHitWindow = false;
+                        }
+                        else
+                        {
+                            gb.breakpointHit = true;
+                            removeTempBreakpoint();
+                            extendBreakpointDisasmWindow();
+                        }
+                    }
+                }
+
+                if (gb.cpu.s.halted)
+                {
+                    if (ImGui::IsItemHovered())
+                        ImGui::SetTooltip("CPU Halted!");
+                }
+
+                ImGui::PopStyleColor(2);
+
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.4f, 0.8f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.5f, 0.9f, 1.0f));
+
+                ImGui::SameLine();
+
+                bool stepsDisabled = tempBreakpointAddr != -1 || stepOutStartSPVal != -1 || gb.cpu.s.halted;
+
+                if (stepsDisabled)
+                    ImGui::BeginDisabled();
+
+                if (ImGui::Button("Step Into"))
+                {
+                    gb.cycleCounter += gb.cpu.execute();
+                    extendBreakpointDisasmWindow();
+                }
+
+                ImGui::SameLine();
+
+                if (ImGui::Button("Step Over"))
+                {
+                    if (breakpointDisassembly[breakpointDisasmLine].str.find("CALL") != std::string::npos)
+                    {
+                        gb.breakpointHit = false;
+                        setTempBreakpoint(gb.cpu.s.PC + 3);
+                        gb.cycleCounter += gb.cpu.execute();
+                    }
+                    else
+                    {
+                        gb.cycleCounter += gb.cpu.execute();
                         extendBreakpointDisasmWindow();
                     }
                 }
-            }
 
-            if (gb.cpu.s.halted)
-            {
-                if (ImGui::IsItemHovered())
-                    ImGui::SetTooltip("CPU Halted!");
-            }
+                ImGui::Dummy(ImVec2(0, 10 * scaleFactor));
 
-            ImGui::PopStyleColor(2);
-
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.4f, 0.8f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.5f, 0.9f, 1.0f));
-
-            ImGui::SameLine();
-
-            bool stepsDisabled = tempBreakpointAddr != -1 || stepOutStartSPVal != -1 || gb.cpu.s.halted;
-
-            if (stepsDisabled)
-                ImGui::BeginDisabled();
-
-            if (ImGui::Button("Step Into"))
-            {
-                gb.cycleCounter += gb.cpu.execute();
-                extendBreakpointDisasmWindow();
-            }
-
-            ImGui::SameLine();
-
-            if (ImGui::Button("Step Over"))
-            {
-                if (breakpointDisassembly[breakpointDisasmLine].str.find("CALL") != std::string::npos)
+                if (ImGui::Button("Step Out"))
                 {
+                    stepOutStartSPVal = gb.cpu.s.SP.val;
                     gb.breakpointHit = false;
-                    setTempBreakpoint(gb.cpu.s.PC + 3);
                     gb.cycleCounter += gb.cpu.execute();
-                }
-                else
-                {
-					gb.cycleCounter += gb.cpu.execute();
-                    extendBreakpointDisasmWindow();
-				}
-            }
 
-            ImGui::Dummy(ImVec2(0, 10 * scaleFactor));
-
-            if (ImGui::Button("Step Out"))
-            {
-                stepOutStartSPVal = gb.cpu.s.SP.val;
-                gb.breakpointHit = false;
-                gb.cycleCounter += gb.cpu.execute();
-
-                gb.cpu.setRetOpcodeEvent([]()
-				{
-                    if (gb.cpu.s.SP.val > stepOutStartSPVal)
+                    gb.cpu.setRetOpcodeEvent([]()
                     {
-                        setTempBreakpoint(gb.cpu.s.PC);
-                        gb.cpu.setRetOpcodeEvent(nullptr);
-                        stepOutStartSPVal = -1;
-                    }
-				});
-            }
-
-            ImGui::SameLine();
-
-            static int stepToAddr{};
-
-            if (ImGui::Button("Step To"))
-            {
-                gb.cycleCounter += gb.cpu.execute();
-                setTempBreakpoint(stepToAddr);
-				gb.breakpointHit = false;
-            }
-
-            ImGui::SameLine();
-            ImGui::PushItemWidth(95 * scaleFactor);
-
-            if (ImGui::InputInt("##stepTo", &stepToAddr, 0, 0, ImGuiInputTextFlags_CharsHexadecimal))
-				stepToAddr = std::clamp(stepToAddr, 0, 0xFFFF);
-
-            ImGui::PopItemWidth();
-
-            if (stepsDisabled)
-				ImGui::EndDisabled();
-
-            ImGui::PopStyleColor(2);
-            ImGui::PopStyleVar();
-
-            ImGui::Spacing();
-            ImGui::SeparatorText("Disassembly");
-
-            if (ImGui::BeginChild("Breakpoint Disassembly"))
-            {
-                if (shouldScrollToPC)
-                {
-                    const float currentScrollY = ImGui::GetScrollY();
-                    const float windowHeight = ImGui::GetWindowHeight();
-                    const float itemHeight = ImGui::GetTextLineHeightWithSpacing();
-                    const float targetY = itemHeight * static_cast<float>(breakpointDisasmLine);
-
-                    const float visibleStart = currentScrollY + itemHeight;
-                    const float visibleEnd = currentScrollY + windowHeight - (2 * itemHeight);
-
-                    if (targetY < visibleStart || targetY > visibleEnd)
-                    {
-                        const float centerOffset = (windowHeight - itemHeight) * 0.5f;
-                        const float scrollTarget = std::max(0.0f, targetY - centerOffset);
-                        ImGui::SetScrollY(scrollTarget);
-                    }
-                    shouldScrollToPC = false;
+                        if (gb.cpu.s.SP.val > stepOutStartSPVal)
+                        {
+                            setTempBreakpoint(gb.cpu.s.PC);
+                            gb.cpu.setRetOpcodeEvent(nullptr);
+                            stepOutStartSPVal = -1;
+                        }
+                    });
                 }
 
-                ImGuiListClipper clipper;
-				clipper.Begin(static_cast<int>(breakpointDisassembly.size()));
+                ImGui::SameLine();
 
-				while (clipper.Step())
-				{
-					for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++)
-					{
-                        if (breakpointDisassembly[i].addr == gb.cpu.s.PC)
-                            ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "%s", breakpointDisassembly[i].str.c_str());
-						else
-							ImGui::Text("%s", breakpointDisassembly[i].str.c_str());
-					}
-				}
+                static int stepToAddr{};
+
+                if (ImGui::Button("Step To"))
+                {
+                    gb.cycleCounter += gb.cpu.execute();
+                    setTempBreakpoint(stepToAddr);
+                    gb.breakpointHit = false;
+                }
+
+                ImGui::SameLine();
+                ImGui::PushItemWidth(95 * scaleFactor);
+
+                if (ImGui::InputInt("##stepTo", &stepToAddr, 0, 0, ImGuiInputTextFlags_CharsHexadecimal))
+                    stepToAddr = std::clamp(stepToAddr, 0, 0xFFFF);
+
+                ImGui::PopItemWidth();
+
+                if (stepsDisabled)
+                    ImGui::EndDisabled();
+
+                ImGui::PopStyleColor(2);
+                ImGui::PopStyleVar();
+
+                ImGui::Spacing();
+                ImGui::SeparatorText("Disassembly");
+
+                if (ImGui::BeginChild("Breakpoint Disassembly"))
+                {
+                    if (shouldScrollToPC)
+                    {
+                        const float currentScrollY = ImGui::GetScrollY();
+                        const float windowHeight = ImGui::GetWindowHeight();
+                        const float itemHeight = ImGui::GetTextLineHeightWithSpacing();
+                        const float targetY = itemHeight * static_cast<float>(breakpointDisasmLine);
+
+                        const float visibleStart = currentScrollY + itemHeight;
+                        const float visibleEnd = currentScrollY + windowHeight - (2 * itemHeight);
+
+                        if (targetY < visibleStart || targetY > visibleEnd)
+                        {
+                            const float centerOffset = (windowHeight - itemHeight) * 0.5f;
+                            const float scrollTarget = std::max(0.0f, targetY - centerOffset);
+                            ImGui::SetScrollY(scrollTarget);
+                        }
+                        shouldScrollToPC = false;
+                    }
+
+                    ImGuiListClipper clipper;
+                    clipper.Begin(static_cast<int>(breakpointDisassembly.size()));
+
+                    while (clipper.Step())
+                    {
+                        for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++)
+                        {
+                            if (breakpointDisassembly[i].addr == gb.cpu.s.PC)
+                                ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "%s", breakpointDisassembly[i].str.c_str());
+                            else
+                                ImGui::Text("%s", breakpointDisassembly[i].str.c_str());
+                        }
+                    }
+                }
+                ImGui::EndChild();
             }
-            ImGui::EndChild();
         }
 
         ImGui::End();
@@ -833,100 +843,170 @@ void debugUI::renderWindows(float scaleFactor)
         if (!showDisassembly)
             gb.enableBreakpointChecks(false);
     }
+    if (showPPUView)
+    {
+        if (ImGui::Begin("PPU View", &showPPUView, ImGuiWindowFlags_NoResize))
+        {
+            ImGui::SeparatorText("LCDC");
+
+            ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
+
+            bool lcdEnable = getBit(gb.ppu->regs.LCDC, 7) ;
+            bool windowTileMap = getBit(gb.ppu->regs.LCDC, 6);
+            bool windowEnable = getBit(gb.ppu->regs.LCDC, 5);
+            bool tileDataArea = getBit(gb.ppu->regs.LCDC, 4);
+            bool bgTileMap = getBit(gb.ppu->regs.LCDC, 3);
+            bool objSize = getBit(gb.ppu->regs.LCDC, 2);
+            bool objEnable = getBit(gb.ppu->regs.LCDC, 1);
+            bool lcdcBit0 = getBit(gb.ppu->regs.LCDC, 0);
+
+            ImGui::Checkbox("LCD Enable", &lcdEnable);
+            ImGui::Checkbox("$9C00 Window Map", &windowTileMap);
+            ImGui::Checkbox("$9C00 BG Map", &bgTileMap);
+            ImGui::Checkbox("$8000 Tile Addressing", &tileDataArea);
+            ImGui::Checkbox("Window Enable", &windowEnable);
+
+            ImGui::Checkbox("8x16 OBJ Size", &objSize);
+            ImGui::SameLine();
+            ImGui::Checkbox("OBJ Enable", &objEnable);
+
+            if (System::Current() == GBSystem::GBC)          
+                ImGui::Checkbox("BG and Window Priority", &lcdcBit0);
+            else 
+                ImGui::Checkbox("BG and Window Enable", &lcdcBit0);
+
+            ImGui::SeparatorText("STAT");
+
+            bool lycStat = getBit(gb.ppu->regs.STAT, 6);
+            bool oamScanStat = getBit(gb.ppu->regs.STAT, 5);
+            bool vblankStat = getBit(gb.ppu->regs.STAT, 4);
+            bool hblankStat =  getBit(gb.ppu->regs.STAT, 3);
+            bool lycFlag = getBit(gb.ppu->regs.STAT, 2);
+
+            ImGui::Checkbox("LYC-LY STAT", &lycStat);
+            ImGui::SameLine();
+            ImGui::Checkbox("LYC Flag", &lycFlag);
+
+            ImGui::Checkbox("VBlank STAT", &vblankStat);
+            ImGui::SameLine();
+            ImGui::Checkbox("HBlank STAT", &hblankStat);
+
+            ImGui::Checkbox("OAM Scan STAT", &oamScanStat);
+
+            ImGui::PopItemFlag();
+            ImGui::SeparatorText("Misc.");
+
+            ImGui::Text("LY: %d", gb.ppu->s.LY);
+            ImGui::Text("LYC: %d", gb.ppu->regs.LYC);
+
+            ImGui::Spacing();
+
+            ImGui::Text("PPU Mode: %s", gb.ppu->s.state == PPUMode::HBlank ? "HBlank" : gb.ppu->s.state == PPUMode::VBlank ? "VBlank" :
+                                        gb.ppu->s.state == PPUMode::PixelTransfer ? "Pixel Transfer" : "OAM Scan");
+
+            ImGui::Text("Mode Dot Counter: %d", gb.ppu->s.videoCycles);
+
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(255, 255, 0, 255));
+            ImGui::Text("Dots Until VBlank: %d", gb.ppu->dotsUntilVBlank);
+            ImGui::PopStyleColor();
+        }
+
+        ImGui::End();
+    }
     if (showVRAMView)
     {
         static int tileViewScale { std::max(1,static_cast<int>(2 * scaleFactor)) };
         static int tileMapViewScale { std::max(1, static_cast<int>(scaleFactor)) };
         static int ppuOutputScale { std::max(1, static_cast<int>(2 * scaleFactor)) };
 
-        ImGui::Begin("VRAM View", &showVRAMView, ImGuiWindowFlags_AlwaysAutoResize);
-
-        if (ImGui::BeginTabBar("vramTabBar"))
+        if (ImGui::Begin("VRAM View", &showVRAMView, ImGuiWindowFlags_AlwaysAutoResize))
         {
-            if (ImGui::BeginTabItem("Tile Data"))
+            if (ImGui::BeginTabBar("vramTabBar"))
             {
-                currentTab = VRAMTab::TileData;
-
-                if (System::Current() == GBSystem::GBC)
+                if (ImGui::BeginTabItem("Tile Data"))
                 {
-                    ImGui::RadioButton("VRAM Bank 0", &vramTileBank, 0);
-                    ImGui::SameLine();
-                    ImGui::RadioButton("VRAM Bank 1", &vramTileBank, 1);
+                    currentTab = VRAMTab::TileData;
+
+                    if (System::Current() == GBSystem::GBC)
+                    {
+                        ImGui::RadioButton("VRAM Bank 0", &vramTileBank, 0);
+                        ImGui::SameLine();
+                        ImGui::RadioButton("VRAM Bank 1", &vramTileBank, 1);
+                    }
+
+                    displayImage(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileViewScale);
+                    ImGui::EndTabItem();
+                }
+                if (ImGui::BeginTabItem("Tile Maps"))
+                {
+                    if (ImGui::BeginTabBar("tileMapsTabBar"))
+                    {
+                        if (ImGui::BeginTabItem("Background Map"))
+                        {
+                            currentTab = VRAMTab::BackgroundMap;
+                            displayImage(backgroundMapTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, tileMapViewScale);
+                            ImGui::EndTabItem();
+                        }
+
+                        if (ImGui::BeginTabItem("Window Map"))
+                        {
+                            currentTab = VRAMTab::WindowMap;
+                            displayImage(windowMapTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, tileMapViewScale);
+                            ImGui::EndTabItem();
+                        }
+
+                        ImGui::EndTabBar();
+                    }
+                    ImGui::EndTabItem();
+                }
+                if (ImGui::BeginTabItem("PPU Output"))
+                {
+                    if (ImGui::BeginTabBar("outputTabBar"))
+                    {
+                        currentTab = VRAMTab::PPUOutput;
+
+                        if (ImGui::BeginTabItem("OAM"))
+                        {
+                            displayImage(oamTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, ppuOutputScale);
+                            ImGui::EndTabItem();
+                        }
+                        if (ImGui::BeginTabItem("Background"))
+                        {
+                            displayImage(backgroundTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, ppuOutputScale);
+                            ImGui::EndTabItem();
+                        }
+                        if (ImGui::BeginTabItem("Window"))
+                        {
+                            displayImage(windowTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, ppuOutputScale);
+                            ImGui::EndTabItem();
+                        }
+
+                        ImGui::EndTabBar();
+                    }
+                    ImGui::EndTabItem();
                 }
 
-                displayImage(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileViewScale);
-                ImGui::EndTabItem();
+                ImGui::EndTabBar();
             }
-            if (ImGui::BeginTabItem("Tile Maps"))
-            {
-                if (ImGui::BeginTabBar("tileMapsTabBar"))
-                {
-                    if (ImGui::BeginTabItem("Background Map"))
-                    {
-                        currentTab = VRAMTab::BackgroundMap;
-                        displayImage(backgroundMapTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, tileMapViewScale);
-                        ImGui::EndTabItem();
-                    }
-
-                    if (ImGui::BeginTabItem("Window Map"))
-                    {
-                        currentTab = VRAMTab::WindowMap;
-                        displayImage(windowMapTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, tileMapViewScale);
-                        ImGui::EndTabItem();
-                    }
-
-                    ImGui::EndTabBar();
-                }
-                ImGui::EndTabItem();
-            }
-            if (ImGui::BeginTabItem("PPU Output"))
-            {
-                if (ImGui::BeginTabBar("outputTabBar"))
-                {
-                    currentTab = VRAMTab::PPUOutput;
-
-                    if (ImGui::BeginTabItem("OAM"))
-                    {
-                        displayImage(oamTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, ppuOutputScale);
-                        ImGui::EndTabItem();
-                    }
-                    if (ImGui::BeginTabItem("Background"))
-                    {
-                        displayImage(backgroundTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, ppuOutputScale);
-                        ImGui::EndTabItem();
-                    }
-                    if (ImGui::BeginTabItem("Window"))
-                    {
-                        displayImage(windowTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, ppuOutputScale);
-                        ImGui::EndTabItem();
-                    }
-
-                    ImGui::EndTabBar();
-                }
-				ImGui::EndTabItem();
-            }
-
-            ImGui::EndTabBar();
         }
 
         gb.setPPUDebugEnable(showVRAMView && currentTab == VRAMTab::PPUOutput);
-
         ImGui::End();
     }
-
     if (showAudioView)
     {
-        ImGui::Begin("Audio", &showAudioView, ImGuiWindowFlags_NoResize);
-
-        ImGui::SeparatorText("Channel Options");
-
-        for (int i = 0; i < 4; i++)
+        if (ImGui::Begin("Audio", &showAudioView, ImGuiWindowFlags_NoResize))
         {
-            const auto channelStr = "Channel " + std::to_string(i + 1);
-            bool tempFlag = gb.apu.enabledChannels[i].load();
+            ImGui::SeparatorText("Channel Options");
 
-            if (ImGui::Checkbox(channelStr.c_str(), &tempFlag))
-                gb.apu.enabledChannels[i].store(tempFlag);
+            for (int i = 0; i < 4; i++)
+            {
+                const auto channelStr = "Channel " + std::to_string(i + 1);
+                bool tempFlag = gb.apu.enabledChannels[i].load();
+
+                if (ImGui::Checkbox(channelStr.c_str(), &tempFlag))
+                    gb.apu.enabledChannels[i].store(tempFlag);
+            }
         }
 
         ImGui::End();

@@ -69,7 +69,7 @@ void MMU::startDMATransfer()
 
 	s.dma.transfer = true;
 	s.dma.cycles = 0;
-	s.dma.sourceAddr = s.dma.reg * 0x100;
+	s.dma.sourceAddr = s.dma.reg >= 0xFE ? (0xDE00 + ((s.dma.reg - 0xFE) * 0x100)) : s.dma.reg * 0x100;
 
 	if (s.dma.restartRequest)
 	{
@@ -157,11 +157,6 @@ void MMU::write8(uint16_t addr, uint8_t val)
 	{
 		if (gb.ppu->canAccessOAM && !dmaInProgress())
 			gb.ppu->OAM[addr - 0xFE00] = val;
-	}
-	else if (addr <= 0xFEFF)
-	{
-		// prohibited area
-		return;
 	}
 	else if (addr <= 0xFF7F)
 	{
@@ -465,7 +460,7 @@ uint8_t MMU::read8(uint16_t addr) const
 
 	if (addr <= 0x7FFF)
 	{
-		uint8_t val = gb.cartridge.getMapper()->read(addr);
+		const uint8_t val = gb.cartridge.getMapper()->read(addr);
 
 		for (const auto& genie : gb.gameGenies)
 		{

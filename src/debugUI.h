@@ -19,6 +19,7 @@ public:
 	static void signalROMreset();
 	static void signalSaveStateChange();
 	static void signalBreakpoint();
+
 private:
 	enum class VRAMTab 
 	{
@@ -29,9 +30,9 @@ private:
 	};
 	struct instructionDisasmEntry
 	{
-		uint16_t addr;
-		uint8_t length;
-		std::array<uint8_t, 3> data;
+		uint16_t addr { };
+		uint8_t length { };
+		std::array<uint8_t, 3> data { };
 		std::string str;
 
 		bool operator < (uint16_t addr) const
@@ -43,6 +44,7 @@ private:
 	static inline bool showMemoryView { false };
 	static inline bool showCPUView { false };
 	static inline bool showDisassembly { false };
+	static inline bool showPPUView { false };
 	static inline bool showAudioView { false };
 
 	static inline bool showVRAMView { false };

@@ -145,8 +145,8 @@ struct ppuState
 	uint8_t WLY{ 0 };
 	uint8_t xPosCounter{ 0 };
 
-	uint16_t VBLANK_CYCLES{};
-	uint16_t HBLANK_CYCLES{};
+	uint16_t vblankLineCycles{};
+	uint16_t hblankLineCycles{};
 	PPUMode state{ PPUMode::OAMSearch };
 	uint16_t videoCycles{ 0 };
 };
@@ -220,6 +220,8 @@ struct ppuDMGRegs
 
 class PPU
 {
+	friend class debugUI;
+
 public:
 	static constexpr uint8_t SCR_WIDTH = 160;
 	static constexpr uint8_t SCR_HEIGHT = 144;
@@ -309,6 +311,8 @@ protected:
 
 	bool canAccessOAM{};
 	bool canAccessVRAM{};
+
+	uint32_t dotsUntilVBlank{};
 
 	bool debugPPU { false };
 	std::unique_ptr<uint8_t[]> debugOAMFramebuffer{};

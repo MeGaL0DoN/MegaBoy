@@ -1254,13 +1254,8 @@ void renderImGUI() {
             ImGui::EndMenu();
         }
 
-        static bool graphicsMenuWasOpen { false };
-        static bool showPaletteSelection{ false };
-
         if (ImGui::BeginMenu("Graphics"))
         {
-            graphicsMenuWasOpen = true;
-
             if (emulationRunning())
                 ImGui::SeparatorText(FPS_text.c_str());;
 
@@ -1326,104 +1321,87 @@ void renderImGUI() {
             }
 
             ImGui::SeparatorText("Filter");
-            constexpr const char* filters[] = { "None", "LCD", "Upscaling" };
 
+            constexpr std::array filters = { "None", "LCD", "Upscaling" };
             const int filterCount { appConfig::bilinearFiltering ? 2 : 3 }; // Upscaling filter is disabled when bilinear filtering is enabled
 
-            if (ImGui::ListBox("##2", &appConfig::filter, filters, filterCount))
+            if (ImGui::Combo("##Filter", &appConfig::filter, filters.data(), filterCount))
             {
                 updateSelectedFilter();
                 appConfig::updateConfigFile();
             }
 
             ImGui::Spacing();
-
-            if (ImGui::ArrowButton("##3", ImGuiDir_Right))
-                showPaletteSelection = !showPaletteSelection;
-
-            ImGui::SameLine();
             ImGui::SeparatorText("DMG Palette");
 
-            if (showPaletteSelection)
+            constexpr std::array palettes = { "BGB Green", "Grayscale", "Classic", "Custom" };
+
+            static bool customPaletteOpen { false };
+            static std::array<std::array<float, 3>, 4> colors{ };
+            static std::array<color, 4> tempCustomPalette{ };
+
+            const auto updateColors = []()
             {
-                constexpr std::array palettes = { "BGB Green", "Grayscale", "Classic", "Custom" };
+                for (int i = 0; i < 4; i++)
+                    colors[i] = { PPU::CUSTOM_PALETTE[i].R / 255.0f, PPU::CUSTOM_PALETTE[i].G / 255.0f, PPU::CUSTOM_PALETTE[i].B / 255.0f };
 
-                static bool customPaletteOpen{ false };
-                static std::array<std::array<float, 3>, 4> colors{ };
-                static std::array<color, 4> tempCustomPalette{ };
+                tempCustomPalette = PPU::CUSTOM_PALETTE;
+            };
 
-                const auto updateColors = []()
+            if (ImGui::Combo("##PaletteCombo", &appConfig::palette, palettes.data(), static_cast<int>(palettes.size())))
+            {
+                if (appConfig::palette == 3) 
                 {
-                    for (int i = 0; i < 4; i++)
-                        colors[i] = { PPU::CUSTOM_PALETTE[i].R / 255.0f, PPU::CUSTOM_PALETTE[i].G / 255.0f, PPU::CUSTOM_PALETTE[i].B / 255.0f };
+                    updateColors();
+                    customPaletteOpen = true;
+                    ImGui::SetNextWindowSize(ImVec2(ImGui::CalcTextSize("Custom Palette").x * 2, -1.f));
+                }
+                else
+                    customPaletteOpen = false;
 
-                    tempCustomPalette = PPU::CUSTOM_PALETTE;
-                };
+                updateSelectedPalette();
+                appConfig::updateConfigFile();
+            }
+
+            if (customPaletteOpen)
+            {
+                ImGui::Begin("Custom Palette", &customPaletteOpen, ImGuiWindowFlags_NoResize);
+
+                for (int i = 0; i < 4; i++)
+                {
+                    if (ImGui::ColorEdit3(("Color " + std::to_string(i)).c_str(), colors[i].data(), ImGuiColorEditFlags_NoInputs))
+                    {
+                        tempCustomPalette[i] =
+                        {
+                            static_cast<uint8_t>(colors[i][0] * 255),
+                            static_cast<uint8_t>(colors[i][1] * 255),
+                            static_cast<uint8_t>(colors[i][2] * 255)
+                        };
+
+                        refreshDMGPaletteColors(tempCustomPalette);
+                        PPU::CUSTOM_PALETTE[i] = tempCustomPalette[i];
+                        appConfig::updateConfigFile();
+                    }
+                }
 
                 ImGui::Spacing();
+                ImGui::Separator();
+                ImGui::Spacing();
 
-                if (ImGui::ListBox("##4", &appConfig::palette, palettes.data(), palettes.size()))
+                if (ImGui::Button("Reset to Default"))
                 {
-                    if (appConfig::palette == 3)
-                    {
-                        updateColors();
-                        customPaletteOpen = true;
-                        ImGui::SetNextWindowSize(ImVec2(ImGui::CalcTextSize("Custom Palette").x * 2, -1.f));
-                    }
-                    else
-                        customPaletteOpen = false;
-
-                    updateSelectedPalette();
+                    refreshDMGPaletteColors(PPU::DEFAULT_CUSTOM_PALETTE);
+                    PPU::CUSTOM_PALETTE = PPU::DEFAULT_CUSTOM_PALETTE;
+                    updateColors();
                     appConfig::updateConfigFile();
                 }
 
-                if (customPaletteOpen)
-                {
-                    ImGui::Begin("Custom Palette", &customPaletteOpen, ImGuiWindowFlags_NoResize);
-
-                    for (int i = 0; i < 4; i++)
-                    {
-                        if (ImGui::ColorEdit3(("Color " + std::to_string(i)).c_str(), colors[i].data(), ImGuiColorEditFlags_NoInputs))
-                        {
-                            tempCustomPalette[i] =
-                            {
-                                static_cast<uint8_t>(colors[i][0] * 255),
-                                static_cast<uint8_t>(colors[i][1] * 255),
-                                static_cast<uint8_t>(colors[i][2] * 255)
-                            };
-
-                            refreshDMGPaletteColors(tempCustomPalette);
-                            PPU::CUSTOM_PALETTE[i] = tempCustomPalette[i];
-                            appConfig::updateConfigFile();
-                        }
-                    }
-
-                    ImGui::Spacing();
-                    ImGui::Separator();
-                    ImGui::Spacing();
-
-                    if (ImGui::Button("Reset to Default"))
-                    {
-                        refreshDMGPaletteColors(PPU::DEFAULT_CUSTOM_PALETTE);
-                        PPU::CUSTOM_PALETTE = PPU::DEFAULT_CUSTOM_PALETTE;
-                        updateColors();
-                        appConfig::updateConfigFile();
-                    }
-
-                    ImGui::End();
-                }
+                ImGui::End();
             }
 
             ImGui::EndMenu();
         }
-        else
-        {
-            if (graphicsMenuWasOpen)
-            {
-                showPaletteSelection = false;
-                graphicsMenuWasOpen = false;
-            }
-        }
+
         if (ImGui::BeginMenu("Audio"))
         {
             ImGui::SeparatorText("Settings");
@@ -1692,14 +1670,13 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
             return;
         }
 
-        // number keys 1 though 9
-        if (key >= 49 && key <= 57)
+        if (key >= GLFW_KEY_1 && key <= GLFW_KEY_9)
         {
             if (mods & KeyBindManager::getBind(MegaBoyKey::SaveStateModifier))
-                saveState(key - 48);
+                saveState(key - GLFW_KEY_1 + 1);
 
             else if (mods & KeyBindManager::getBind(MegaBoyKey::LoadStateModifier))
-                loadState(key - 48);
+                loadState(key - GLFW_KEY_1 + 1);
 
             return;
         }
@@ -1760,24 +1737,6 @@ void drop_callback(GLFWwindow* _window, int count, const char** paths)
         loadFile(FileUtils::nativePathFromUTF8(paths[0]));
 }
 
-bool pausedPreEvent;
-void handleVisibilityChange(bool hidden)
-{
-    if (hidden)
-    {
-        pausedPreEvent = gb.emulationPaused;
-        setEmulationPaused(true);
-    }
-    else
-        setEmulationPaused(pausedPreEvent);
-}
-
-void window_iconify_callback(GLFWwindow* _window, int iconified)
-{
-    (void)_window;
-    handleVisibilityChange(iconified);
-}
-
 #ifdef EMSCRIPTEN
 EM_BOOL emscripten_resize_callback(int eventType, const EmscriptenUiEvent *uiEvent, void *userData)
 {
@@ -1794,7 +1753,6 @@ void content_scale_callback(GLFWwindow* _window, float xScale, float yScale)
 {
     devicePixelRatio = EM_ASM_DOUBLE({ return window.devicePixelRatio; });
 }
-
 const char* unloadCallback(int eventType, const void* reserved, void* userData)
 {
     gb.autoSave();
@@ -1802,7 +1760,16 @@ const char* unloadCallback(int eventType, const void* reserved, void* userData)
 }
 EM_BOOL visibilityChangeCallback(int eventType, const EmscriptenVisibilityChangeEvent *visibilityChangeEvent, void *userData)
 {
-    handleVisibilityChange(visibilityChangeEvent->hidden);
+    static bool pausedPreEvent { false };
+
+    if (visibilityChangeEvent->hidden)
+    {
+        pausedPreEvent = gb.emulationPaused;
+        setEmulationPaused(true);
+    }
+    else
+        setEmulationPaused(pausedPreEvent);
+
     return EM_TRUE;
 }
 
@@ -1919,7 +1886,6 @@ bool setGLFW()
 #else
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetWindowPosCallback(window, window_pos_callback);
-    glfwSetWindowIconifyCallback(window, window_iconify_callback);
 
     if (!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress)))
     {
@@ -2019,14 +1985,17 @@ void mainLoop()
     static double executeTimes { 0.0 };
     static int frameCount { 0 }, gbFrameCount { 0 };
 
-    const bool waitEvents = !emulationRunning() && !fadeEffectActive;
-    const double currentTime = glfwGetTime();
+    const double currentTime { glfwGetTime() };
+    
+#ifndef EMSCRIPTEN
+    const bool waitEvents = glfwGetWindowAttrib(window, GLFW_ICONIFIED);
 
     if (waitEvents)
     {
         glfwWaitEvents();
         lastFrameTime = currentTime;
     }
+#endif
 
     const double deltaTime = std::clamp(currentTime - lastFrameTime, 0.0, MAX_DELTA_TIME);
     lastFrameTime = currentTime;
@@ -2034,19 +2003,16 @@ void mainLoop()
     secondsTimer += deltaTime;
     gbTimer += deltaTime;
 
-    const bool shouldRender = appConfig::vsync || gbTimer >= GBCore::FRAME_RATE || waitEvents;
+    const bool shouldRender { appConfig::vsync || gbTimer >= GBCore::FRAME_RATE };
 
     if (shouldRender)
-    {
-        if (!waitEvents)
-            glfwPollEvents();
-    }
+        glfwPollEvents();
     else
     {
 #ifndef EMSCRIPTEN
         if (!appConfig::vsync)
         {
-            const double remainder = GBCore::FRAME_RATE - gbTimer;
+            const double remainder { GBCore::FRAME_RATE - gbTimer };
 
             constexpr double SLEEP_THRESHOLD = 
 #ifdef _WIN32
@@ -2057,13 +2023,13 @@ void mainLoop()
             if (remainder >= SLEEP_THRESHOLD) 
             {
                 // Sleep on windows is less precise than linux/macos, even with timeBeginPeriod(1). So need to sleep less time.
-                std::chrono::duration<double> sleepTime (
+                std::chrono::duration<double> sleepTime {
 #ifdef _WIN32
                     remainder <= 0.004 ? 0.001 : remainder <= 0.006 ? 0.002 : remainder / 1.6
 #else
                     remainder / 1.5
 #endif
-                );
+                };
                 std::this_thread::sleep_for(sleepTime);
             }
         }
