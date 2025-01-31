@@ -907,7 +907,12 @@ void debugUI::renderWindows(float scaleFactor)
             ImGui::Text("Mode Dot Counter: %d", gb.ppu->s.videoCycles);
 
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(255, 255, 0, 255));
-            ImGui::Text("Dots Until VBlank: %d", gb.ppu->dotsUntilVBlank);
+
+            if (lcdEnable)
+                ImGui::Text("Dots Until VBlank: %d", gb.ppu->dotsUntilVBlank);
+            else
+                ImGui::Text("Dots Until VBlank: ? (LCD Disabled)");
+
             ImGui::PopStyleColor();
         }
 

@@ -146,7 +146,7 @@ struct ppuState
 	uint8_t xPosCounter{ 0 };
 
 	uint16_t vblankLineCycles{};
-	uint16_t hblankLineCycles{};
+	uint16_t hblankCycles{};
 	PPUMode state{ PPUMode::OAMSearch };
 	uint16_t videoCycles{ 0 };
 };

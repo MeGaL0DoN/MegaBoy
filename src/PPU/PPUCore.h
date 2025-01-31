@@ -49,7 +49,6 @@ private:
 	void renderTileMap(uint8_t* buffer, uint16_t tileMapAddr);
 
 	void checkLYC();
-	void requestSTAT();
 	void updateInterrupts();
 
 	void SetPPUMode(PPUMode ppuState);

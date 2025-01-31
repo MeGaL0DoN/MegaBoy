@@ -43,6 +43,8 @@ void PPUCore<sys>::setLCDEnable(bool val)
 	{
 		s.lcdSkipFrame = s.videoCycles >= TOTAL_VBLANK_CYCLES;
 		s.videoCycles = 0;
+		s.hblankCycles = OAM_SCAN_CYCLES - 4;
+		dotsUntilVBlank = GBCore::CYCLES_PER_FRAME - TOTAL_VBLANK_CYCLES - 4;
 		regs.LCDC = setBit(regs.LCDC, 7);
 	}
 	else
@@ -51,7 +53,6 @@ void PPUCore<sys>::setLCDEnable(bool val)
 		s.LY = 0;
 		s.WLY = 0;
 		SetPPUMode(PPUMode::HBlank);
-		dotsUntilVBlank = GBCore::CYCLES_PER_FRAME - TOTAL_VBLANK_CYCLES;
 		regs.LCDC = resetBit(regs.LCDC, 7);
 	}
 }
@@ -144,40 +145,33 @@ void PPUCore<sys>::checkLYC()
 }
 
 template <GBSystem sys>
-void PPUCore<sys>::requestSTAT()
-{
-	if (!s.blockStat)
-	{
-		s.blockStat = true;
-		cpu.requestInterrupt(Interrupt::STAT);
-	}
-}
-
-template <GBSystem sys>
 void PPUCore<sys>::updateInterrupts()
 {
 	bool interrupt = s.lycFlag && LYC_STAT();
 
-	if (!interrupt)
+	switch (s.state)
 	{
-		switch (s.state)
-		{
-		case PPUMode::HBlank:
-			interrupt = HBlank_STAT();
-			break;
-		case PPUMode::VBlank:
-			interrupt = VBlank_STAT();
-			break;
-		case PPUMode::OAMSearch:
-			interrupt = OAM_STAT();
-			break;
-		default:
-			break;
-		}
+	case PPUMode::HBlank:
+		interrupt |= HBlank_STAT();
+		break;
+	case PPUMode::VBlank:
+		interrupt |= VBlank_STAT();
+		break;
+	case PPUMode::OAMSearch:
+		interrupt |= OAM_STAT();
+		break;
+	default:
+		break;
 	}
 
 	if (interrupt)
-		requestSTAT();
+	{
+		if (!s.blockStat)
+		{
+			s.blockStat = true;
+			cpu.requestInterrupt(Interrupt::STAT);
+		}
+	}
 	else
 		s.blockStat = false;
 }
@@ -185,13 +179,13 @@ void PPUCore<sys>::updateInterrupts()
 template <GBSystem sys>
 void PPUCore<sys>::SetPPUMode(PPUMode mode)
 {
-	regs.STAT = setBit(regs.STAT, 1, static_cast<uint8_t>(mode) & 0x2);
-	regs.STAT = setBit(regs.STAT, 0, static_cast<uint8_t>(mode) & 0x1);
+	regs.STAT &= (~0b11);
+	regs.STAT |= static_cast<uint8_t>(mode);
 
 	switch (mode)
 	{
 	case PPUMode::HBlank:
-		s.hblankLineCycles = TOTAL_SCANLINE_CYCLES - OAM_SCAN_CYCLES - s.videoCycles;
+		s.hblankCycles = TOTAL_SCANLINE_CYCLES - OAM_SCAN_CYCLES - s.videoCycles;
 		canAccessOAM = true; canAccessVRAM = true;
 
 		if constexpr (sys == GBSystem::GBC)
@@ -206,10 +200,10 @@ void PPUCore<sys>::SetPPUMode(PPUMode mode)
 		canAccessOAM = true; canAccessVRAM = true;
 		break;
 	case PPUMode::OAMSearch:
-		canAccessOAM = false;
+		canAccessOAM = false; canAccessVRAM = true;
 		break;
 	case PPUMode::PixelTransfer:
-		canAccessVRAM = false;
+		canAccessOAM = false; canAccessVRAM = false;
 		resetPixelTransferState();
 		break;
 	}
@@ -265,11 +259,18 @@ void PPUCore<sys>::execute(uint8_t cycles)
 template <GBSystem sys>
 void PPUCore<sys>::handleHBlank()
 {
-	if (s.videoCycles >= s.hblankLineCycles)
+	if (s.videoCycles >= s.hblankCycles)
 	{
-		s.videoCycles -= s.hblankLineCycles;
-		s.LY++;
-		if (bgFIFO.s.fetchingWindow) s.WLY++;
+		s.videoCycles -= s.hblankCycles;
+
+		// After LCD is being enabled, first hblank is "fake" and is 4 cycles shorter than oam scan, and continues to pixel transfer instead of oam scan.
+		const bool isFakeHBlank = s.hblankCycles == OAM_SCAN_CYCLES - 4; 
+
+		if (!isFakeHBlank)
+		{
+			s.LY++;
+			if (bgFIFO.s.fetchingWindow) s.WLY++;
+		}
 
 		if constexpr (sys == GBSystem::GBC)
 		{
@@ -291,7 +292,7 @@ void PPUCore<sys>::handleHBlank()
 				invokeDrawCallback();
 		}
 		else
-			SetPPUMode(PPUMode::OAMSearch);
+			SetPPUMode(isFakeHBlank ? PPUMode::PixelTransfer : PPUMode::OAMSearch);
 	}
 }
 
@@ -397,7 +398,7 @@ void PPUCore<sys>::handlePixelTransfer()
 
 	if (!bgFIFO.s.fetchingWindow)
 	{
-		if (latchWindowEnable && s.LY >= regs.WY && s.xPosCounter >= regs.WX - 7 && regs.WX != 0)
+		if (latchWindowEnable && s.LY >= regs.WY && s.xPosCounter >= regs.WX - 7 && regs.WX != 0) [[unlikely]]
 		{
 			bgFIFO.reset();
 			bgFIFO.s.fetchingWindow = true;
@@ -405,7 +406,15 @@ void PPUCore<sys>::handlePixelTransfer()
 	}
 
 	if (!objFIFO.s.fetchRequested && !bgFIFO.empty())
+	{
 		renderFIFOs();
+
+		if (s.xPosCounter == SCR_WIDTH) [[unlikely]]
+		{
+			SetPPUMode(PPUMode::HBlank);
+			s.videoCycles = 0;
+		}
+	}
 }
 
 template <GBSystem sys>
@@ -669,12 +678,6 @@ void PPUCore<sys>::renderFIFOs()
 
 		setPixel(s.xPosCounter, s.LY, outputColor);
 		s.xPosCounter++;
-
-		if (s.xPosCounter == SCR_WIDTH) [[unlikely]]
-		{
-			SetPPUMode(PPUMode::HBlank);
-			s.videoCycles = 0;
-		}
 	}
 }
 

@@ -446,20 +446,20 @@ template uint8_t MMU::read8<GBSystem::GBC>(uint16_t) const;
 template <GBSystem sys>
 uint8_t MMU::read8(uint16_t addr) const
 {
-	if (gb.cpu.executingBootROM)
-	{
-		if (addr < 0x100)
-			return baseBootROM[addr];
-
-		if constexpr (sys == GBSystem::GBC)
-		{
-			if (addr >= 0x200 && addr <= 0x8FF)
-				return cgbBootROM[addr - 0x200];
-		}
-	}
-
 	if (addr <= 0x7FFF)
 	{
+		if (gb.cpu.executingBootROM) [[unlikely]]
+		{
+			if (addr < 0x100)
+				return baseBootROM[addr];
+
+			if constexpr (sys == GBSystem::GBC)
+			{
+				if (addr >= 0x200 && addr <= 0x8FF)
+					return cgbBootROM[addr - 0x200];
+			}
+		}
+
 		const uint8_t val = gb.cartridge.getMapper()->read(addr);
 
 		for (const auto& genie : gb.gameGenies)
