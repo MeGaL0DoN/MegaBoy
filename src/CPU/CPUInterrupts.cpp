@@ -16,6 +16,8 @@ void CPU::handleInterrupts()
 		addCycles(2); // PUSH adds 3, need 5 in total.
 
 		s.IME = false;
+		s.shouldSetIME = false;
+
 		exitHalt();
 		const uint8_t interrupt = s.IE & s.IF;
 

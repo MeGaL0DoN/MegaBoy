@@ -911,7 +911,7 @@ void debugUI::renderWindows(float scaleFactor)
             if (lcdEnable)
                 ImGui::Text("Dots Until VBlank: %d", gb.ppu->dotsUntilVBlank);
             else
-                ImGui::Text("Dots Until VBlank: ? (LCD Disabled)");
+                ImGui::Text("Dots Until VBlank: ? (LCD off)");
 
             ImGui::PopStyleColor();
         }
