@@ -127,7 +127,7 @@ FileLoadResult GBCore::loadFile(std::istream& st, std::filesystem::path filePath
 
 	if (isSaveState)
 	{
-		const auto result = loadState(st);
+		const auto result { loadState(st) };
 
 		if (result != FileLoadResult::SuccessSaveState)
 			return result;
@@ -152,7 +152,7 @@ FileLoadResult GBCore::loadFile(std::istream& st, std::filesystem::path filePath
 		{
 			st.seekg(0, std::ios::beg);
 
-			constexpr std::array romExtensions = { ".gb", ".gbc", ".zip" };
+			constexpr std::array romExtensions { ".gb", ".gbc", ".zip" };
 			bool romLoaded = false;
 
 			if (romFilePath.stem() != stem)
@@ -292,7 +292,7 @@ void GBCore::autoSave() const
 	if (romFilePath.empty() && customBatterySavePath.empty()) 
 		return;
 
-	auto mapper = cartridge.getMapper();
+	const auto mapper = cartridge.getMapper();
 	if (mapper->sramDirty) 
 	{
 		saveBattery(getBatteryFilePath());

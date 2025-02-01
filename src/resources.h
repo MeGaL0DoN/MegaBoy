@@ -33,13 +33,35 @@ in vec2 TexCoord;
 uniform sampler2D texture1;
 uniform float alpha;
 uniform float fadeAmount;
+uniform bool gbcColorCorrection;
 
 void main()
 {
     vec4 textColor = vec4(texture(texture1, TexCoord).rgb, alpha);
-	FragColor = mix(textColor, vec4(0.0, 0.0, 0.0, textColor.a), fadeAmount);
-}
+	textColor = mix(textColor, vec4(0.0, 0.0, 0.0, textColor.a), fadeAmount);
 
+    // GBC color correction, credit to: https://www.pokecommunity.com/threads/built-in-color-correction-for-gbc-games.448482/
+
+    if (gbcColorCorrection) {
+        mat3 colorCorrection = mat3 (
+            13.0,  2.0,  1.0,
+            0.0,   3.0,  1.0,
+            0.0,   2.0,  14.0
+        );
+
+        mat3 scale = mat3 (
+            1.0/16.0,  0.0,      0.0,
+            0.0,       1.0/4.0,  0.0,
+            0.0,       0.0,      1.0/16.0
+        );
+
+        colorCorrection *= scale;
+        textColor.rgb *= colorCorrection;
+        textColor.rgb = pow(textColor.rgb, vec3(1.0 / 2.0));
+    }
+
+    FragColor = textColor;
+}
 )";
 
     inline const std::string lcd1xVertexShader = std::string(GL_VERSION_STR) +
@@ -52,9 +74,9 @@ out vec4 TEX0;
 
 void main()
 {
-   gl_Position = vec4(aPos, 1.0);
-	TexCoord = aTexCoord;
-   TEX0.xy = TexCoord.xy * 1.0001;
+    gl_Position = vec4(aPos, 1.0);
+    TexCoord = aTexCoord;
+    TEX0.xy = TexCoord.xy * 1.0001;
 }
 )";
 
@@ -65,12 +87,13 @@ uniform vec2 TextureSize;
 uniform sampler2D Texture;
 uniform float alpha;
 uniform float fadeAmount;
+uniform bool gbcColorCorrection;
 
 in vec4 TEX0;
 out vec4 FragColor;
 
 #define BRIGHTEN_SCANLINES 12.0
-#define BRIGHTEN_LCD 12.0
+#define BRIGHTEN_LCD 10.0
 
 // Magic Numbers
 #define PI 3.141592654
@@ -85,14 +108,31 @@ void main()
    float yfactor = (BRIGHTEN_SCANLINES + sin(angle.y)) / (BRIGHTEN_SCANLINES + 1.0);
    float xfactor = (BRIGHTEN_LCD + sin(angle.x)) / (BRIGHTEN_LCD + 1.0);
 
-   // Get colour sample
-   vec3 color = texture(Texture, TEX0.xy).rgb;
+   vec4 textColor = vec4(texture(Texture, TEX0.xy).rgb, alpha);
+   textColor = mix(textColor, vec4(0.0, 0.0, 0.0, textColor.a), fadeAmount);
+
+   if (gbcColorCorrection) {
+        mat3 colorCorrection = mat3 (
+            13.0,  2.0,  1.0,
+            0.0,   3.0,  1.0,
+            0.0,   2.0,  14.0
+        );
+
+        mat3 scale = mat3 (
+            1.0/16.0,  0.0,      0.0,
+            0.0,       1.0/4.0,  0.0,
+            0.0,       0.0,      1.0/16.0
+        );
+
+        colorCorrection *= scale;
+        textColor.rgb *= colorCorrection;
+        textColor.rgb = pow(textColor.rgb, vec3(1.0 / 2.0));
+    }
 
    // Apply LCD grid effect
-   color.rgb = yfactor * xfactor * color.rgb;
+   textColor.rgb = yfactor * xfactor * textColor.rgb;
 
-   vec4 textColor = vec4(color.rgb, alpha);
-   FragColor = mix(textColor, vec4(0.0, 0.0, 0.0, textColor.a), fadeAmount);
+   FragColor = textColor;
 } 
 )";
 
@@ -155,6 +195,7 @@ uniform vec2 TextureSize;
 uniform vec2 InputSize;
 uniform float alpha;
 uniform float fadeAmount;
+uniform bool gbcColorCorrection;
 
 uniform sampler2D Texture;
 
@@ -418,7 +459,27 @@ vec4 scale(sampler2D image, vec2 coord)
 void main()
 {
 	vec4 textColor = vec4(scale(Source, vTexCoord).rgb, alpha);
-    FragColor = mix(textColor, vec4(0.0, 0.0, 0.0, textColor.a), fadeAmount);
+    textColor = mix(textColor, vec4(0.0, 0.0, 0.0, textColor.a), fadeAmount);
+
+    if (gbcColorCorrection) {
+        mat3 colorCorrection = mat3 (
+            13.0,  2.0,  1.0,
+            0.0,   3.0,  1.0,
+            0.0,   2.0,  14.0
+        );
+
+        mat3 scale = mat3 (
+            1.0/16.0,  0.0,      0.0,
+            0.0,       1.0/4.0,  0.0,
+            0.0,       0.0,      1.0/16.0
+        );
+
+        colorCorrection *= scale;
+        textColor.rgb *= colorCorrection;
+        textColor.rgb = pow(textColor.rgb, vec3(1.0 / 2.0));
+    }
+
+    FragColor = textColor;
 } 
 )";
 

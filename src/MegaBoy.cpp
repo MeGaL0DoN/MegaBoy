@@ -124,6 +124,41 @@ inline void updateWindowTitle()
     glfwSetWindowTitle(window, title.c_str());
 }
 
+inline void updateColorCorrection()
+{
+    currentShader->setBool("gbcColorCorrection", appConfig::gbcColorCorrection && System::Current() == GBSystem::GBC && gb.cartridge.ROMLoaded());
+}
+void updateSelectedFilter()
+{
+    if (fadeEffectActive)
+        currentShader->setFloat("fadeAmount", 0.0f);
+
+    currentShader = appConfig::filter == 1 ? &lcdShader : appConfig::filter == 2 ? &scalingShader : &regularShader;
+
+    if (currentShader->compiled())
+        currentShader->use();
+    else
+    {
+        switch (appConfig::filter)
+        {
+        case 1:
+            lcdShader.compile(resources::lcd1xVertexShader.c_str(), resources::lcd1xFragmentShader.c_str());
+            lcdShader.setFloat2("TextureSize", PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
+            break;
+        case 2:
+            scalingShader.compile(resources::omniscaleVertexShader.c_str(), resources::omniscaleFragmentShader.c_str());
+            scalingShader.setFloat2("TextureSize", PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
+            scalingShader.setFloat2("OutputSize", PPU::SCR_WIDTH * 4, PPU::SCR_HEIGHT * 4);
+            break;
+        default:
+            regularShader.compile(resources::regularVertexShader.c_str(), resources::regularFragmentShader.c_str());
+            break;
+        }
+    }
+
+    updateColorCorrection();
+}
+
 inline void setEmulationPaused(bool val)
 {
     gb.emulationPaused = val;
@@ -132,6 +167,7 @@ inline void setEmulationPaused(bool val)
 inline void resetRom(bool fullReset)
 {
     gb.resetRom(fullReset);
+    updateColorCorrection(); // For hybrid GB/GBC roms, if user changed system preference then color correction setting may need to be updated.
     debugUI::signalROMreset();
 }
 
@@ -199,6 +235,7 @@ bool loadFile(std::istream& st, const std::filesystem::path& filePath)
     {
         showInfoPopUp = false;
         debugUI::signalROMreset();
+        updateColorCorrection(); // If game changed from GB to GBC or GBC to GB.
         updateWindowTitle();
         return true;
     };
@@ -283,6 +320,7 @@ inline void loadState(int num)
     if (result == FileLoadResult::SuccessSaveState)
     {
         debugUI::signalSaveStateChange();
+        updateColorCorrection(); // For hybrid GB/GBC roms, if user changed system preference then color correction setting may need to be updated.
         return;
     }
 
@@ -366,35 +404,6 @@ void takeScreenshot(bool captureOpenGL)
     else // Don't create a new thread for GB screenshot, because framebuffer can be modified while writing the PNG.
         writePng();
 #endif
-}
-
-void updateSelectedFilter()
-{
-    if (fadeEffectActive)
-        currentShader->setFloat("fadeAmount", 0.0f);
-
-    currentShader = appConfig::filter == 1 ? &lcdShader : appConfig::filter == 2 ? &scalingShader : &regularShader;
-
-    if (currentShader->compiled())
-        currentShader->use();
-    else
-    {
-        switch (appConfig::filter)
-        {
-        case 1:
-            lcdShader.compile(resources::lcd1xVertexShader.c_str(), resources::lcd1xFragmentShader.c_str());
-            lcdShader.setFloat2("TextureSize", PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
-            break;
-        case 2:
-            scalingShader.compile(resources::omniscaleVertexShader.c_str(), resources::omniscaleFragmentShader.c_str());
-            scalingShader.setFloat2("TextureSize", PPU::SCR_WIDTH, PPU::SCR_HEIGHT);
-            scalingShader.setFloat2("OutputSize", PPU::SCR_WIDTH * 4, PPU::SCR_HEIGHT * 4);
-            break;
-        default:
-            regularShader.compile(resources::regularVertexShader.c_str(), resources::regularFragmentShader.c_str());
-            break;
-        }
-    }
 }
 
 void resetFade() 
@@ -1318,6 +1327,12 @@ void renderImGUI() {
                     OpenGL::setTextureScalingMode(gbFramebufferTextures[0], appConfig::bilinearFiltering);
                     OpenGL::setTextureScalingMode(gbFramebufferTextures[1], appConfig::bilinearFiltering);
                 }
+            }
+
+            if (ImGui::Checkbox("GBC Color Correction", &appConfig::gbcColorCorrection))
+            {
+                updateColorCorrection();
+                appConfig::updateConfigFile();
             }
 
             ImGui::SeparatorText("Filter");

@@ -14,6 +14,7 @@ namespace appConfig
 	inline bool vsync { true };
 	inline bool integerScaling { true };
 	inline bool bilinearFiltering { false };
+	inline bool gbcColorCorrection { false };
 
 	inline bool enableAudio { false };
 

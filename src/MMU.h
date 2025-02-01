@@ -32,6 +32,8 @@ public:
 	inline void reset()
 	{
 		s = {};
+		gbc = {};
+
 		updateFunctionPointers();
 
 		for (int i = 0; i < 0x2000; i++)

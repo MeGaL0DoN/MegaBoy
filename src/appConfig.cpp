@@ -58,6 +58,7 @@ void appConfig::loadConfigFile()
 	to_bool(vsync, "graphics", "vsync");
 	to_bool(integerScaling, "graphics", "integerScaling");
 	to_bool(bilinearFiltering, "graphics", "bilinearFiltering");
+	to_bool(gbcColorCorrection, "graphics", "gbcColorCorrection");
 
 	to_int(palette, "graphics", "palette");
 	to_int(filter, "graphics", "filter");
@@ -112,6 +113,7 @@ void appConfig::updateConfigFile()
 	config["graphics"]["vsync"] = to_string(vsync);
 	config["graphics"]["integerScaling"] = to_string(integerScaling);
 	config["graphics"]["bilinearFiltering"] = to_string(bilinearFiltering);
+	config["graphics"]["gbcColorCorrection"] = to_string(gbcColorCorrection);
 	config["graphics"]["palette"] = std::to_string(palette);
 	config["graphics"]["filter"] = std::to_string(filter);
 

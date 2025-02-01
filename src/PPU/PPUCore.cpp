@@ -20,7 +20,7 @@ void PPUCore<sys>::reset(bool clearBuf)
 		std::memset(VRAM_BANK1.data(), 0, sizeof(VRAM_BANK1));
 		gbcRegs = {};
 	}
-	if constexpr (sys == GBSystem::DMG)
+	else if constexpr (sys == GBSystem::DMG)
 		updatePalette(regs.BGP, BGpalette);
 
 	s = {};
