@@ -115,7 +115,7 @@ private:
 		uint16_t PC{ 0x100 };
 		Register16 SP{ 0xFFFE };
 
-		uint8_t DIV_reg{ 0xAB };
+		uint8_t DIV_reg{ 0xAC };
 		uint8_t TIMA_reg{ 0x00 };
 		uint8_t TMA_reg{ 0x00 };
 		uint8_t TAC_reg{ 0xF8 };

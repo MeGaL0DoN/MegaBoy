@@ -6,7 +6,8 @@
 #include "../Utils/bitOps.h"
 
 template class PPUCore<GBSystem::DMG>;
-template class PPUCore<GBSystem::GBC>;
+template class PPUCore<GBSystem::CGB>;
+template class PPUCore<GBSystem::DMGCompatMode>;
 
 template <GBSystem sys>
 void PPUCore<sys>::reset(bool clearBuf)
@@ -15,12 +16,12 @@ void PPUCore<sys>::reset(bool clearBuf)
 	std::memset(VRAM_BANK0.data(), 0, sizeof(VRAM_BANK0));
 	VRAM = VRAM_BANK0.data();
 	
-	if constexpr (sys == GBSystem::GBC)
+	if constexpr (System::IsCGBDevice(sys))
 	{
 		std::memset(VRAM_BANK1.data(), 0, sizeof(VRAM_BANK1));
-		gbcRegs = {};
+		gbcRegs.reset();
 	}
-	else if constexpr (sys == GBSystem::DMG)
+	if constexpr (sys != GBSystem::CGB)
 		updatePalette(regs.BGP, BGpalette);
 
 	s = {};
@@ -63,10 +64,18 @@ void PPUCore<sys>::saveState(std::ostream& st) const
 	ST_WRITE(regs);
 	ST_WRITE(s);
 
-	if constexpr (sys == GBSystem::GBC)
+	// Note: here important to use System::Current() instead of constexpr template parameter, since system can be changed after creating the ppu object.
+	// Like when running CGB boot rom with DMG game, once boot rom finishes we need to convert PPU to DMG version, so the state need to be saved first,
+	// but no need to save CGB only state, like VRAM_BANK1.
+
+	const auto sys = System::Current();
+
+	if (System::IsCGBDevice(sys))
 	{
-		ST_WRITE(gbcRegs);
-		ST_WRITE_ARR(VRAM_BANK1);
+		gbcRegs.saveState(st);
+
+		if (sys == GBSystem::CGB)
+			ST_WRITE_ARR(VRAM_BANK1);
 	}
 
 	ST_WRITE_ARR(VRAM_BANK0);
@@ -90,12 +99,16 @@ void PPUCore<sys>::loadState(std::istream& st)
 	ST_READ(regs);
 	ST_READ(s);
 
-	if constexpr (sys == GBSystem::GBC)
+	const auto sys = System::Current();
+
+	if (System::IsCGBDevice(sys))
 	{
-		ST_READ(gbcRegs);
-		ST_READ_ARR(VRAM_BANK1);
+		gbcRegs.loadState(st);
+
+		if (sys == GBSystem::CGB)
+			ST_READ_ARR(VRAM_BANK1);
 	}
-	else if constexpr (sys == GBSystem::DMG)
+	if (sys != GBSystem::CGB)
 	{
 		updatePalette(regs.BGP, BGpalette);
 		updatePalette(regs.OBP0, OBP0palette);
@@ -188,7 +201,7 @@ void PPUCore<sys>::SetPPUMode(PPUMode mode)
 		s.hblankCycles = TOTAL_SCANLINE_CYCLES - OAM_SCAN_CYCLES - s.videoCycles;
 		canAccessOAM = true; canAccessVRAM = true;
 
-		if constexpr (sys == GBSystem::GBC)
+		if constexpr (sys == GBSystem::CGB)
 		{
 			if (mmu.gbc.ghdma.status == GHDMAStatus::HDMA) 
 				mmu.gbc.ghdma.active = true;
@@ -272,7 +285,7 @@ void PPUCore<sys>::handleHBlank()
 			if (bgFIFO.s.fetchingWindow) s.WLY++;
 		}
 
-		if constexpr (sys == GBSystem::GBC)
+		if constexpr (sys == GBSystem::CGB)
 		{
 			if (mmu.gbc.ghdma.status == GHDMAStatus::HDMA)
 				mmu.gbc.ghdma.active = false;
@@ -457,7 +470,7 @@ void PPUCore<sys>::executeBGFetcher()
 
 			bgFIFO.s.tileMap = VRAM_BANK0[tileMapInd];
 
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 				bgFIFO.s.cgbAttributes = VRAM_BANK1[tileMapInd];
 
 			bgFIFO.s.fetchX++;
@@ -469,7 +482,7 @@ void PPUCore<sys>::executeBGFetcher()
 
 		if ((bgFIFO.s.cycles & 0x1) == 0)
 		{
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 			{
 				const uint8_t* bank = getBit(bgFIFO.s.cgbAttributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data();
 				bgFIFO.s.tileLow = bank[getBGTileAddr(bgFIFO.s.tileMap) + getBGTileOffset()];
@@ -493,7 +506,7 @@ void PPUCore<sys>::executeBGFetcher()
 				break;
 			}
 
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 			{
 				const uint8_t* bank = getBit(bgFIFO.s.cgbAttributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data();
 				bgFIFO.s.tileHigh = bank[getBGTileAddr(bgFIFO.s.tileMap) + getBGTileOffset() + 1];
@@ -518,7 +531,7 @@ void PPUCore<sys>::executeBGFetcher()
 				bgFIFO.s.scanlineDiscardPixels = 0;
 			}
 
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 			{
 				const bool xFlip = getBit(bgFIFO.s.cgbAttributes, 5);
 				const bool priority = getBit(bgFIFO.s.cgbAttributes, 7);
@@ -567,7 +580,7 @@ void PPUCore<sys>::executeObjFetcher()
 
 		if ((objFIFO.s.cycles & 0x1) == 0)
 		{
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 			{
 				const uint8_t* bank = getBit(obj.attributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data();
 				objFIFO.s.tileLow = bank[obj.tileAddr + getObjTileOffset(obj)];
@@ -583,7 +596,7 @@ void PPUCore<sys>::executeObjFetcher()
 
 		if ((objFIFO.s.cycles & 0x1) == 0)
 		{
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 			{
 				const uint8_t* bank = getBit(obj.attributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data();
 				objFIFO.s.tileHigh = bank[obj.tileAddr + getObjTileOffset(obj) + 1];
@@ -599,10 +612,10 @@ void PPUCore<sys>::executeObjFetcher()
 		const bool xFlip = getBit(obj.attributes, 5);
 		uint8_t palette;
 
-		if constexpr (sys == GBSystem::DMG)
-			palette = getBit(obj.attributes, 4);
-		else
+		if constexpr (sys == GBSystem::CGB)
 			palette = obj.attributes & 0x7;
+		else
+			palette = getBit(obj.attributes, 4);
 
 		while (!objFIFO.full())
 			objFIFO.push(FIFOEntry{});
@@ -617,10 +630,10 @@ void PPUCore<sys>::executeObjFetcher()
 			const uint8_t colorId = getColorID(objFIFO.s.tileLow, objFIFO.s.tileHigh, i);
 			bool overwriteObj;
 
-			if constexpr (sys == GBSystem::DMG)
-				overwriteObj = objFIFO[fifoInd].color == 0;
-			else
+			if constexpr (sys == GBSystem::CGB)
 				overwriteObj = colorId != 0 && (objFIFO[fifoInd].color == 0 || selectedObjects[objFIFO.s.objInd].oamAddr < selectedObjects[objFIFO.s.objInd - 1].oamAddr);
+			else
+				overwriteObj = objFIFO[fifoInd].color == 0;
 
 			if (overwriteObj)
 				objFIFO[fifoInd] = FIFOEntry{ colorId, palette, bgPriority };
@@ -644,7 +657,7 @@ void PPUCore<sys>::renderFIFOs()
 		bgFIFO.s.scanlineDiscardPixels--;
 	else
 	{
-		if constexpr (sys == GBSystem::DMG)
+		if constexpr (sys != GBSystem::CGB)
 			if (!DMGTileMapsEnable()) bg.color = 0;
 
 		color outputColor;
@@ -654,10 +667,10 @@ void PPUCore<sys>::renderFIFOs()
 			const auto obj = objFIFO.pop();
 			bool objHasPriority = obj.color != 0 && OBJEnable();
 
-			if constexpr (sys == GBSystem::DMG)
-				objHasPriority &= (!obj.priority || bg.color == 0);
-			else
+			if constexpr (sys == GBSystem::CGB)
 				objHasPriority &= (bg.color == 0 || GBCMasterPriority() || (!obj.priority && !bg.priority));
+			else
+				objHasPriority &= (!obj.priority || bg.color == 0);
 
 			outputColor = objHasPriority ? getColor<true>(obj.color, obj.palette) : getColor<false>(bg.color, bg.palette);
 
@@ -723,7 +736,7 @@ void PPUCore<sys>::renderTileMap(uint8_t* buffer, uint16_t tileMapAddr)
 			const uint8_t tileMap = VRAM_BANK0[tileMapInd];
 			const uint16_t screenX = x * 8, screenY = y * 8;
 
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 			{
 				const uint8_t attributes = VRAM_BANK1[tileMapInd];
 

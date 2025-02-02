@@ -9,8 +9,11 @@ class SerialPort
 public:
 	friend class MMU;
 
-	explicit SerialPort(CPU& cpu) : cpu(cpu) { reset(); }
+	explicit SerialPort(CPU& cpu) : cpu(cpu) { }
+
 	void writeSerialControl(uint8_t val);
+	uint8_t readSerialControl();
+
 	void execute();
 
 	constexpr void reset() { s = {}; }
@@ -19,11 +22,10 @@ public:
 	void loadState(std::istream& st) { ST_READ(s); }
 private:
 	CPU& cpu;
-	static constexpr uint16_t SERIAL_TRANSFER_CYCLES = 128;
 
 	struct serialState
 	{
-		uint8_t serial_control{0x7E};
+		uint8_t serial_control { System::Current() == GBSystem::CGB ? static_cast<uint8_t>(0x7F) : static_cast<uint8_t>(0x7E) };
 		uint8_t serial_reg{0x0};
 
 		uint16_t serialCycles{0x0};

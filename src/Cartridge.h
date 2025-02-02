@@ -3,8 +3,12 @@
 #include <iostream>
 #include <memory>
 #include <vector>
+
 #include "Mappers/MBCBase.h"
 #include "Mappers/RTCTimer.h"
+#include "Utils/bitOps.h"
+#include "appConfig.h"
+#include "gbSystem.h"
 
 class GBCore;
 
@@ -53,6 +57,15 @@ public:
 			return;
 
 		updateSystem(rom[0x143]);
+	}
+
+	//TODO
+	inline bool isDMGCompat()
+	{
+		if (!romLoaded || !System::IsCGBDevice(System::Current()))
+			return false;
+
+		return appConfig::systemPreference == GBSystemPreference::ForceCGB && !getBit(rom[0x143], 7);
 	}
 private:
 	bool proccessCartridgeHeader(std::istream& is, uint32_t fileSize);

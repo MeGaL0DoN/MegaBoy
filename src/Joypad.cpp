@@ -5,8 +5,17 @@
 
 void Joypad::reset()
 {
-	readButtons = true;
-	readDpad = true;
+	if (System::Current() == GBSystem::DMGCompatMode)
+	{
+		readButtons = false;
+		readDpad = false;
+	}
+	else
+	{
+		readButtons = true;
+		readDpad = true;
+	}
+
 	dpadState = 0xF;
 	buttonState = 0xF;
 }

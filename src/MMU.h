@@ -19,7 +19,7 @@ class MMU
 {
 public:
 	explicit MMU(GBCore& gbCore);
-	void updateFunctionPointers();
+	void updateSystemFuncPointers();
 
 	inline void write8(uint16_t addr, uint8_t val) { (this->*write_func)(addr, val); }
 	inline uint8_t read8(uint16_t addr) const { return (this->*read_func)(addr); }
@@ -34,12 +34,12 @@ public:
 		s = {};
 		gbc = {};
 
-		updateFunctionPointers();
+		updateSystemFuncPointers();
 
 		for (int i = 0; i < 0x2000; i++)
 			WRAM_BANKS[i] = RngOps::gen8bit();
 
-		if (System::Current() == GBSystem::GBC)
+		if (System::Current() == GBSystem::CGB)
 		{
 			// WRAM Bank 2 is zeroed instead.
 			for (int i = 0x2000; i < 0x3000; i++)

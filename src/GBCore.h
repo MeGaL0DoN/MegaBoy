@@ -58,6 +58,7 @@ class GBCore
 {
 	friend class debugUI;
 	friend class CPU;
+	friend class MMU;
 
 public:
 	static constexpr const char* DMG_BOOTROM_NAME = "dmg_boot.bin";
@@ -73,7 +74,7 @@ public:
 
 	static bool isBootROMValid(const std::filesystem::path& path)
 	{
-		std::ifstream st { path, std::ios::binary | std::ios::in };
+		std::ifstream st{ path, std::ios::binary | std::ios::in };
 		return isBootROMValid(st, path);
 	}
 
@@ -91,7 +92,7 @@ public:
 
 	inline FileLoadResult loadFile(const std::filesystem::path& filePath, bool loadBatteryOnRomload)
 	{
-		std::ifstream st { filePath, std::ios::in | std::ios::binary };
+		std::ifstream st{ filePath, std::ios::in | std::ios::binary };
 		return loadFile(st, filePath, loadBatteryOnRomload);
 	}
 
@@ -100,7 +101,7 @@ public:
 		if (!cartridge.hasBattery || !appConfig::batterySaves)
 			return;
 
-		if (std::ifstream st { getBatteryFilePath(), std::ios::in | std::ios::binary })
+		if (std::ifstream st{ getBatteryFilePath(), std::ios::in | std::ios::binary })
 		{
 			backupBatteryFile();
 			cartridge.getMapper()->loadBattery(st);
@@ -142,7 +143,7 @@ public:
 
 	inline void saveBattery(const std::filesystem::path& path) const
 	{
-		std::ofstream st { path, std::ios::out | std::ios::binary };
+		std::ofstream st{ path, std::ios::out | std::ios::binary };
 		if (!st) return;
 		cartridge.getMapper()->saveBattery(st);
 	}
@@ -162,47 +163,49 @@ public:
 		loadBootROM();
 	}
 
-	constexpr void enableFastForward(int factor) 
-	{ 
-		speedFactor = factor; 
-		cartridge.timer.fastForwardEnableEvent(factor); 
+	constexpr void enableFastForward(int factor)
+	{
+		speedFactor = factor;
+		cartridge.timer.fastForwardEnableEvent(factor);
 	}
-	constexpr void disableFastForward() 
-	{ 
-		speedFactor = 1; 
+	constexpr void disableFastForward()
+	{
+		speedFactor = 1;
 		cartridge.timer.fastForwardDisableEvent();
 	}
 
 	std::vector<gameGenieCheat> gameGenies{};
 	std::vector<gameSharkCheat> gameSharks{};
 
-	std::atomic<bool> breakpointHit { false };
-	std::atomic<bool> emulationPaused { false };
+	std::atomic<bool> breakpointHit{ false };
+	std::atomic<bool> emulationPaused{ false };
 
-	std::string gameTitle { };
+	std::string gameTitle{ };
 
-	MMU mmu { *this };
-	CPU cpu { *this };
-	std::unique_ptr<PPU> ppu { nullptr };
-	APU apu { *this };
-	Joypad joypad { cpu };
-	SerialPort serial { cpu };
-	Cartridge cartridge { *this };
+	MMU mmu{ *this };
+	CPU cpu{ *this };
+	std::unique_ptr<PPU> ppu{ nullptr };
+	APU apu{ *this };
+	Joypad joypad{ cpu };
+	SerialPort serial{ cpu };
+	Cartridge cartridge{ *this };
 private:
 	void (*drawCallback)(const uint8_t* framebuffer, bool firstFrame) { nullptr };
-	bool ppuDebugEnable { false };
+	bool ppuDebugEnable{ false };
 
-	uint64_t cycleCounter { 0 };
-	int speedFactor { 1 };
+	uint64_t cycleCounter{ 0 };
+	int speedFactor{ 1 };
 
 	std::filesystem::path saveStateFolderPath;
-	int currentSave { 0 };
+	int currentSave{ 0 };
 
 	std::filesystem::path romFilePath;
-	std::filesystem::path customBatterySavePath;;
+	std::filesystem::path customBatterySavePath;
 
-	std::array<bool, 0x10000> breakpoints {};
-	std::array<bool, 0x100> opcodeBreakpoints {};
+	std::array<bool, 0x10000> breakpoints{};
+	std::array<bool, 0x100> opcodeBreakpoints{};
+
+	bool dmgCompatSwitch { false };
 
 	void (GBCore::*emulateFrameFunc)() { &GBCore::_emulateFrame<false> };
 
@@ -243,8 +246,18 @@ private:
 
 	inline void updatePPUSystem()
 	{
-		ppu = System::Current() == GBSystem::DMG ? std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::DMG>>(mmu, cpu) } 
-												 : std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::GBC>>(mmu, cpu) };
+		switch (System::Current())
+		{
+		case GBSystem::DMG:
+			ppu = std::unique_ptr<PPU>{ std::make_unique<PPUCore<GBSystem::DMG>>(mmu, cpu) };
+			break;
+		case GBSystem::CGB:
+			ppu = std::unique_ptr<PPU>{ std::make_unique<PPUCore<GBSystem::CGB>>(mmu, cpu) };
+			break;
+		case GBSystem::DMGCompatMode:
+			ppu = std::unique_ptr<PPU>{ std::make_unique<PPUCore<GBSystem::DMGCompatMode>>(mmu, cpu) };
+			break;
+		}
 
 		ppu->setDebugEnable(ppuDebugEnable);
 		ppu->drawCallback = [this](const uint8_t* framebuf, bool firstFrame) { vBlankHandler(framebuf, firstFrame); };
@@ -267,4 +280,7 @@ private:
 	void readGBState(std::istream& st);
 
 	void loadBootROM();
+	void noBootROMReset();
+
+	void enableDMGCompatMode();
 };

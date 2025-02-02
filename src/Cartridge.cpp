@@ -1,10 +1,8 @@
 #include <algorithm>
 
-#include "GBCore.h"
-#include "gbSystem.h"
-#include "appConfig.h"
-
 #include "Cartridge.h"
+#include "GBCore.h"
+
 #include "Mappers/RomOnlyMBC.h"
 #include "Mappers/MBC1.h"
 #include "Mappers/MBC2.h"
@@ -62,20 +60,23 @@ uint8_t Cartridge::calculateHeaderChecksum(std::istream& is) const
 
 void Cartridge::updateSystem(uint8_t cgbFlag)
 {
-	GBSystem gbSystem{ GBSystem::DMG };
+	// If cgb flag is 0x80, game has CGB features but is backwards compatible with DMG. If its 0xC0, game is CGB-only. Any other value with bit 7 unset is DMG-only features.
 
-	if (appConfig::systemPreference != GBSystemPreference::ForceDMG)
+	switch (static_cast<GBSystemPreference>(appConfig::systemPreference))
 	{
-		if (cgbFlag == 0xC0)
-			gbSystem = GBSystem::GBC;
-		else if (cgbFlag == 0x80)
-		{
-			if (appConfig::systemPreference == GBSystemPreference::PreferGBC)
-				gbSystem = GBSystem::GBC;
-		}
+	case GBSystemPreference::PreferCGB:
+		System::Set(getBit(cgbFlag, 7) ? GBSystem::CGB : GBSystem::DMG);
+		break;
+	case GBSystemPreference::PreferDMG:
+		System::Set(cgbFlag == 0xC0 ? GBSystem::CGB : GBSystem::DMG);
+		break;
+	case GBSystemPreference::ForceDMG:
+		System::Set(GBSystem::DMG);
+		break;
+	case GBSystemPreference::ForceCGB:
+		System::Set(GBSystem::CGB);
+		break;
 	}
-
-	System::Set(gbSystem);
 }
 
 bool Cartridge::proccessCartridgeHeader(std::istream& is, uint32_t fileSize)
@@ -202,6 +203,5 @@ bool Cartridge::proccessCartridgeHeader(std::istream& is, uint32_t fileSize)
 		gb.gameTitle += titleVal;
 	}
 
-	updateSystem(readByte(0x143));
 	return true;
 }

@@ -594,7 +594,7 @@ public:
 
 	inline void STOP() 
 	{
-		if (System::Current() == GBSystem::GBC && cpu->s.prepareSpeedSwitch)
+		if (cpu->s.prepareSpeedSwitch && System::Current() == GBSystem::CGB)
 		{
 			cpu->s.GBCdoubleSpeed = !cpu->s.GBCdoubleSpeed;
 			cpu->tCyclesPerM = cpu->s.GBCdoubleSpeed ? 2 : 4;

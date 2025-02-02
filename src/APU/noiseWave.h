@@ -20,6 +20,11 @@ struct noiseWave
 	inline void reset()
 	{
 		s = {};
+
+		regs.NR41 = 0xFF;
+		regs.NR42 = 0x00;
+		regs.NR43 = 0x00;
+		regs.NR44 = 0xBF;
 	}
 
 	inline bool dacEnabled() { return (regs.NR42 & 0xF8) != 0; }

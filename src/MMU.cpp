@@ -4,17 +4,22 @@
 
 MMU::MMU(GBCore& gb) : gb(gb) {}
 
-void MMU::updateFunctionPointers()
+void MMU::updateSystemFuncPointers()
 {
-	if (System::Current() == GBSystem::DMG)
+	switch (System::Current())
 	{
+	case GBSystem::DMG:		
 		read_func = &MMU::read8<GBSystem::DMG>;
 		write_func = &MMU::write8<GBSystem::DMG>;
-	}
-	else if (System::Current() == GBSystem::GBC)
-	{
-		read_func = &MMU::read8<GBSystem::GBC>;
-		write_func = &MMU::write8<GBSystem::GBC>;
+		break;
+	case GBSystem::CGB:
+		read_func = &MMU::read8<GBSystem::CGB>;
+		write_func = &MMU::write8<GBSystem::CGB>;
+		break;
+	case GBSystem::DMGCompatMode:
+		read_func = &MMU::read8<GBSystem::DMGCompatMode>;
+		write_func = &MMU::write8<GBSystem::DMGCompatMode>;
+		break;
 	}
 }
 
@@ -22,10 +27,10 @@ void MMU::saveState(std::ostream& st) const
 {
 	ST_WRITE(s);
 
-	if (System::Current() == GBSystem::GBC)
-		ST_WRITE(gbc);
+	if (System::IsCGBDevice(System::Current())) // Some registers in gbc struct still usable in DMG compat mode.
+		ST_WRITE(gbc); 
 
-	const uint16_t WRAMSize = System::Current() == GBSystem::GBC ? 0x8000 : 0x2000;
+	const uint16_t WRAMSize = System::Current() == GBSystem::CGB ? 0x8000 : 0x2000;
 
 	st.write(reinterpret_cast<const char*>(WRAM_BANKS.data()), WRAMSize);
 	ST_WRITE_ARR(HRAM);
@@ -35,10 +40,10 @@ void MMU::loadState(std::istream& st)
 {
 	ST_READ(s);
 
-	if (System::Current() == GBSystem::GBC)
+	if (System::IsCGBDevice(System::Current()))
 		ST_READ(gbc);
 
-	const uint16_t WRAMSize = System::Current() == GBSystem::GBC ? 0x8000 : 0x2000;
+	const uint16_t WRAMSize = System::Current() == GBSystem::CGB ? 0x8000 : 0x2000;
 
 	st.read(reinterpret_cast<char*>(WRAM_BANKS.data()), WRAMSize);
 	ST_READ_ARR(HRAM);
@@ -121,7 +126,8 @@ void MMU::executeGHDMA()
 }
 
 template void MMU::write8<GBSystem::DMG>(uint16_t, uint8_t);
-template void MMU::write8<GBSystem::GBC>(uint16_t, uint8_t);
+template void MMU::write8<GBSystem::CGB>(uint16_t, uint8_t);
+template void MMU::write8<GBSystem::DMGCompatMode>(uint16_t, uint8_t);
 
 template <GBSystem sys>
 void MMU::write8(uint16_t addr, uint8_t val)
@@ -144,7 +150,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 	}
 	else if (addr <= 0xDFFF)
 	{
-		if constexpr (sys == GBSystem::GBC)
+		if constexpr (sys == GBSystem::CGB)
 			WRAM_BANKS[gbc.wramBank * 0x1000 + addr - 0xD000] = val;
 		else
 			WRAM_BANKS[addr - 0xC000] = val;
@@ -195,7 +201,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 		{
 			const uint8_t maskedSTAT = (gb.ppu->regs.STAT & 0x87) | (val & 0xF8);
 
-			// spurious STAT interrupts (DMG only)
+			// spurious STAT interrupts (DMG only, doesn't happen on DMG compat mode on CGB)
 			if constexpr (sys == GBSystem::DMG)
 			{
 				if (gb.ppu->s.state == PPUMode::VBlank || gb.ppu->s.LY == gb.ppu->regs.LYC)
@@ -245,61 +251,77 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			gb.ppu->regs.WX = val;
 			break;
 		case 0xFF50: // BANK register used by boot ROMs
-			gb.cpu.executingBootROM = false;
-			break;
+			if (!gb.cpu.executingBootROM)
+				return;
 
+			gb.cpu.executingBootROM = false;
+
+			if constexpr (sys == GBSystem::CGB)
+			{
+				if (gb.dmgCompatSwitch)
+					gb.enableDMGCompatMode();
+			}
+
+			break;
+		case 0xFF4C: // KEY0
+			if constexpr (sys == GBSystem::CGB)
+			{
+				if (gb.cpu.executingBootROM && getBit(val, 2))
+					gb.dmgCompatSwitch = true;
+			}
+			break;
 		case 0xFF4D:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 			{
 				if (gb.cpu.s.GBCdoubleSpeed != (val & 1))
 					gb.cpu.s.prepareSpeedSwitch = true;
 			}
 			break;
 		case 0xFF4F:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 				gb.ppu->setVRAMBank(val);
 			break;
 		case 0xFF68:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 				gb.ppu->gbcRegs.BCPS.writeReg(val);
 			break;
 		case 0xFF69:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 				gb.ppu->gbcRegs.BCPS.writePaletteRAM(val);
 			break;
 		case 0xFF6A:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 				gb.ppu->gbcRegs.OCPS.writeReg(val);
 			break;
 		case 0xFF6B:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 				gb.ppu->gbcRegs.OCPS.writePaletteRAM(val);
 			break;
 		case 0xFF70:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 			{
 				gbc.wramBank = val & 0x7;
 				if (gbc.wramBank == 0) gbc.wramBank = 1;
 			}
 			break;
 		case 0xFF51:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 				gbc.ghdma.sourceAddr = (gbc.ghdma.sourceAddr & 0x00FF) | (val << 8);
 			break;
 		case 0xFF52:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 				gbc.ghdma.sourceAddr = (gbc.ghdma.sourceAddr & 0xFF00) | val;
 			break;
 		case 0xFF53:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 				gbc.ghdma.destAddr = (gbc.ghdma.destAddr & 0x00FF) | (val << 8);
 			break;
 		case 0xFF54:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 				gbc.ghdma.destAddr = (gbc.ghdma.destAddr & 0xFF00) | val;
 			break;
 		case 0xFF55:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 			{
 				if (gbc.ghdma.status != GHDMAStatus::None)
 				{
@@ -328,23 +350,24 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			}
 			break;
 		case 0xFF56:
-			gbc.FF56 = val;
+			if constexpr (sys == GBSystem::CGB)
+				gbc.FF56 = val;
 			break;
 		case 0xFF72:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (System::IsCGBDevice(sys)) // Undocumented CGB registers, still usable in DMG compat mode.
 				gbc.FF72 = val;
 			break;
 		case 0xFF73:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (System::IsCGBDevice(sys))
 				gbc.FF73 = val;
 			break;
 		case 0xFF74:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB) // This one is not writable in DMG compat mode.
 				gbc.FF74 = val;
 			break;
 		case 0xFF75:
-			if constexpr (sys == GBSystem::GBC)
-				gbc.FF75 = val | 0x8F;
+			if constexpr (System::IsCGBDevice(sys))
+				gbc.FF75 = val;
 			break;
 
 		case 0xFF10: 
@@ -441,7 +464,8 @@ void MMU::write8(uint16_t addr, uint8_t val)
 }
 
 template uint8_t MMU::read8<GBSystem::DMG>(uint16_t) const;
-template uint8_t MMU::read8<GBSystem::GBC>(uint16_t) const;
+template uint8_t MMU::read8<GBSystem::CGB>(uint16_t) const;
+template uint8_t MMU::read8<GBSystem::DMGCompatMode>(uint16_t) const;
 
 template <GBSystem sys>
 uint8_t MMU::read8(uint16_t addr) const
@@ -453,7 +477,7 @@ uint8_t MMU::read8(uint16_t addr) const
 			if (addr < 0x100)
 				return baseBootROM[addr];
 
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (System::IsCGBDevice(sys))
 			{
 				if (addr >= 0x200 && addr <= 0x8FF)
 					return cgbBootROM[addr - 0x200];
@@ -478,18 +502,16 @@ uint8_t MMU::read8(uint16_t addr) const
 	{
 		return gb.cartridge.getMapper()->read(addr);
 	}
-	if constexpr (sys == GBSystem::DMG)
-	{
-		if (addr <= 0xDFFF)
-			return WRAM_BANKS[addr - 0xC000];
-	}
-	else
+	if constexpr (sys == GBSystem::CGB)
 	{
 		if (addr <= 0xCFFF)
 			return WRAM_BANKS[addr - 0xC000];
 		if (addr <= 0xDFFF)
 			return WRAM_BANKS[gbc.wramBank * 0x1000 + addr - 0xD000];
 	}
+	else if (addr <= 0xDFFF)
+		return WRAM_BANKS[addr - 0xC000];
+
 	if (addr <= 0xFDFF)
 	{
 		return WRAM_BANKS[addr - 0xE000];
@@ -502,7 +524,7 @@ uint8_t MMU::read8(uint16_t addr) const
 	{
 		// prohibited area
 
-		if constexpr (sys == GBSystem::DMG)
+		if constexpr (sys == GBSystem::DMG) // Doesn't apply to DMG compat mode I think.
 			return gb.ppu->canAccessOAM ? 0x00 : 0xFF;
 		else
 			return 0xFF;
@@ -516,7 +538,7 @@ uint8_t MMU::read8(uint16_t addr) const
 		case 0xFF01:
 			return gb.serial.s.serial_reg;
 		case 0xFF02:
-			return gb.serial.s.serial_control;
+			return gb.serial.readSerialControl();
 		case 0xFF04:
 			return gb.cpu.s.DIV_reg;
 		case 0xFF05:
@@ -524,7 +546,7 @@ uint8_t MMU::read8(uint16_t addr) const
 		case 0xFF06:
 			return gb.cpu.s.TMA_reg;
 		case 0xFF07:
-			return gb.cpu.s.TAC_reg;
+			return gb.cpu.s.TAC_reg | 0b11111000;
 		case 0xFF0F:
 			return gb.cpu.s.IF;
 		case 0xFF40:
@@ -553,62 +575,68 @@ uint8_t MMU::read8(uint16_t addr) const
 			return gb.ppu->regs.WX;
 
 		case 0xFF4D:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 				return 0x7E | (static_cast<uint8_t>(gb.cpu.s.GBCdoubleSpeed) << 7) | static_cast<uint8_t>(gb.cpu.s.prepareSpeedSwitch);
 			else
 				return 0xFF;
 		case 0xFF4F:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 				return gb.ppu->gbcRegs.VBK;
+			else if constexpr (sys == GBSystem::DMGCompatMode)
+				return 0xFE; // Bit 0 is always read as set.
 			else 
 				return 0xFF;
 		case 0xFF68:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 				return gb.ppu->gbcRegs.BCPS.readReg();
+			else if constexpr (sys == GBSystem::DMGCompatMode)
+				return 0xC8;
 			else
 				return 0xFF;
 		case 0xFF69:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 				return gb.ppu->gbcRegs.BCPS.readPaletteRAM();
 			else
 				return 0xFF;
 		case 0xFF6A:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 				return gb.ppu->gbcRegs.OCPS.readReg();
+			else if constexpr (sys == GBSystem::DMGCompatMode)
+				return 0xD0;
 			else
 				return 0xFF;
 		case 0xFF6B:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 				return gb.ppu->gbcRegs.OCPS.readPaletteRAM();
 			else
 				return 0xFF;
 		case 0xFF70:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 				return gbc.wramBank;
 			else
 				return 0xFF;
 		case 0xFF51:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 				return gbc.ghdma.sourceAddr >> 8;
 			else
 				return 0xFF;
 		case 0xFF52:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 				return gbc.ghdma.sourceAddr & 0xFF;
 			else
 				return 0xFF;
 		case 0xFF53:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 				return gbc.ghdma.destAddr >> 8;
 			else
 				return 0xFF;
 		case 0xFF54:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 				return gbc.ghdma.destAddr & 0xFF;
 			else
 				return 0xFF;
 		case 0xFF55:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 			{
 				if (gbc.ghdma.transferLength == 0)
 					return 0xFF;
@@ -619,42 +647,42 @@ uint8_t MMU::read8(uint16_t addr) const
 			else
 				return 0xFF;
 		case 0xFF56:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 				return gbc.FF56 | 0x3C;
 			else
 				return 0xFF;
-		case 0xFF6C: // OPRI, bit 0 is always off in cgb mode?
-			if constexpr (sys == GBSystem::GBC)
+		case 0xFF6C: // OPRI, bit 0 is set only in CGB mode.
+			if constexpr (sys == GBSystem::CGB)
 				return 0xFE;
 			else
 				return 0xFF;
 		case 0xFF72:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (System::IsCGBDevice(sys))
 				return gbc.FF72;
 			else
 				return 0xFF;
 		case 0xFF73:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (System::IsCGBDevice(sys))
 				return gbc.FF73;
 			else
 				return 0xFF;
 		case 0xFF74:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (sys == GBSystem::CGB)
 				return gbc.FF74;
 			else
 				return 0xFF;
 		case 0xFF75:
-			if constexpr (sys == GBSystem::GBC)
-				return gbc.FF75;
+			if constexpr (System::IsCGBDevice(sys))
+				return gbc.FF75 | 0b10001111;
 			else
 				return 0xFF;
 		case 0xFF76:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (System::IsCGBDevice(sys))
 				return gb.apu.readPCM12();
 			else
 				return 0xFF;
 		case 0xFF77:
-			if constexpr (sys == GBSystem::GBC)
+			if constexpr (System::IsCGBDevice(sys))
 				return gb.apu.readPCM34();
 			else
 				return 0xFF;

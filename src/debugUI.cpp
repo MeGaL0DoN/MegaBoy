@@ -871,7 +871,7 @@ void debugUI::renderWindows(float scaleFactor)
             ImGui::SameLine();
             ImGui::Checkbox("OBJ Enable", &objEnable);
 
-            if (System::Current() == GBSystem::GBC)          
+            if (System::Current() == GBSystem::CGB)          
                 ImGui::Checkbox("BG and Window Priority", &lcdcBit0);
             else 
                 ImGui::Checkbox("BG and Window Enable", &lcdcBit0);
@@ -933,7 +933,7 @@ void debugUI::renderWindows(float scaleFactor)
                 {
                     currentTab = VRAMTab::TileData;
 
-                    if (System::Current() == GBSystem::GBC)
+                    if (System::Current() == GBSystem::CGB)
                     {
                         ImGui::RadioButton("VRAM Bank 0", &vramTileBank, 0);
                         ImGui::SameLine();

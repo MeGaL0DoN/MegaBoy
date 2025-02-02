@@ -7,6 +7,7 @@
 #include <functional>
 #include <random>
 
+#include "../gbSystem.h"
 #include "../defines.h"
 #include "../Utils/pixelOps.h"
 #include "../Utils/bitOps.h"
@@ -157,10 +158,22 @@ struct ppuGBCPaletteData
 	uint8_t regValue{ 0x00 };
 	bool autoIncrement{ false };
 
-	ppuGBCPaletteData()
+	static constexpr std::array<uint8_t, 8> DEFAULT_DMG_COMPAT_BG_PALETTE = { 255, 127, 239, 27, 128, 97, 0, 0 };
+	static constexpr std::array<uint8_t, 16> DEFAULT_DMG_COMPAT_OBJ_PALETTE = { 255, 127, 31, 66, 242, 28, 0, 0, 255, 127, 31, 66, 242, 28, 0, 0 };
+
+	// BCPS (bg) palette is set to white by default (0xFF -> 0x7F pattern, bit 7 of first byte is zero), OCPS (obj) is random.
+	inline void reset(bool obj)
 	{
-		for (uint8_t& i : paletteRAM)
-			i = RngOps::gen8bit();
+		int i = 0;
+
+		if (System::Current() == GBSystem::DMGCompatMode)
+		{
+			std::memcpy(paletteRAM.data(), obj ? DEFAULT_DMG_COMPAT_OBJ_PALETTE.data() : DEFAULT_DMG_COMPAT_BG_PALETTE.data(), obj ? 16 : 8);
+			i = obj ? 16 : 8;
+		}
+
+		for (; i < paletteRAM.size(); i++)
+			paletteRAM[i] = obj ? RngOps::gen8bit() : ((i & 1) == 0 ? 0xFF : 0x7F);
 	}
 
 	inline uint8_t readReg() const
@@ -199,9 +212,29 @@ struct ppuGBCPaletteData
 
 struct ppuGBCRegs
 {
-	uint8_t VBK{ 0xFE };
+	uint8_t VBK{};
 	ppuGBCPaletteData BCPS{};
 	ppuGBCPaletteData OCPS{};
+
+	inline void reset()
+	{
+		VBK = 0xFE;
+		BCPS.reset(false);
+		OCPS.reset(true);
+	}
+
+	inline void saveState(std::ostream& st) const
+	{
+		ST_WRITE(VBK);
+		BCPS.saveState(st);
+		OCPS.saveState(st);
+	}
+	inline void loadState(std::istream& st)
+	{
+		ST_READ(VBK);
+		BCPS.loadState(st);
+		OCPS.loadState(st);
+	}
 };
 
 struct ppuDMGRegs
@@ -221,6 +254,7 @@ struct ppuDMGRegs
 class PPU
 {
 	friend class debugUI;
+	friend class GBCore;
 
 public:
 	static constexpr uint8_t SCR_WIDTH = 160;

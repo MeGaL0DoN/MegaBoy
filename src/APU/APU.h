@@ -12,8 +12,6 @@
 #include "customWave.h"
 #include "noiseWave.h"
 
-class GBCore;
-
 struct globalAPURegs
 {
 	std::atomic<uint8_t> NR50, NR51;
@@ -24,6 +22,7 @@ class APU
 {
 public:
 	friend class MMU;
+	friend class GBCore;
 
 	void reset();
 

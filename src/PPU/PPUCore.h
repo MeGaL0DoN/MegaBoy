@@ -77,7 +77,27 @@ private:
 	template <bool obj>
 	constexpr color getColor(uint8_t colorID, uint8_t palette)
 	{
-		if constexpr (sys == GBSystem::DMG)
+		if constexpr (System::IsCGBDevice(sys))
+		{
+			const uint8_t* paletteRamPtr;
+
+			if constexpr (obj)
+				paletteRamPtr = gbcRegs.OCPS.paletteRAM.data();
+			else
+				paletteRamPtr = gbcRegs.BCPS.paletteRAM.data();
+
+			if constexpr (sys == GBSystem::DMGCompatMode)
+			{
+				if constexpr (obj)
+					colorID = palette == 0 ? OBP0palette[colorID] : OBP1palette[colorID];
+				else
+					colorID = BGpalette[colorID];
+			}
+
+			const uint8_t paletteRAMInd = palette * 8 + colorID * 2;
+			return color::fromRGB5(paletteRamPtr[paletteRAMInd + 1] << 8 | paletteRamPtr[paletteRAMInd]);
+		}
+		else
 		{
 			uint8_t* palettePtr;
 
@@ -87,18 +107,6 @@ private:
 				palettePtr = BGpalette.data();
 
 			return PPU::ColorPalette[palettePtr[colorID]];
-		}
-		else
-		{
-			const uint8_t* paletteRamPtr;
-
-			if constexpr (obj)
-				paletteRamPtr = gbcRegs.OCPS.paletteRAM.data();
-			else
-				paletteRamPtr = gbcRegs.BCPS.paletteRAM.data();
-
-			const uint8_t paletteRAMInd = palette * 8 + colorID * 2;
-			return color::fromRGB5(paletteRamPtr[paletteRAMInd + 1] << 8 | paletteRamPtr[paletteRAMInd]);
 		}
 	}
 

@@ -12,7 +12,7 @@ void GBCore::reset(bool resetBattery, bool clearBuf, bool updateSystem)
 {
 	if (updateSystem)
 		cartridge.updateSystem(); // If dmg or cgb preference has changed.
-
+	
 	updatePPUSystem();
 	ppu->reset(clearBuf);
 
@@ -25,7 +25,21 @@ void GBCore::reset(bool resetBattery, bool clearBuf, bool updateSystem)
 
 	emulationPaused = false;
 	breakpointHit = false;
+	dmgCompatSwitch = false;
 	cycleCounter = 0;
+}
+
+// Called only if boot rom is not loaded.
+void GBCore::noBootROMReset()
+{
+	//TODO try to remove reset.
+	if (cartridge.isDMGCompat())
+	{
+		System::Set(GBSystem::DMGCompatMode);
+		reset(false, false, false);
+	}
+
+	apu.channel1.s.enabled = true;
 }
 
 constexpr uint16_t DMG_BOOTROM_SIZE = sizeof(MMU::baseBootROM);
@@ -49,8 +63,11 @@ bool GBCore::isBootROMValid(std::istream& st, const std::filesystem::path& path)
 }
 void GBCore::loadBootROM() 
 {
-	if (!appConfig::runBootROM) 
+	if (!appConfig::runBootROM)
+	{
+		noBootROMReset();
 		return;
+	}
 
 	const std::filesystem::path bootRomPath {
 		System::Current() == GBSystem::DMG ? appConfig::dmgBootRomPath : appConfig::cgbBootRomPath
@@ -59,11 +76,14 @@ void GBCore::loadBootROM()
 	std::ifstream st { bootRomPath, std::ios::binary };
 
 	if (!isBootROMValid(st, bootRomPath))
+	{
+		noBootROMReset();
 		return;
+	}
 
 	ST_READ_ARR(mmu.baseBootROM);
 
-	if (System::Current() == GBSystem::GBC)
+	if (System::IsCGBDevice(System::Current()))
 	{
 		if (FileUtils::remainingBytes(st) == CGB_BOOTROM_SIZE)
 			st.seekg(0x100, std::ios::cur);
@@ -73,6 +93,23 @@ void GBCore::loadBootROM()
 
 	ppu->setLCDEnable(false);
 	cpu.enableBootROM();
+}
+
+// Called after GBC boot rom if ROM is dmg only.
+void GBCore::enableDMGCompatMode()
+{
+	System::Set(GBSystem::DMGCompatMode);
+
+	std::stringstream st;
+	ppu->saveState(st); // Need to save ppu state, since ppu object is destroyed when changing the system.
+
+	updatePPUSystem();
+	ppu->loadState(st);
+
+	mmu.updateSystemFuncPointers();
+
+	// CGB boot rom doesn't do that for some reason but keeps it at 0x7F which is incorrect for DMG mode, maybe it happens implicitly on KEY0 write??
+	serial.writeSerialControl(0x7E);
 }
 
 template void GBCore::_emulateFrame<true>();
@@ -223,7 +260,6 @@ bool GBCore::loadROM(std::istream& st, const std::filesystem::path& filePath)
 
 	currentSave = 0;
 	romFilePath = filePath;
-	updatePPUSystem();
 	reset(true);
 
 	return true;
@@ -618,7 +654,7 @@ void GBCore::readGBState(std::istream& st)
 	ST_READ(system);
 
 	System::Set(system);
-	reset(true, false, false);
+	reset(true, false, false); // Passing false to update system, because must use the system specified in save state.
 
 	ST_READ(cycleCounter);
 

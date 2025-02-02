@@ -126,7 +126,7 @@ inline void updateWindowTitle()
 
 inline void updateColorCorrection()
 {
-    currentShader->setBool("gbcColorCorrection", appConfig::gbcColorCorrection && System::Current() == GBSystem::GBC && gb.cartridge.ROMLoaded());
+    currentShader->setBool("gbcColorCorrection", appConfig::gbcColorCorrection && System::IsCGBDevice(System::Current()) && gb.cartridge.ROMLoaded());
 }
 void updateSelectedFilter()
 {
@@ -210,7 +210,7 @@ bool loadFile(std::istream& st, const std::filesystem::path& filePath)
     static const std::map<std::filesystem::path, GBSystem> bootRomMap = 
     {
         { GBCore::DMG_BOOTROM_NAME, GBSystem::DMG },
-        { GBCore::CGB_BOOTROM_NAME, GBSystem::GBC },
+        { GBCore::CGB_BOOTROM_NAME, GBSystem::CGB },
     };
 
     if (auto it = bootRomMap.find(filePath.filename()); it != bootRomMap.end()) 
@@ -1255,9 +1255,9 @@ void renderImGUI() {
 
             ImGui::SeparatorText("Emulated System");
 
-            constexpr const char* preferences[] = { "Prefer GB Color", "Prefer DMG", "Force DMG" };
+            constexpr std::array preferences = { "Prefer GB Color", "Force GB Color", "Prefer DMG", "Force DMG" };
 
-            if (ImGui::ListBox("##1", &appConfig::systemPreference, preferences, 3))
+            if (ImGui::ListBox("##1", &appConfig::systemPreference, preferences.data(), preferences.size()))
                 appConfig::updateConfigFile();
 
             ImGui::EndMenu();
