@@ -254,7 +254,6 @@ struct ppuDMGRegs
 class PPU
 {
 	friend class debugUI;
-	//friend class GBCore;
 	friend class MMU;
 
 public:

@@ -1139,7 +1139,8 @@ void renderCheatsGUI()
     ImGui::End();
 }
 
-void renderImGUI() {
+void renderImGUI() 
+{
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();

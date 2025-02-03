@@ -74,7 +74,7 @@ private:
 		case GBSystem::DMGCompatMode:
 			{
 				AF = 0x1180;
-				// BC TODO
+				BC = 0x0000;
 				DE = 0x0008;
 				HL = (BC.pair.high.val == 0x43 || BC.pair.high.val == 0x58) ? 0x991A : 0x007C;
 				break;
