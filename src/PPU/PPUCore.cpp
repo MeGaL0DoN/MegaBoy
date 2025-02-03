@@ -1,8 +1,10 @@
 #include <iostream>
 #include <algorithm>
 #include <cstring>
+
 #include "PPUCore.h"
 #include "../GBCore.h"
+#include "../Utils/rngOps.h"
 #include "../Utils/bitOps.h"
 
 template class PPUCore<GBSystem::DMG>;
@@ -15,7 +17,7 @@ void PPUCore<sys>::reset(bool clearBuf)
 	std::memset(OAM.data(), 0, sizeof(OAM));
 	std::memset(VRAM_BANK0.data(), 0, sizeof(VRAM_BANK0));
 	VRAM = VRAM_BANK0.data();
-	
+
 	if constexpr (System::IsCGBDevice(sys))
 	{
 		std::memset(VRAM_BANK1.data(), 0, sizeof(VRAM_BANK1));

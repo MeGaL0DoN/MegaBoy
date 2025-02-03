@@ -53,16 +53,13 @@ public:
 
 	inline void updateSystem()
 	{
-		if (!romLoaded)
-			return;
-
+		if (!romLoaded) return;
 		updateSystem(rom[0x143]);
 	}
 
-	//TODO
-	inline bool isDMGCompat()
+	inline bool isDMGCompatSystem()
 	{
-		if (!romLoaded || !System::IsCGBDevice(System::Current()))
+		if (!romLoaded || System::Current() != GBSystem::CGB)
 			return false;
 
 		return appConfig::systemPreference == GBSystemPreference::ForceCGB && !getBit(rom[0x143], 7);

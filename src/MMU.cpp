@@ -1,10 +1,11 @@
 #include "MMU.h"
 #include "GBCore.h"
 #include "defines.h"
+#include "Utils/rngOps.h"
 
-MMU::MMU(GBCore& gb) : gb(gb) {}
+MMU::MMU(GBCore& gb) : gb(gb) { updateSystem(); }
 
-void MMU::updateSystemFuncPointers()
+void MMU::updateSystem()
 {
 	switch (System::Current())
 	{
@@ -21,6 +22,28 @@ void MMU::updateSystemFuncPointers()
 		write_func = &MMU::write8<GBSystem::DMGCompatMode>;
 		break;
 	}
+}
+
+void MMU::reset()
+{
+	s = {};
+	gbc = {};
+
+	for (int i = 0; i < 0x2000; i++)
+		WRAM_BANKS[i] = RngOps::gen8bit();
+
+	if (System::Current() == GBSystem::CGB)
+	{
+		// WRAM Bank 2 is zeroed instead.
+		for (int i = 0x2000; i < 0x3000; i++)
+			WRAM_BANKS[i] = 0;
+
+		for (int i = 0x3000; i < 0x8000; i++)
+			WRAM_BANKS[i] = RngOps::gen8bit();
+	}
+
+	for (uint8_t& i : HRAM)
+		i = RngOps::gen8bit();
 }
 
 void MMU::saveState(std::ostream& st) const
@@ -250,11 +273,11 @@ void MMU::write8(uint16_t addr, uint8_t val)
 		case 0xFF4B:
 			gb.ppu->regs.WX = val;
 			break;
-		case 0xFF50: // BANK register used by boot ROMs
-			if (!gb.cpu.executingBootROM)
+		case 0xFF50: // BANK register used to unmap boot ROM.
+			if (!isBootROMMapped)
 				return;
 
-			gb.cpu.executingBootROM = false;
+			isBootROMMapped = false;
 
 			if constexpr (sys == GBSystem::CGB)
 			{
@@ -266,7 +289,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 		case 0xFF4C: // KEY0
 			if constexpr (sys == GBSystem::CGB)
 			{
-				if (gb.cpu.executingBootROM && getBit(val, 2))
+				if (isBootROMMapped && getBit(val, 2))
 					gb.dmgCompatSwitch = true;
 			}
 			break;
@@ -472,7 +495,7 @@ uint8_t MMU::read8(uint16_t addr) const
 {
 	if (addr <= 0x7FFF)
 	{
-		if (gb.cpu.executingBootROM) [[unlikely]]
+		if (isBootROMMapped) [[unlikely]]
 		{
 			if (addr < 0x100)
 				return baseBootROM[addr];

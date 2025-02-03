@@ -19,6 +19,7 @@ struct sweepWave : public squareWave<sweepWaveState, sweepWaveRegs>
 	void reset()
 	{
 		squareWave::reset();
+		s.enabled = true;
 
 		regs.NR10 = 0x80;
 		regs.NRx1 = 0xBF;

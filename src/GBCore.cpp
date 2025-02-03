@@ -8,14 +8,47 @@
 #include "Utils/memstream.h"
 #include "debugUI.h"
 
-void GBCore::reset(bool resetBattery, bool clearBuf, bool updateSystem)
+void GBCore::updatePPUSystem()
 {
-	if (updateSystem)
-		cartridge.updateSystem(); // If dmg or cgb preference has changed.
-	
-	updatePPUSystem();
-	ppu->reset(clearBuf);
+	switch (System::Current())
+	{
+	case GBSystem::DMG:
+		ppu = std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::DMG>>(mmu, cpu) };
+		break;
+	case GBSystem::CGB:
+		ppu = std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::CGB>>(mmu, cpu) };
+		break;
+	case GBSystem::DMGCompatMode:
+		ppu = std::unique_ptr<PPU> { std::make_unique<PPUCore<GBSystem::DMGCompatMode>>(mmu, cpu) };
+		break;
+	}
 
+	ppu->setDebugEnable(ppuDebugEnable);
+	ppu->drawCallback = [this](const uint8_t* framebuf, bool firstFrame) { vBlankHandler(framebuf, firstFrame); };
+}
+
+void GBCore::reset(bool resetBattery, bool clearBuf, bool fullReset)
+{
+	if (fullReset)
+	{
+		const auto prevSystem { System::Current() };
+		cartridge.updateSystem();
+
+		loadBootROM();
+
+		if (!mmu.isBootROMMapped && cartridge.isDMGCompatSystem()) // Since boot rom won't be executed, DMG compat mode needs to be enabled right away.
+			System::Set(GBSystem::DMGCompatMode);
+
+		if (prevSystem != System::Current())
+		{
+			updatePPUSystem();
+			mmu.updateSystem();
+		}
+	}
+	else
+		mmu.isBootROMMapped = false;
+
+	ppu->reset(clearBuf);
 	cpu.reset();
 	mmu.reset();
 	serial.reset();
@@ -23,23 +56,18 @@ void GBCore::reset(bool resetBattery, bool clearBuf, bool updateSystem)
 	apu.reset();
 	cartridge.getMapper()->reset(resetBattery);
 
+	if (mmu.isBootROMMapped)
+	{
+		// This is important since only known pre-bootrom state is that LCD and APU are disabled, and PC is 0x00.
+		cpu.resetPC();
+		ppu->setLCDEnable(false);
+		apu.regs.apuEnable = false;
+	}
+
 	emulationPaused = false;
 	breakpointHit = false;
 	dmgCompatSwitch = false;
 	cycleCounter = 0;
-}
-
-// Called only if boot rom is not loaded.
-void GBCore::noBootROMReset()
-{
-	//TODO try to remove reset.
-	if (cartridge.isDMGCompat())
-	{
-		System::Set(GBSystem::DMGCompatMode);
-		reset(false, false, false);
-	}
-
-	apu.channel1.s.enabled = true;
 }
 
 constexpr uint16_t DMG_BOOTROM_SIZE = sizeof(MMU::baseBootROM);
@@ -63,11 +91,10 @@ bool GBCore::isBootROMValid(std::istream& st, const std::filesystem::path& path)
 }
 void GBCore::loadBootROM() 
 {
+	mmu.isBootROMMapped = false;
+
 	if (!appConfig::runBootROM)
-	{
-		noBootROMReset();
 		return;
-	}
 
 	const std::filesystem::path bootRomPath {
 		System::Current() == GBSystem::DMG ? appConfig::dmgBootRomPath : appConfig::cgbBootRomPath
@@ -76,10 +103,7 @@ void GBCore::loadBootROM()
 	std::ifstream st { bootRomPath, std::ios::binary };
 
 	if (!isBootROMValid(st, bootRomPath))
-	{
-		noBootROMReset();
 		return;
-	}
 
 	ST_READ_ARR(mmu.baseBootROM);
 
@@ -91,11 +115,10 @@ void GBCore::loadBootROM()
 		ST_READ_ARR(mmu.cgbBootROM);
 	}
 
-	ppu->setLCDEnable(false);
-	cpu.enableBootROM();
+	mmu.isBootROMMapped = true;
 }
 
-// Called after GBC boot rom if ROM is dmg only.
+// Called by CGB boot rom if ROM is dmg only.
 void GBCore::enableDMGCompatMode()
 {
 	System::Set(GBSystem::DMGCompatMode);
@@ -104,9 +127,9 @@ void GBCore::enableDMGCompatMode()
 	ppu->saveState(st); // Need to save ppu state, since ppu object is destroyed when changing the system.
 
 	updatePPUSystem();
-	ppu->loadState(st);
+	mmu.updateSystem();
 
-	mmu.updateSystemFuncPointers();
+	ppu->loadState(st);
 
 	// CGB boot rom doesn't do that for some reason but keeps it at 0x7F which is incorrect for DMG mode, maybe it happens implicitly on KEY0 write??
 	serial.writeSerialControl(0x7E);
@@ -225,8 +248,6 @@ FileLoadResult GBCore::loadFile(std::istream& st, std::filesystem::path filePath
 				currentSave = 0;
 				reset(false);
 			}
-
-			loadBootROM();
 		}
 		else
 		{
@@ -234,9 +255,7 @@ FileLoadResult GBCore::loadFile(std::istream& st, std::filesystem::path filePath
 				return FileLoadResult::InvalidROM;
 
 			if (loadBatteryOnRomload) 
-				loadCurrentBatterySave();
-
-			loadBootROM();
+				loadCurrentBatterySave();;
 		}
 	}
 
@@ -653,8 +672,16 @@ void GBCore::readGBState(std::istream& st)
 	GBSystem system;
 	ST_READ(system);
 
-	System::Set(system);
-	reset(true, false, false); // Passing false to update system, because must use the system specified in save state.
+	if (System::Current() != system)
+	{
+		System::Set(system);
+		updatePPUSystem();
+		mmu.updateSystem();
+	}
+
+	// Passing false to fullReset, because boot rom shouldn't be loaded and system should stay the one specified in save state.
+	// Also passing false to clearBuf, since save state thumbnail will be used as first frame instead of blank frame. 
+	reset(true, false, false);
 
 	ST_READ(cycleCounter);
 

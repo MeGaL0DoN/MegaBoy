@@ -26,8 +26,7 @@ void debugUI::renderMenu()
         }
         if (ImGui::MenuItem("PPU View"))
         {
-            if (gb.cartridge.ROMLoaded()) // Menu accesses PPU registers so will crash if rom is not loaded, since ppu object is null.
-                showPPUView = !showPPUView;
+            showPPUView = !showPPUView;
         }
         if (ImGui::MenuItem("VRAM View"))
         {

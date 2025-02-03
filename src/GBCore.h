@@ -78,6 +78,8 @@ public:
 		return isBootROMValid(st, path);
 	}
 
+	GBCore() { updatePPUSystem(); }
+
 	constexpr void emulateFrame() { (this->*emulateFrameFunc)(); }
 
 	inline void setDrawCallback(void (*callback)(const uint8_t*, bool))
@@ -112,7 +114,7 @@ public:
 	FileLoadResult loadState(int num);
 	bool loadSaveStateThumbnail(const std::filesystem::path& path, std::span<uint8_t> framebuffer) const;
 
-	constexpr bool canSaveStateNow() const { return cartridge.ROMLoaded() && !cpu.isExecutingBootROM(); }
+	constexpr bool canSaveStateNow() const { return cartridge.ROMLoaded() && !mmu.isBootROMMapped; }
 
 	void saveState(const std::filesystem::path& path) const;
 	void saveState(int num);
@@ -155,12 +157,15 @@ public:
 	void backupBatteryFile() const;
 	void autoSave() const;
 
-	inline void resetRom(bool fullReset)
+	inline void resetRom(bool resetBattery)
 	{
-		if (!cartridge.ROMLoaded()) return;
-		if (fullReset) backupBatteryFile();
-		reset(fullReset);
-		loadBootROM();
+		if (!cartridge.ROMLoaded())
+			return;
+
+		if (resetBattery) 
+			backupBatteryFile();
+
+		reset(resetBattery);
 	}
 
 	constexpr void enableFastForward(int factor)
@@ -182,13 +187,13 @@ public:
 
 	std::string gameTitle{ };
 
-	MMU mmu{ *this };
-	CPU cpu{ *this };
-	std::unique_ptr<PPU> ppu{ nullptr };
-	APU apu{ *this };
-	Joypad joypad{ cpu };
-	SerialPort serial{ cpu };
-	Cartridge cartridge{ *this };
+	MMU mmu { *this };
+	CPU cpu { *this };
+	std::unique_ptr<PPU> ppu;
+	APU apu { *this };
+	Joypad joypad { cpu };
+	SerialPort serial { cpu };
+	Cartridge cartridge { *this };
 private:
 	void (*drawCallback)(const uint8_t* framebuffer, bool firstFrame) { nullptr };
 	bool ppuDebugEnable{ false };
@@ -231,7 +236,11 @@ private:
 		appConfig::updateConfigFile();
 	}
 
-	void reset(bool resetBattery, bool clearBuf = true, bool updateSystem = true);
+	void reset(bool resetBattery, bool clearBuf = true, bool fullReset = true);
+	void updatePPUSystem();
+
+	void loadBootROM();
+	void enableDMGCompatMode();
 
 	inline void vBlankHandler(const uint8_t* framebuffer, bool firstFrame)
 	{
@@ -242,25 +251,6 @@ private:
 		}
 
 		drawCallback(framebuffer, firstFrame);
-	}
-
-	inline void updatePPUSystem()
-	{
-		switch (System::Current())
-		{
-		case GBSystem::DMG:
-			ppu = std::unique_ptr<PPU>{ std::make_unique<PPUCore<GBSystem::DMG>>(mmu, cpu) };
-			break;
-		case GBSystem::CGB:
-			ppu = std::unique_ptr<PPU>{ std::make_unique<PPUCore<GBSystem::CGB>>(mmu, cpu) };
-			break;
-		case GBSystem::DMGCompatMode:
-			ppu = std::unique_ptr<PPU>{ std::make_unique<PPUCore<GBSystem::DMGCompatMode>>(mmu, cpu) };
-			break;
-		}
-
-		ppu->setDebugEnable(ppuDebugEnable);
-		ppu->drawCallback = [this](const uint8_t* framebuf, bool firstFrame) { vBlankHandler(framebuf, firstFrame); };
 	}
 
 	bool loadROM(std::istream& st, const std::filesystem::path& filePath);
@@ -278,9 +268,4 @@ private:
 
 	void writeGBState(std::ostream& st) const;
 	void readGBState(std::istream& st);
-
-	void loadBootROM();
-	void noBootROMReset();
-
-	void enableDMGCompatMode();
 };

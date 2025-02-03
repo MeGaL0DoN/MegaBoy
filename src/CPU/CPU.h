@@ -37,18 +37,12 @@ public:
 	void reset();
 
 	constexpr uint16_t getPC() const { return s.PC; }
+	constexpr void resetPC() { s.PC = 0x00; }
 
 	void setRetOpcodeEvent(void(*event)()) { retEvent = event; }
 	void setHaltExitEvent(void(*event)()) { haltExitEvent = event; }
 
-	constexpr bool isExecutingBootROM() const { return executingBootROM; }
 	constexpr uint8_t TcyclesPerM() const { return tCyclesPerM; }
-
-	constexpr void enableBootROM()
-	{
-		s.PC = 0x0;
-		executingBootROM = true;
-	}
 
 	void saveState(std::ostream& st) const;
 	void loadState(std::istream& st);
@@ -148,7 +142,6 @@ private:
 	uint8_t HL_val {};
 
 	uint8_t tCyclesPerM { 0 };
-	bool executingBootROM { false };
 
 	std::unique_ptr<CPUInstructions> instructions;
 

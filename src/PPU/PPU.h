@@ -254,7 +254,8 @@ struct ppuDMGRegs
 class PPU
 {
 	friend class debugUI;
-	friend class GBCore;
+	//friend class GBCore;
+	friend class MMU;
 
 public:
 	static constexpr uint8_t SCR_WIDTH = 160;
@@ -278,8 +279,6 @@ public:
 	static inline std::array CUSTOM_PALETTE { DEFAULT_CUSTOM_PALETTE };
 
 	static inline const color* ColorPalette { };
-
-	friend class MMU;
 
 	virtual ~PPU() = default;
 

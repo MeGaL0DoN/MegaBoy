@@ -2,7 +2,7 @@
 
 namespace System
 {
-    static GBSystem system{ GBSystem::DMG }; 
+    static GBSystem system { GBSystem::DMG }; 
 
     GBSystem Current()
     {

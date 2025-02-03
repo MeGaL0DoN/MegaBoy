@@ -13,7 +13,6 @@ void CPU::reset()
 	s = {};
 	registers = {};
 
-	executingBootROM = false;
 	cycles = 0;
 	tCyclesPerM = 4; // GBC double speed is off by default.
 }
