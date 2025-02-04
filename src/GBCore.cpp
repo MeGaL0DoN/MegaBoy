@@ -688,7 +688,7 @@ void GBCore::readGBState(std::istream& st)
 	cpu.loadState(st);
 	ppu->loadState(st);
 	mmu.loadState(st);
-    apu.loadState(st);
+	apu.loadState(st);
 	serial.loadState(st);
 	joypad.loadState(st);
 	cartridge.getMapper()->loadState(st);
