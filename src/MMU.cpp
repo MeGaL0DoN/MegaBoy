@@ -136,7 +136,7 @@ void MMU::executeGHDMA()
 		gbc.ghdma.transferLength -= 0x10;
 
 		for (int i = 0; i < 0x10; i++)
-			gb.ppu->VRAM[gbc.ghdma.currentDestAddr++] = (this->*read_func)(gbc.ghdma.currentSourceAddr++);
+			gb.ppu->VRAM[(gbc.ghdma.destAddr++) & 0x1FFF] = (this->*read_func)(gbc.ghdma.sourceAddr++);
 
 		if (gbc.ghdma.transferLength == 0)
 		{
@@ -333,7 +333,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 		case 0xFF52:
 			if constexpr (sys == GBSystem::CGB)
-				gbc.ghdma.sourceAddr = (gbc.ghdma.sourceAddr & 0xFF00) | val;
+				gbc.ghdma.sourceAddr = (gbc.ghdma.sourceAddr & 0xFF00) | (val & 0xF0);
 			break;
 		case 0xFF53:
 			if constexpr (sys == GBSystem::CGB)
@@ -341,7 +341,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 		case 0xFF54:
 			if constexpr (sys == GBSystem::CGB)
-				gbc.ghdma.destAddr = (gbc.ghdma.destAddr & 0xFF00) | val;
+				gbc.ghdma.destAddr = (gbc.ghdma.destAddr & 0xFF00) | (val & 0xF0);
 			break;
 		case 0xFF55:
 			if constexpr (sys == GBSystem::CGB)
@@ -353,9 +353,6 @@ void MMU::write8(uint16_t addr, uint8_t val)
 				}
 				else
 				{
-					gbc.ghdma.currentSourceAddr = gbc.ghdma.sourceAddr & 0xFFF0;
-					gbc.ghdma.currentDestAddr = gbc.ghdma.destAddr & 0x1FF0; // ignore 3 upper bits too, because destination is always in VRAM
-
 					gbc.ghdma.transferLength = ((val & 0x7F) + 1) * 0x10;
 					gbc.ghdma.cycles = 0;
 
