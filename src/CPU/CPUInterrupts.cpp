@@ -3,23 +3,22 @@
 #include "CPUInstructions.h"
 #include "../GBCore.h"
 
-bool CPU::interruptsPending()
-{
-	return s.IE & s.IF & 0x1F;
-}
-
 void CPU::handleInterrupts()
 {
 	if (s.IME && s.interruptLatch) [[unlikely]]
 	{
-		instructions->PUSH(s.PC);
-		addCycles(2); // PUSH adds 3, need 5 in total.
+		addCycle();
+		addCycle();
+		write8(--s.SP.val, s.PC >> 8);
+		addCycle();
+
+		const uint8_t interrupt { pendingInterrupt() };
+
+		write8(--s.SP.val, s.PC & 0xFF);
 
 		s.IME = false;
 		s.shouldSetIME = false;
-
 		exitHalt();
-		const uint8_t interrupt = s.IE & s.IF;
 
 		if (interrupt) [[likely]]
 		{
@@ -30,7 +29,7 @@ void CPU::handleInterrupts()
 		else
 			s.PC = 0x00;
 	}
-	else if (interruptsPending()) [[unlikely]]
+	else if (pendingInterrupt()) [[unlikely]]
 		exitHalt();
 }
 

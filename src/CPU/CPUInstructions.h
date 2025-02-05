@@ -603,7 +603,7 @@ public:
 			cpu->s.DIV_COUNTER = 0;
 			cpu->s.DIV_reg = 0;
 
-			if (cpu->interruptsPending() && cpu->s.IME)
+			if (cpu->pendingInterrupt() && cpu->s.IME)
 				return; // if interrupts and IME, then stop is 1 byte opcode
 
 			cpu->s.halted = true;
@@ -616,7 +616,7 @@ public:
 	{
 		cpu->s.halted = true;
 
-		if (!cpu->s.IME && cpu->interruptsPending())
+		if (!cpu->s.IME && cpu->pendingInterrupt())
 			cpu->s.halt_bug = true;
 	}
 

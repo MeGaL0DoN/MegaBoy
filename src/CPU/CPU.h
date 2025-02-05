@@ -49,22 +49,21 @@ public:
 private:
 	GBCore& gb;
 
+	void executeMain();
+	void executePrefixed();
+
 	void handleInterrupts();
 	bool handleHaltedState();
 
-	void executeMain();
-	void executePrefixed();
-	bool interruptsPending();
+	inline uint8_t pendingInterrupt()
+	{
+		return s.IE & s.IF & 0x1F;
+	}
 
 	static constexpr uint8_t HL_IND = 6;
 	uint8_t& getRegister(uint8_t ind);
 
 	void addCycle();
-	inline void addCycles(uint8_t _cycles)
-	{
-		for (int i = 0; i < _cycles; i++)
-			addCycle();
-	}
 
 	void write8(uint16_t addr, uint8_t val);
 	uint8_t read8(uint16_t addr);

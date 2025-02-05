@@ -34,7 +34,7 @@ void CPU::addCycle()
 {
 	cycles++;
 	gb.stepComponents();
-	s.interruptLatch = interruptsPending();
+	s.interruptLatch = static_cast<bool>(pendingInterrupt());
 }
 
 void CPU::write8(uint16_t addr, uint8_t val)
