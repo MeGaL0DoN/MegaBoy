@@ -52,7 +52,7 @@ public:
 		uint16_t sourceAddr{ 0xFF };
 		uint16_t destAddr{ 0xFF };
 
-		uint16_t transferLength{ 0xFF };
+		uint8_t transferLength{ 0x7F };
 		uint8_t cycles{ 0x00 };
 		GHDMAStatus status { GHDMAStatus::None };
 		bool active { false };

@@ -133,12 +133,15 @@ void MMU::executeGHDMA()
 	if (gbc.ghdma.cycles >= GHDMA_BLOCK_CYCLES)
 	{
 		gbc.ghdma.cycles -= GHDMA_BLOCK_CYCLES;
-		gbc.ghdma.transferLength -= 0x10;
+		gbc.ghdma.transferLength--;
 
+		// Upper 3 bits of dest address are masked in place, actual address is not modified.
 		for (int i = 0; i < 0x10; i++)
 			gb.ppu->VRAM[(gbc.ghdma.destAddr++) & 0x1FFF] = (this->*read_func)(gbc.ghdma.sourceAddr++);
 
-		if (gbc.ghdma.transferLength == 0)
+		// Since it's actually (transferLength - 1), transfer is over once it underflows to FF.
+		// Also when dest address overflows.
+		if (gbc.ghdma.transferLength == 0xFF || gbc.ghdma.destAddr == 0x0000) 
 		{
 			gbc.ghdma.status = GHDMAStatus::None;
 			gbc.ghdma.active = false;
@@ -337,7 +340,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 		case 0xFF53:
 			if constexpr (sys == GBSystem::CGB)
-				gbc.ghdma.destAddr = (gbc.ghdma.destAddr & 0x00FF) | (val << 8);
+				gbc.ghdma.destAddr = (gbc.ghdma.destAddr & 0x00FF) | (val << 8); 
 			break;
 		case 0xFF54:
 			if constexpr (sys == GBSystem::CGB)
@@ -346,6 +349,8 @@ void MMU::write8(uint16_t addr, uint8_t val)
 		case 0xFF55:
 			if constexpr (sys == GBSystem::CGB)
 			{
+				gbc.ghdma.transferLength = val & 0x7F;
+
 				if (gbc.ghdma.status != GHDMAStatus::None)
 				{
 					if (!getBit(val, 7))
@@ -353,7 +358,6 @@ void MMU::write8(uint16_t addr, uint8_t val)
 				}
 				else
 				{
-					gbc.ghdma.transferLength = ((val & 0x7F) + 1) * 0x10;
 					gbc.ghdma.cycles = 0;
 
 					if (getBit(val, 7))
@@ -635,35 +639,20 @@ uint8_t MMU::read8(uint16_t addr) const
 				return gbc.wramBank;
 			else
 				return 0xFF;
+
+		// GHDMA address registers, write-only.
 		case 0xFF51:
-			if constexpr (sys == GBSystem::CGB)
-				return gbc.ghdma.sourceAddr >> 8;
-			else
-				return 0xFF;
+			return 0xFF;
 		case 0xFF52:
-			if constexpr (sys == GBSystem::CGB)
-				return gbc.ghdma.sourceAddr & 0xFF;
-			else
-				return 0xFF;
+			return 0xFF;
 		case 0xFF53:
-			if constexpr (sys == GBSystem::CGB)
-				return gbc.ghdma.destAddr >> 8;
-			else
-				return 0xFF;
+			return 0xFF;
 		case 0xFF54:
-			if constexpr (sys == GBSystem::CGB)
-				return gbc.ghdma.destAddr & 0xFF;
-			else
-				return 0xFF;
+			return 0xFF;
+
 		case 0xFF55:
 			if constexpr (sys == GBSystem::CGB)
-			{
-				if (gbc.ghdma.transferLength == 0)
-					return 0xFF;
-
-				const uint8_t lengthVal = (gbc.ghdma.transferLength - 1) / 0x10;
-				return ((gbc.ghdma.status == GHDMAStatus::None) << 7) | lengthVal;
-			}
+				return ((gbc.ghdma.status == GHDMAStatus::None) << 7) | gbc.ghdma.transferLength;
 			else
 				return 0xFF;
 		case 0xFF56:
