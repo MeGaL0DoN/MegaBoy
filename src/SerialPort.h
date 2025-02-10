@@ -16,7 +16,7 @@ public:
 
 	void execute();
 
-	constexpr void reset() { s = {}; }
+	inline void reset() { s = {}; }
 
 	void saveState(std::ostream& st) const { ST_WRITE(s);}
 	void loadState(std::istream& st) { ST_READ(s); }

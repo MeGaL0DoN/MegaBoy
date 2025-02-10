@@ -141,7 +141,7 @@ template void GBCore::_emulateFrame<false>();
 template <bool checkBreakpoints>
 void GBCore::_emulateFrame()
 {
-	if (!cartridge.ROMLoaded() || emulationPaused || breakpointHit) [[unlikely]]
+	if (!cartridge.ROMLoaded() || emulationPaused) [[unlikely]]
 		return;
 
 	const uint64_t targetCycles = cycleCounter + (CYCLES_PER_FRAME * speedFactor);
@@ -154,8 +154,10 @@ void GBCore::_emulateFrame()
 			{
 				breakpointHit = true;
 				debugUI::signalBreakpoint();
-				break;
 			}
+
+			if (breakpointHit) [[unlikely]]
+				break;
 		}
 
 		cycleCounter += cpu.execute();

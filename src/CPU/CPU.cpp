@@ -34,19 +34,17 @@ void CPU::addCycle()
 {
 	cycles++;
 	gb.stepComponents();
-	s.interruptLatch = static_cast<bool>(pendingInterrupt());
 }
 
 void CPU::write8(uint16_t addr, uint8_t val)
 {
-	gb.mmu.write8(addr, val);
 	addCycle();
+	gb.mmu.write8(addr, val);
 }
 uint8_t CPU::read8(uint16_t addr)
 {
-	uint8_t val = gb.mmu.read8(addr);
 	addCycle();
-	return val;
+	return gb.mmu.read8(addr);
 }
 
 uint8_t& CPU::getRegister(uint8_t ind)

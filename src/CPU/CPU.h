@@ -127,7 +127,6 @@ private:
 
 		bool IME{ false };
 		bool shouldSetIME{ false };
-		bool interruptLatch{ false };
 
 		bool GBCdoubleSpeed{ false };
 		bool prepareSpeedSwitch{ false };

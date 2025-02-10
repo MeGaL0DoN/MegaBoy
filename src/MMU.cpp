@@ -164,7 +164,8 @@ void MMU::write8(uint16_t addr, uint8_t val)
 	}
 	else if (addr <= 0x9FFF)
 	{
-		gb.ppu->VRAM[addr - 0x8000] = val;
+		if (gb.ppu->canWriteVRAM())
+			gb.ppu->VRAM[addr - 0x8000] = val;
 	}
 	else if (addr <= 0xBFFF)
 	{
@@ -187,7 +188,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 	}
 	else if (addr <= 0xFE9F)
 	{
-		if (gb.ppu->canAccessOAM && !dmaInProgress())
+		if (gb.ppu->canWriteOAM() && !dmaInProgress())
 			gb.ppu->OAM[addr - 0xFE00] = val;
 	}
 	else if (addr <= 0xFF7F)
@@ -508,7 +509,7 @@ uint8_t MMU::read8(uint16_t addr) const
 			}
 		}
 
-		const uint8_t val = gb.cartridge.getMapper()->read(addr);
+		const uint8_t val { gb.cartridge.getMapper()->read(addr) };
 
 		for (const auto& genie : gb.gameGenies)
 		{
@@ -520,7 +521,7 @@ uint8_t MMU::read8(uint16_t addr) const
 	}
 	if (addr <= 0x9FFF)
 	{
-		return gb.ppu->canAccessVRAM ? gb.ppu->VRAM[addr - 0x8000] : 0xFF;
+		return gb.ppu->canReadVRAM() ? gb.ppu->VRAM[addr - 0x8000] : 0xFF;
 	}
 	if (addr <= 0xBFFF)
 	{
@@ -542,14 +543,14 @@ uint8_t MMU::read8(uint16_t addr) const
 	}
 	if (addr <= 0xFE9F)
 	{
-		return gb.ppu->canAccessOAM && !dmaInProgress() ? gb.ppu->OAM[addr - 0xFE00] : 0xFF;
+		return gb.ppu->canReadOAM() && !dmaInProgress() ? gb.ppu->OAM[addr - 0xFE00] : 0xFF;
 	}
 	if (addr <= 0xFEFF)
 	{
 		// prohibited area
 
 		if constexpr (sys == GBSystem::DMG) // Doesn't apply to DMG compat mode I think.
-			return gb.ppu->canAccessOAM ? 0x00 : 0xFF;
+			return gb.ppu->canReadOAM() ? 0x00 : 0xFF;
 		else
 			return 0xFF;
 	}
@@ -576,7 +577,7 @@ uint8_t MMU::read8(uint16_t addr) const
 		case 0xFF40:
 			return gb.ppu->regs.LCDC;
 		case 0xFF41:
-			return gb.ppu->regs.STAT;
+			return gb.ppu->readSTAT();
 		case 0xFF42:
 			return gb.ppu->regs.SCY;
 		case 0xFF43:

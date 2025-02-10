@@ -37,30 +37,6 @@ void PPUCore<sys>::reset(bool clearBuf)
 }
 
 template <GBSystem sys>
-void PPUCore<sys>::setLCDEnable(bool val)
-{
-	if (static_cast<bool>(getBit(regs.LCDC, 7)) == val)
-		return;
-
-	if (val)
-	{
-		s.lcdSkipFrame = s.videoCycles >= TOTAL_VBLANK_CYCLES;
-		s.videoCycles = 0;
-		s.hblankCycles = OAM_SCAN_CYCLES - 4;
-		dotsUntilVBlank = GBCore::CYCLES_PER_FRAME - TOTAL_VBLANK_CYCLES - 4;
-		regs.LCDC = setBit(regs.LCDC, 7);
-	}
-	else
-	{
-		s.videoCycles = 0;
-		s.LY = 0;
-		s.WLY = 0;
-		SetPPUMode(PPUMode::HBlank);
-		regs.LCDC = resetBit(regs.LCDC, 7);
-	}
-}
-
-template <GBSystem sys>
 void PPUCore<sys>::saveState(std::ostream& st) const
 {
 	ST_WRITE(regs);
@@ -120,13 +96,10 @@ void PPUCore<sys>::loadState(std::istream& st)
 	ST_READ_ARR(VRAM_BANK0);
 	ST_READ_ARR(OAM);
 
-	SetPPUMode(s.state);
-
 	if (s.state == PPUMode::PixelTransfer)
 	{
 		bgFIFO.loadState(st);
 		objFIFO.loadState(st);
-		latchWindowEnable = WindowEnable();
 	}
 	if (s.state == PPUMode::OAMSearch || s.state == PPUMode::PixelTransfer)
 	{
@@ -153,16 +126,73 @@ void PPUCore<sys>::refreshDMGScreenColors(const std::array<color, 4>& newColorPa
 }
 
 template <GBSystem sys>
-void PPUCore<sys>::checkLYC()
+void PPUCore<sys>::setLCDEnable(bool val)
 {
-	s.lycFlag = s.LY == regs.LYC;
-	regs.STAT = setBit(regs.STAT, 2, s.lycFlag);
+	if (static_cast<bool>(getBit(regs.LCDC, 7)) == val)
+		return;
+
+	if (val)
+	{
+		if constexpr (sys == GBSystem::CGB)
+			s.lcdSkipFrame = s.videoCycles >= TOTAL_VBLANK_CYCLES;
+		else
+			s.lcdSkipFrame = true;
+
+		s.videoCycles = 0;
+		s.hblankCycles = OAM_SCAN_CYCLES - 4;
+		s.dotsUntilVBlank = GBCore::CYCLES_PER_FRAME - TOTAL_VBLANK_CYCLES - 4;
+		updateInterrupts();
+	}
+	else
+	{
+		s.videoCycles = 0;
+		s.LY = 0;
+		s.WLY = 0;
+		SetPPUMode(PPUMode::HBlank);
+	}
+
+	regs.LCDC = setBit(regs.LCDC, 7, val);
+}
+
+template <GBSystem sys>
+bool PPUCore<sys>::canReadVRAM()
+{
+	return s.prevState != PPUMode::PixelTransfer && (s.prevState == PPUMode::HBlank || s.state != PPUMode::PixelTransfer);
+}
+template <GBSystem sys>
+bool PPUCore<sys>::canReadOAM()
+{
+	return (s.prevState == PPUMode::HBlank && s.state != PPUMode::OAMSearch) || s.state == PPUMode::VBlank;
+}
+
+template <GBSystem sys>
+bool PPUCore<sys>::canWriteVRAM()
+{
+	return s.prevState != PPUMode::PixelTransfer;
+}
+template <GBSystem sys>
+bool PPUCore<sys>::canWriteOAM()
+{
+	return (s.prevState != PPUMode::OAMSearch || s.state != PPUMode::OAMSearch) && s.prevState != PPUMode::PixelTransfer; 
 }
 
 template <GBSystem sys>
 void PPUCore<sys>::updateInterrupts()
 {
-	bool interrupt = s.lycFlag && LYC_STAT();
+	bool interrupt { false };
+
+	// For 1M cycle after hblank is over and LY is incremented, lyc flag is forced to false.
+	if (s.lyIncremented)
+	{
+		regs.STAT = resetBit(regs.STAT, 2);
+		s.lyIncremented = false;
+	}
+	else
+	{
+		const bool lycFlag { s.LY == regs.LYC };
+		interrupt = lycFlag && LYC_STAT();
+		regs.STAT = setBit(regs.STAT, 2, lycFlag);
+	}
 
 	switch (s.state)
 	{
@@ -170,7 +200,8 @@ void PPUCore<sys>::updateInterrupts()
 		interrupt |= HBlank_STAT();
 		break;
 	case PPUMode::VBlank:
-		interrupt |= VBlank_STAT();
+		// OAM_STAT (STAT bit 5) also triggers on vblank when LY is 144! vblank_stat_intr-GS.gb mooneye test tests this.
+		interrupt |= (VBlank_STAT() || (s.LY == 144 && OAM_STAT()));
 		break;
 	case PPUMode::OAMSearch:
 		interrupt |= OAM_STAT();
@@ -194,14 +225,10 @@ void PPUCore<sys>::updateInterrupts()
 template <GBSystem sys>
 void PPUCore<sys>::SetPPUMode(PPUMode mode)
 {
-	regs.STAT &= (~0b11);
-	regs.STAT |= static_cast<uint8_t>(mode);
-
 	switch (mode)
 	{
 	case PPUMode::HBlank:
 		s.hblankCycles = TOTAL_SCANLINE_CYCLES - OAM_SCAN_CYCLES - s.videoCycles;
-		canAccessOAM = true; canAccessVRAM = true;
 
 		if constexpr (sys == GBSystem::CGB)
 		{
@@ -210,15 +237,12 @@ void PPUCore<sys>::SetPPUMode(PPUMode mode)
 		}
 		break;
 	case PPUMode::VBlank:
-		dotsUntilVBlank = GBCore::CYCLES_PER_FRAME;
+		s.dotsUntilVBlank = GBCore::CYCLES_PER_FRAME;
 		s.vblankLineCycles = DEFAULT_VBLANK_LINE_CYCLES;
-		canAccessOAM = true; canAccessVRAM = true;
 		break;
 	case PPUMode::OAMSearch:
-		canAccessOAM = false; canAccessVRAM = true;
 		break;
 	case PPUMode::PixelTransfer:
-		canAccessOAM = false; canAccessVRAM = false;
 		resetPixelTransferState();
 		break;
 	}
@@ -229,26 +253,40 @@ void PPUCore<sys>::SetPPUMode(PPUMode mode)
 template <GBSystem sys>
 void PPUCore<sys>::execute(uint8_t cycles)
 {
+	s.prevState = s.state;
+
+	if constexpr (System::IsCGBDevice(sys))
+	{
+		if (s.cgbVBlankFlag)
+		{
+			cpu.requestInterrupt(Interrupt::VBlank);
+			s.cgbVBlankFlag = false;
+		}
+	}
+
 	if (!LCDEnabled())
 	{
-		// LCD is not cleared immediately after being disabled. The game "Bug's Life" depends on this behavior, as it keeps disabling and enabling lcd very often.
-		// I am not sure after how long exactly it gets cleared, but I am assuming its 4560 cycles (VBlank duration).
-
-		if (s.videoCycles < TOTAL_VBLANK_CYCLES)
+		if constexpr (sys == GBSystem::CGB)
 		{
-			s.videoCycles += cycles;
+			// On CGB LCD is not cleared immediately after being disabled. The game "Bug's Life" depends on this behavior, as it keeps disabling and enabling lcd very often.
+			// I am not sure after how long exactly it gets cleared, but I am assuming its 4560 cycles (VBlank duration).
 
-			if (s.videoCycles >= TOTAL_VBLANK_CYCLES)
-				clearBuffer();
+			if (s.videoCycles < TOTAL_VBLANK_CYCLES)
+			{
+				s.videoCycles += cycles;
+
+				if (s.videoCycles >= TOTAL_VBLANK_CYCLES)
+					clearBuffer();
+			}
 		}
 
 		return;
-	}
+	};
 
 	for (int i = 0; i < cycles; i++)
 	{
 		s.videoCycles++;
-		dotsUntilVBlank--;
+		s.dotsUntilVBlank--;
 
 		switch (s.state)
 		{
@@ -265,10 +303,9 @@ void PPUCore<sys>::execute(uint8_t cycles)
 			handleVBlank();
 			break;
 		}
-
-		checkLYC();
-		updateInterrupts();
 	}
+
+	updateInterrupts();
 }
 
 template <GBSystem sys>
@@ -279,12 +316,13 @@ void PPUCore<sys>::handleHBlank()
 		s.videoCycles -= s.hblankCycles;
 
 		// After LCD is being enabled, first hblank is "fake" and is 4 cycles shorter than oam scan, and continues to pixel transfer instead of oam scan.
-		const bool isFakeHBlank = s.hblankCycles == OAM_SCAN_CYCLES - 4; 
+		const bool isFakeHBlank { s.hblankCycles == OAM_SCAN_CYCLES - 4 };
 
 		if (!isFakeHBlank)
 		{
 			s.LY++;
 			if (bgFIFO.s.fetchingWindow) s.WLY++;
+			s.lyIncremented = true;
 		}
 
 		if constexpr (sys == GBSystem::CGB)
@@ -296,7 +334,12 @@ void PPUCore<sys>::handleHBlank()
 		if (s.LY == 144)
 		{
 			SetPPUMode(PPUMode::VBlank);
-			cpu.requestInterrupt(Interrupt::VBlank);
+
+			// On CGB VBlank interrupt is 1M cycle delayed.
+			if constexpr (System::IsCGBDevice(sys))
+				s.cgbVBlankFlag = true;
+			else
+				cpu.requestInterrupt(Interrupt::VBlank);
 
 			if (s.lcdSkipFrame)
 			{
@@ -319,15 +362,15 @@ void PPUCore<sys>::handleOAMSearch()
 		s.videoCycles -= OAM_SCAN_CYCLES;
 		objCount = 0;
 
-		const bool doubleObj = DoubleOBJSize();
+		const bool doubleObj { DoubleOBJSize() };
 
 		for (uint8_t OAMAddr = 0; OAMAddr < sizeof(OAM); OAMAddr += 4)
 		{
-			const int16_t objY = static_cast<int16_t>(OAM[OAMAddr]) - 16;
-			const int16_t objX = static_cast<int16_t>(OAM[OAMAddr + 1]) - 8;
-			const uint8_t tileInd = OAM[OAMAddr + 2];
-			const uint8_t attributes = OAM[OAMAddr + 3];
-			const bool yFlip = getBit(attributes, 6);
+			const int16_t objY { static_cast<int16_t>(OAM[OAMAddr]) - 16 };
+			const int16_t objX { static_cast<int16_t>(OAM[OAMAddr + 1]) - 8 };
+			const uint8_t tileInd { OAM[OAMAddr + 2] };
+			const uint8_t attributes { OAM[OAMAddr + 3] };
+			const bool yFlip { static_cast<bool>(getBit(attributes, 6)) };
 
 			if (!doubleObj)
 			{
@@ -341,13 +384,13 @@ void PPUCore<sys>::handleOAMSearch()
 			{
 				if (s.LY >= objY && s.LY < objY + 8)
 				{
-					uint16_t tileAddr = yFlip ? ((tileInd & 0xFE) + 1) * 16 : (tileInd & 0xFE) * 16;
+					const uint16_t tileAddr = yFlip ? ((tileInd & 0xFE) + 1) * 16 : (tileInd & 0xFE) * 16;
 					selectedObjects[objCount] = OAMobject{ objX, objY, tileAddr, attributes, OAMAddr };
 					objCount++;
 				}
 				else if (s.LY >= objY + 8 && s.LY < objY + 16)
 				{
-					uint16_t tileAddr = yFlip ? (tileInd & 0xFE) * 16 : ((tileInd & 0xFE) + 1) * 16;
+					const uint16_t tileAddr = yFlip ? (tileInd & 0xFE) * 16 : ((tileInd & 0xFE) + 1) * 16;
 					selectedObjects[objCount] = OAMobject{ objX, static_cast<int16_t>(objY + 8), tileAddr, attributes, OAMAddr };
 					objCount++;
 				}
@@ -398,7 +441,7 @@ void PPUCore<sys>::resetPixelTransferState()
 	bgFIFO.reset();
 	objFIFO.reset();
 	s.xPosCounter = 0;
-	latchWindowEnable = WindowEnable();
+	s.latchWindowEnable = WindowEnable();
 }
 
 template <GBSystem sys>
@@ -413,14 +456,14 @@ void PPUCore<sys>::handlePixelTransfer()
 
 	if (!bgFIFO.s.fetchingWindow)
 	{
-		if (latchWindowEnable && s.LY >= regs.WY && s.xPosCounter >= regs.WX - 7 && regs.WX != 0) [[unlikely]]
+		if (s.latchWindowEnable && s.LY >= regs.WY && s.xPosCounter >= regs.WX - 7 && regs.WX != 0) [[unlikely]]
 		{
 			bgFIFO.reset();
 			bgFIFO.s.fetchingWindow = true;
 		}
 	}
 
-	if (!objFIFO.s.fetchRequested && !bgFIFO.empty())
+	if (!objFIFO.s.fetcherActive && !bgFIFO.empty())
 	{
 		renderFIFOs();
 
@@ -435,13 +478,13 @@ void PPUCore<sys>::handlePixelTransfer()
 template <GBSystem sys>
 void PPUCore<sys>::tryStartSpriteFetcher()
 {
-	if (!objFIFO.s.fetchRequested && OBJEnable())
+	if (objFIFO.s.fetcherActive || !OBJEnable())
+		return;
+
+	if (objFIFO.s.objInd < objCount && selectedObjects[objFIFO.s.objInd].X <= s.xPosCounter)
 	{
-		if (objFIFO.s.objInd < objCount && selectedObjects[objFIFO.s.objInd].X <= s.xPosCounter)
-		{
-			objFIFO.s.state = FetcherState::FetchTileNo; 
-			objFIFO.s.fetchRequested = true;
-		}
+		objFIFO.s.state = FetcherState::FetchTileNo;
+		objFIFO.s.fetcherActive = true;
 	}
 }
 
@@ -539,9 +582,9 @@ void PPUCore<sys>::executeBGFetcher()
 				const bool priority = getBit(bgFIFO.s.cgbAttributes, 7);
 				const uint8_t cgbPalette = bgFIFO.s.cgbAttributes & 0x7;
 
-				const int cntStart = (xFlip ? 0 : cnt);
-				const int cntEnd = xFlip ? cnt + 1 : -1;
-				const int cntStep = xFlip ? 1 : -1;
+				const int cntStart { (xFlip ? 0 : cnt) };
+				const int cntEnd { xFlip ? cnt + 1 : -1 };
+				const int cntStep { xFlip ? 1 : -1 };
 
 				for (int i = cntStart; i != cntEnd; i += cntStep)
 					bgFIFO.push(FIFOEntry { getColorID(bgFIFO.s.tileLow, bgFIFO.s.tileHigh, i), cgbPalette, priority });
@@ -556,9 +599,6 @@ void PPUCore<sys>::executeBGFetcher()
 			bgFIFO.s.state = FetcherState::FetchTileNo;
 		}
 
-		if (objFIFO.s.fetchRequested)
-			objFIFO.s.fetcherActive = true;
-
 		break;
 	}
 }
@@ -566,7 +606,7 @@ void PPUCore<sys>::executeBGFetcher()
 template <GBSystem sys>
 void PPUCore<sys>::executeObjFetcher()
 {
-	const auto& obj = selectedObjects[objFIFO.s.objInd];
+	const auto& obj { selectedObjects[objFIFO.s.objInd] };
 
 	switch (objFIFO.s.state)
 	{
@@ -584,7 +624,7 @@ void PPUCore<sys>::executeObjFetcher()
 		{
 			if constexpr (sys == GBSystem::CGB)
 			{
-				const uint8_t* bank = getBit(obj.attributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data();
+				const uint8_t* bank { getBit(obj.attributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data() };
 				objFIFO.s.tileLow = bank[obj.tileAddr + getObjTileOffset(obj)];
 			}
 			else
@@ -600,7 +640,7 @@ void PPUCore<sys>::executeObjFetcher()
 		{
 			if constexpr (sys == GBSystem::CGB)
 			{
-				const uint8_t* bank = getBit(obj.attributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data();
+				const uint8_t* bank { getBit(obj.attributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data() };
 				objFIFO.s.tileHigh = bank[obj.tileAddr + getObjTileOffset(obj) + 1];
 			}
 			else
@@ -622,9 +662,9 @@ void PPUCore<sys>::executeObjFetcher()
 		while (!objFIFO.full())
 			objFIFO.push(FIFOEntry{});
 
-		const int cntStart = (obj.X < 0) ? (xFlip ? (obj.X * -1) : (obj.X + 7)) : (xFlip ? 0 : 7);
-		const int cntEnd = xFlip ? 8 : -1;
-		const int cntStep = xFlip ? 1 : -1;
+		const int cntStart { (obj.X < 0) ? (xFlip ? (obj.X * -1) : (obj.X + 7)) : (xFlip ? 0 : 7) };
+		const int cntEnd { xFlip ? 8 : -1 };
+		const int cntStep { xFlip ? 1 : -1 };
 
 		for (int i = cntStart; i != cntEnd; i += cntStep)
 		{
@@ -643,7 +683,6 @@ void PPUCore<sys>::executeObjFetcher()
 
 		objFIFO.s.objInd++;
 		objFIFO.s.fetcherActive = false;
-		objFIFO.s.fetchRequested = false;
 
 		tryStartSpriteFetcher();
 		break;

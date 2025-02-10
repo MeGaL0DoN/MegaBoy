@@ -59,7 +59,6 @@ struct BGFIFOState : FIFOState
 struct ObjFIFOState : FIFOState
 {
 	uint8_t objInd { 0 };
-	bool fetchRequested { false };
 	bool fetcherActive { false };
 };
 
@@ -138,9 +137,11 @@ struct OAMobject
 
 struct ppuState
 {
-	bool lycFlag{ false };
-	bool blockStat{ false };
-	bool lcdSkipFrame { false };
+	bool lyIncremented{};
+	bool blockStat{};
+	bool lcdSkipFrame{};
+	bool latchWindowEnable{};
+	bool cgbVBlankFlag{};
 
 	uint8_t LY{ 0 };
 	uint8_t WLY{ 0 };
@@ -149,7 +150,9 @@ struct ppuState
 	uint16_t vblankLineCycles{};
 	uint16_t hblankCycles{};
 	PPUMode state{ PPUMode::OAMSearch };
+	PPUMode prevState{};
 	uint16_t videoCycles{ 0 };
+	uint32_t dotsUntilVBlank{};
 };
 
 struct ppuGBCPaletteData
@@ -339,17 +342,16 @@ protected:
 	BGPixelFIFO bgFIFO{};
 	ObjPixelFIFO objFIFO{};
 
-	bool latchWindowEnable{};
-
-	bool canAccessOAM{};
-	bool canAccessVRAM{};
-
-	uint32_t dotsUntilVBlank{};
-
 	bool debugPPU { false };
 	std::unique_ptr<uint8_t[]> debugOAMFramebuffer{};
 	std::unique_ptr<uint8_t[]> debugBGFramebuffer{};
 	std::unique_ptr<uint8_t[]> debugWindowFramebuffer{};
+
+	inline uint8_t readSTAT()
+	{
+		// Mode change is 1M cycle delayed.
+		return (regs.STAT & (~0b11)) | static_cast<uint8_t>(s.prevState);
+	}
 
 	inline static void updatePalette(uint8_t val, std::array<uint8_t, 4>& palette)
 	{
@@ -362,4 +364,9 @@ protected:
 		VRAM = val & 0x1 ? VRAM_BANK1.data() : VRAM_BANK0.data();
 		gbcRegs.VBK = 0xFE | val;
 	}
+
+	virtual bool canReadVRAM() = 0;
+	virtual bool canReadOAM() = 0;
+	virtual bool canWriteVRAM() = 0;
+	virtual bool canWriteOAM() = 0;
 };

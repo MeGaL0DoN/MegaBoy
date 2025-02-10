@@ -362,32 +362,32 @@ void debugUI::renderWindows(float scaleFactor)
     {
         if (ImGui::Begin("CPU View", &showCPUView, ImGuiWindowFlags_NoResize))
         {
-            ImGui::Text("PC: %04X", gb.cpu.s.PC);
+            ImGui::Text("PC: $%04X", gb.cpu.s.PC);
             ImGui::SameLine();
-            ImGui::Text("| SP: %04X", gb.cpu.s.SP.val);
-            ImGui::Text("DIV: %02X", gb.cpu.s.DIV_reg);
+            ImGui::Text("| SP: $%04X", gb.cpu.s.SP.val);
+            ImGui::Text("DIV: $%02X", gb.cpu.s.DIV_reg);
             ImGui::SameLine();
             ImGui::Spacing();
             ImGui::SameLine();
-            ImGui::Text("| TIMA: %02X", gb.cpu.s.TIMA_reg);
+            ImGui::Text("| TIMA: $%02X", gb.cpu.s.TIMA_reg);
             ImGui::Text("Cycles: %llu", (gb.totalCycles() / gb.cpu.TcyclesPerM())); // Displaying M cycles
             ImGui::Text("Frequency: %.3f MHz", gb.cpu.s.GBCdoubleSpeed ? 2.097 : 1.048);
             ImGui::Text("Halted: %s", gb.cpu.s.halted ? "True" : "False");
 
             ImGui::SeparatorText("Registers");
 
-            ImGui::Text("A: %02X", gb.cpu.registers.A.val);
+            ImGui::Text("A: $%02X", gb.cpu.registers.A.val);
             ImGui::SameLine();
-            ImGui::Text("F: %02X", gb.cpu.registers.F.val);
-            ImGui::Text("B: %02X", gb.cpu.registers.B.val);
+            ImGui::Text("F: $%02X", gb.cpu.registers.F.val);
+            ImGui::Text("B: $%02X", gb.cpu.registers.B.val);
             ImGui::SameLine();
-            ImGui::Text("C: %02X", gb.cpu.registers.C.val);
-            ImGui::Text("D: %02X", gb.cpu.registers.D.val);
+            ImGui::Text("C: $%02X", gb.cpu.registers.C.val);
+            ImGui::Text("D: $%02X", gb.cpu.registers.D.val);
             ImGui::SameLine();
-            ImGui::Text("E: %02X", gb.cpu.registers.E.val);
-            ImGui::Text("H: %02X", gb.cpu.registers.H.val);
+            ImGui::Text("E: $%02X", gb.cpu.registers.E.val);
+            ImGui::Text("H: $%02X", gb.cpu.registers.H.val);
             ImGui::SameLine();
-            ImGui::Text("L: %02X", gb.cpu.registers.L.val);
+            ImGui::Text("L: $%02X", gb.cpu.registers.L.val);
 
             ImGui::SeparatorText("Flags");
             ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
@@ -685,13 +685,20 @@ void debugUI::renderWindows(float scaleFactor)
                 {
                     if (gb.cpu.s.halted)
                     {
+                        static uint16_t haltPC{};
+
                         gb.breakpointHit = false;
-                        gb.breakpoints[gb.cpu.s.PC] = false;
+                        haltPC = gb.cpu.s.PC;
+                        gb.breakpoints[haltPC] = false;
 
                         gb.cpu.setHaltExitEvent([]()
                         {
-                            setTempBreakpoint(gb.cpu.s.PC);
+                            if (std::ranges::find(breakpoints, haltPC) != breakpoints.end())
+                                gb.breakpoints[haltPC] = true;
+
+                            gb.breakpointHit = true;
                             gb.cpu.setHaltExitEvent(nullptr);
+                            extendBreakpointDisasmWindow();
                         });
                     }
                     else
@@ -847,7 +854,10 @@ void debugUI::renderWindows(float scaleFactor)
     {
         if (ImGui::Begin("PPU View", &showPPUView, ImGuiWindowFlags_NoResize))
         {
-            ImGui::SeparatorText("LCDC");
+            static std::string lcdcText, statText;
+
+            lcdcText = "LCDC: $" + hexOps::toHexStr<true>(gb.ppu->regs.LCDC);
+            ImGui::SeparatorText(lcdcText.c_str());
 
             ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
 
@@ -875,7 +885,8 @@ void debugUI::renderWindows(float scaleFactor)
             else 
                 ImGui::Checkbox("BG and Window Enable", &lcdcBit0);
 
-            ImGui::SeparatorText("STAT");
+            statText = "STAT: $" + hexOps::toHexStr<true>(gb.ppu->readSTAT());
+            ImGui::SeparatorText(statText.c_str());
 
             bool lycStat = getBit(gb.ppu->regs.STAT, 6);
             bool oamScanStat = getBit(gb.ppu->regs.STAT, 5);
@@ -909,7 +920,7 @@ void debugUI::renderWindows(float scaleFactor)
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(255, 255, 0, 255));
 
             if (lcdEnable)
-                ImGui::Text("Dots Until VBlank: %d", gb.ppu->dotsUntilVBlank);
+                ImGui::Text("Dots Until VBlank: %d", gb.ppu->s.dotsUntilVBlank);
             else
                 ImGui::Text("Dots Until VBlank: ? (LCD off)");
 

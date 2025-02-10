@@ -48,11 +48,15 @@ private:
 
 	void renderTileMap(uint8_t* buffer, uint16_t tileMapAddr);
 
-	void checkLYC();
 	void updateInterrupts();
 
 	void SetPPUMode(PPUMode ppuState);
 	void setLCDEnable(bool val) override;
+
+	bool canReadVRAM() override;
+	bool canReadOAM() override;
+	bool canWriteVRAM() override;
+	bool canWriteOAM() override;
 
 	void handleOAMSearch();
 	void handleHBlank();

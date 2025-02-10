@@ -5,7 +5,10 @@
 
 void CPU::handleInterrupts()
 {
-	if (s.IME && s.interruptLatch) [[unlikely]]
+	if (!pendingInterrupt()) [[likely]]
+		return;
+
+	if (s.IME)
 	{
 		addCycle();
 		addCycle();
@@ -16,21 +19,20 @@ void CPU::handleInterrupts()
 
 		write8(--s.SP.val, s.PC & 0xFF);
 
-		s.IME = false;
-		s.shouldSetIME = false;
-		exitHalt();
-
 		if (interrupt) [[likely]]
 		{
  			const uint8_t interrruptBit { static_cast<uint8_t>(std::countr_zero(interrupt)) };
 			s.PC = 0x0040 + interrruptBit * 8;
 			s.IF = resetBit(s.IF, interrruptBit);
 		}
-		else
+		else [[unlikely]]
 			s.PC = 0x00;
+
+		s.IME = false;
+		s.shouldSetIME = false;
 	}
-	else if (pendingInterrupt()) [[unlikely]]
-		exitHalt();
+
+	exitHalt();
 }
 
 void CPU::requestInterrupt(Interrupt interrupt)

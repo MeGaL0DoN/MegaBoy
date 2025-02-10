@@ -29,7 +29,7 @@ public:
 	explicit APU(GBCore& gbCore);
 	~APU();
 
-	void execute(uint32_t cycles);
+	void execute(int cycles);
 	std::pair<int16_t, int16_t> generateSamples();
 
 	inline bool enabled() { return regs.apuEnable; }
@@ -39,7 +39,7 @@ public:
 
 	static constexpr uint32_t CPU_FREQUENCY = 1048576;
 	static constexpr uint32_t SAMPLE_RATE = 48000;
-	static constexpr uint32_t CYCLES_PER_SAMPLE = CPU_FREQUENCY / SAMPLE_RATE;
+	static constexpr double CYCLES_PER_SAMPLE = static_cast<double>(CPU_FREQUENCY) / SAMPLE_RATE;
 	static constexpr uint16_t CHANNELS = 2;
 
 	std::atomic<float> volume { 0.5 };

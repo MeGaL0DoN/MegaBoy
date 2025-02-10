@@ -73,22 +73,28 @@ void sound_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, 
 	auto& apu = gb->apu;
 	auto* pOutput16 = static_cast<int16_t*>(pOutput);
 
-	const bool mainThreadBlocked = APU::IsMainThreadBlocked || ((glfwGetTime() - APU::LastMainThreadTime) > 0.1);
-	const bool emulationStopped = gb->emulationPaused || gb->breakpointHit || !gb->cartridge.ROMLoaded() || mainThreadBlocked;
+	const bool mainThreadBlocked { APU::IsMainThreadBlocked || ((glfwGetTime() - APU::LastMainThreadTime) > 0.1) };
+	const bool emulationStopped { gb->emulationPaused || gb->breakpointHit || !gb->cartridge.ROMLoaded() || mainThreadBlocked };
 
 	if (!appConfig::enableAudio || emulationStopped || !apu.enabled())
 	{
 		if (!emulationStopped && apu.enabled())
-			apu.execute(APU::CYCLES_PER_SAMPLE * frameCount);
+			apu.execute(static_cast<int>(APU::CYCLES_PER_SAMPLE * frameCount));
 
 		std::memset(pOutput16, 0, sizeof(int16_t) * frameCount * APU::CHANNELS);
 		return;
 	}
 
+	constexpr int WHOLE_CYCLES { static_cast<int>(APU::CYCLES_PER_SAMPLE) };
+	static double remainder { 0.0 };
+
 	for (ma_uint32 i = 0; i < frameCount; i++)
 	{
-		apu.execute(APU::CYCLES_PER_SAMPLE);
-		const auto samples = apu.generateSamples();
+		const int cycles { static_cast<int>(WHOLE_CYCLES + remainder) };
+		apu.execute(cycles);
+		remainder += APU::CYCLES_PER_SAMPLE - cycles;
+
+		const auto samples { apu.generateSamples() };
 
 		pOutput16[i * 2] = samples.first;
 		pOutput16[i * 2 + 1] = samples.second;
@@ -96,8 +102,8 @@ void sound_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, 
 
 	if (apu.isRecording)
 	{
-		const size_t bufferLen = apu.recordingBuffer.size();
-		const size_t newBufferLen = bufferLen + (frameCount * APU::CHANNELS);
+		const size_t bufferLen { apu.recordingBuffer.size() };
+		const size_t newBufferLen { bufferLen + (frameCount * APU::CHANNELS) };
 
 		apu.recordingBuffer.resize(newBufferLen);
 		std::memcpy(&apu.recordingBuffer[bufferLen], pOutput16, sizeof(int16_t) * frameCount * APU::CHANNELS);
@@ -220,7 +226,7 @@ void APU::executeFrameSequencer()
 	}
 }
 
-void APU::execute(uint32_t cycles)
+void APU::execute(int cycles)
 {
 	while (cycles--)
 	{
