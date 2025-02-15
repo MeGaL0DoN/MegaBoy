@@ -76,14 +76,14 @@ constexpr uint16_t CGB_BOOTROM_SIZE = DMG_BOOTROM_SIZE + sizeof(MMU::cgbBootROM)
 bool GBCore::isBootROMValid(std::istream& st, const std::filesystem::path& path)
 {
 	if (!st) return false;
-	const auto filename = path.filename();
+	const auto filename { path.filename() };
 
 	if (filename == DMG_BOOTROM_NAME)
 		return FileUtils::remainingBytes(st) == DMG_BOOTROM_SIZE;
 	if (filename == CGB_BOOTROM_NAME)
 	{
 		// There is 0x100 bytes gap between dmg and cgb boot. Some files may or may not include it.
-		const auto bootSize = FileUtils::remainingBytes(st);
+		const auto bootSize { FileUtils::remainingBytes(st) };
 		return bootSize == CGB_BOOTROM_SIZE || bootSize == CGB_BOOTROM_SIZE + 0x100;
 	}
 
@@ -144,7 +144,7 @@ void GBCore::_emulateFrame()
 	if (!cartridge.ROMLoaded() || emulationPaused) [[unlikely]]
 		return;
 
-	const uint64_t targetCycles = cycleCounter + (CYCLES_PER_FRAME * speedFactor);
+	const uint64_t targetCycles { cycleCounter + (CYCLES_PER_FRAME * speedFactor) };
 
 	while (cycleCounter < targetCycles)
 	{
@@ -167,7 +167,7 @@ void GBCore::_emulateFrame()
 void GBCore::stepComponents()
 {
 	cpu.updateTimer();
-	ppu->execute(cpu.TcyclesPerM());
+	ppu->execute();
 	mmu.execute();
 	serial.execute();
 }
@@ -196,8 +196,8 @@ FileLoadResult GBCore::loadFile(std::istream& st, std::filesystem::path filePath
 	}
 	else
 	{
-		auto ext = filePath.extension();
-		auto stem = FileUtils::pathNativeStr(filePath.stem());
+		auto ext { filePath.extension() };
+		auto stem { FileUtils::pathNativeStr(filePath.stem()) };
 
 		// Support for .sav.bak files.
 		if (ext == ".bak" && stem.size() >= 4) 
@@ -215,13 +215,13 @@ FileLoadResult GBCore::loadFile(std::istream& st, std::filesystem::path filePath
 			st.seekg(0, std::ios::beg);
 
 			constexpr std::array romExtensions { ".gb", ".gbc", ".zip" };
-			bool romLoaded = false;
+			bool romLoaded { false };
 
 			if (romFilePath.stem() != stem)
 			{
 				for (auto ext : romExtensions)
 				{
-					const auto romPath = FileUtils::replaceExtension(filePath, ext);
+					const auto romPath { FileUtils::replaceExtension(filePath, ext) };
 					std::ifstream ifs { romPath, std::ios::in | std::ios::binary };
 					if (!ifs) continue;
 
@@ -270,7 +270,7 @@ bool GBCore::loadROM(std::istream& st, const std::filesystem::path& filePath)
 {
 	if (filePath.extension() == ".zip")
 	{
-		const auto romData = extractZippedROM(st);
+		const auto romData { extractZippedROM(st) };
 		memstream ms { romData };
 
 		if (!cartridge.loadROM(ms))
@@ -289,7 +289,7 @@ bool GBCore::loadROM(std::istream& st, const std::filesystem::path& filePath)
 std::vector<uint8_t> GBCore::extractZippedROM(std::istream& st)
 {
 	st.seekg(0, std::ios::end);
-	const auto size = st.tellg();
+	const auto size { st.tellg() };
 
 	if (size > mz_compressBound(Cartridge::MAX_ROM_SIZE))
 		return {};
@@ -304,7 +304,7 @@ std::vector<uint8_t> GBCore::extractZippedROM(std::istream& st)
 	if (!mz_zip_reader_init_mem(&zipArchive, zipData.data(), zipData.size(), 0))
 		return {};
 
-	const auto fileCount = mz_zip_reader_get_num_files(&zipArchive);
+	const auto fileCount { mz_zip_reader_get_num_files(&zipArchive) };
 
 	for (int i = 0; i < fileCount; i++)
 	{
@@ -313,15 +313,15 @@ std::vector<uint8_t> GBCore::extractZippedROM(std::istream& st)
 		if (!mz_zip_reader_file_stat(&zipArchive, i, &file_stat))
 			continue;
 
-		std::string filename = file_stat.m_filename;
+		const std::string filename { file_stat.m_filename };
 		if (filename.length() < 3) continue;
 
-		const std::string ext = filename.substr(filename.length() - 3);
-		const bool is_gb = (ext == ".gb" || ext == "gbc");
+		const std::string ext { filename.substr(filename.length() - 3) };
+		const bool isGB { ext == ".gb" || ext == "gbc" };
 
-		if (is_gb)
+		if (isGB)
 		{
-			const size_t uncompressedSize = file_stat.m_uncomp_size;
+			const auto uncompressedSize { file_stat.m_uncomp_size };
 			std::vector<uint8_t> buffer(uncompressedSize);
 
 			if (mz_zip_reader_extract_to_mem(&zipArchive, i, buffer.data(), uncompressedSize, 0))
@@ -349,11 +349,10 @@ void GBCore::autoSave() const
 	if (romFilePath.empty() && customBatterySavePath.empty()) 
 		return;
 
-	const auto mapper = cartridge.getMapper();
-	if (mapper->sramDirty) 
+	if (cartridge.getMapper()->sramDirty)
 	{
 		saveBattery(getBatteryFilePath());
-		mapper->sramDirty = false;
+		cartridge.getMapper()->sramDirty = false;
 	}
 }
 
@@ -362,7 +361,7 @@ void GBCore::backupBatteryFile() const
 	if (!cartridge.hasBattery || !appConfig::batterySaves || !customBatterySavePath.empty())
 		return;
 	
-	const auto batterySavePath{ getBatteryFilePath() };
+	const auto batterySavePath { getBatteryFilePath() };
 	auto batteryBackupPath { FileUtils::replaceExtension(batterySavePath, ".sav.bak") };
 	std::error_code err;
 
@@ -374,8 +373,10 @@ void GBCore::backupBatteryFile() const
 
 FileLoadResult GBCore::loadState(const std::filesystem::path& path)
 {
-	std::ifstream st{ path, std::ios::in | std::ios::binary };
-	if (!st) return FileLoadResult::FileError;
+	std::ifstream st { path, std::ios::in | std::ios::binary };
+
+	if (!st) 
+		return FileLoadResult::FileError;
 
 	if (!isSaveStateFile(st))
 		return FileLoadResult::CorruptSaveState;
@@ -385,12 +386,14 @@ FileLoadResult GBCore::loadState(const std::filesystem::path& path)
 FileLoadResult GBCore::loadState(int num)
 {
 	std::ifstream st { getSaveStatePath(num), std::ios::in | std::ios::binary };
-	if (!st) return FileLoadResult::FileError;
+
+	if (!st)
+		return FileLoadResult::FileError;
 
 	if (!isSaveStateFile(st))
 		return FileLoadResult::CorruptSaveState;
 
-	const auto result = loadState(st);
+	const auto result { loadState(st) };
 
 	if (result == FileLoadResult::SuccessSaveState)
 		updateSelectedSaveInfo(num);
@@ -400,14 +403,15 @@ FileLoadResult GBCore::loadState(int num)
 
 void GBCore::saveState(const std::filesystem::path& path) const
 {
-	if (!canSaveStateNow()) return;
+	if (!canSaveStateNow())
+		return;
 
 	std::error_code err;
 
 	if (!std::filesystem::exists(saveStateFolderPath, err))
 		std::filesystem::create_directories(saveStateFolderPath, err);
 
-	std::ofstream st{ path, std::ios::out | std::ios::binary };
+	std::ofstream st { path, std::ios::out | std::ios::binary };
 	if (!st) return;
 	writeState(st);
 }
@@ -425,7 +429,7 @@ void GBCore::saveState(int num)
 uint64_t GBCore::calculateHash(std::span<const uint8_t> data)
 {
 	constexpr uint64_t FNV_PRIME = 0x100000001b3;
-	uint64_t hash = 0xcbf29ce484222325;
+	uint64_t hash { 0xcbf29ce484222325 };
 
 	for (const auto byte : data)
 	{
@@ -438,12 +442,13 @@ uint64_t GBCore::calculateHash(std::span<const uint8_t> data)
 
 void GBCore::writeFrameBuffer(std::ostream& st) const
 {
-	mz_ulong compressedSize = mz_compressBound(PPU::FRAMEBUFFER_SIZE);
+	mz_ulong compressedSize { mz_compressBound(PPU::FRAMEBUFFER_SIZE) };
 	std::vector<uint8_t> compressedBuffer(compressedSize);
 
-	int status = mz_compress(compressedBuffer.data(), &compressedSize, reinterpret_cast<const unsigned char*>(ppu->framebufferPtr()), PPU::FRAMEBUFFER_SIZE);
-	const bool isCompressed = status == MZ_OK;
+	const auto framebufPtr { reinterpret_cast<const unsigned char*>(ppu->framebufferPtr()) };
+	const int status { mz_compress(compressedBuffer.data(), &compressedSize, framebufPtr, PPU::FRAMEBUFFER_SIZE) };
 
+	const bool isCompressed { status == MZ_OK };
 	ST_WRITE(isCompressed);
 	
 	if (isCompressed)
@@ -469,8 +474,9 @@ bool GBCore::loadFrameBuffer(std::istream& st, std::span<uint8_t> framebuffer)
 		std::vector<uint8_t> compressedBuffer(compressedSize);
 		st.read(reinterpret_cast<char*>(compressedBuffer.data()), compressedSize);
 
-		mz_ulong uncompressedSize{ PPU::FRAMEBUFFER_SIZE };
-		int status = mz_uncompress(reinterpret_cast<unsigned char*>(framebuffer.data()), &uncompressedSize, compressedBuffer.data(), compressedSize);
+		mz_ulong uncompressedSize { PPU::FRAMEBUFFER_SIZE };
+		const auto framebufPtr { reinterpret_cast<unsigned char*>(framebuffer.data()) };
+		const int status { mz_uncompress(framebufPtr, &uncompressedSize, compressedBuffer.data(), compressedSize) };
 
 		if (status != MZ_OK)
 			return false;
@@ -486,13 +492,13 @@ bool GBCore::validateAndLoadRom(const std::filesystem::path& romPath, uint8_t ch
 	if (!st)
 		return false;
 
-	auto loadRom = [&](auto&& st) -> bool {
+	const auto loadRom = [&](auto&& st) -> bool {
 		return cartridge.calculateHeaderChecksum(st) == checksum && cartridge.loadROM(st);
 	};
 
 	if (romPath.extension() == ".zip")
 	{
-		const auto romData = extractZippedROM(st);
+		const auto romData { extractZippedROM(st) };
 
 		if (!loadRom(memstream { romData }))
 			return false;
@@ -524,20 +530,20 @@ bool GBCore::validateAndLoadRom(const std::filesystem::path& romPath, uint8_t ch
 
 void GBCore::writeState(std::ostream& os) const
 {
-	std::ostringstream st{ };
+	std::ostringstream st{};
 
-	const auto checksum{ cartridge.getChecksum() };
+	const auto checksum { cartridge.getChecksum() };
 	ST_WRITE(checksum);
 
-	const auto romFilePathStr{ FileUtils::pathToUTF8(romFilePath) };
-	const auto filePathLen{ static_cast<uint16_t>(romFilePathStr.length()) };
+	const auto romFilePathStr { FileUtils::pathToUTF8(romFilePath) };
+	const auto filePathLen { static_cast<uint16_t>(romFilePathStr.length()) };
 
 	ST_WRITE(filePathLen);
 	st.write(romFilePathStr.data(), filePathLen);
 
 	writeFrameBuffer(st); 
 
-	std::ostringstream gbSt{ };
+	std::ostringstream gbSt{};
 	writeGBState(gbSt);
 
 	const auto uncompressedData { gbSt.view().data() };
@@ -546,8 +552,10 @@ void GBCore::writeState(std::ostream& os) const
 	mz_ulong compressedSize { mz_compressBound(uncompressedSize) };
 	std::vector<uint8_t> compressedBuffer(compressedSize);
 
-	int status = mz_compress(compressedBuffer.data(), &compressedSize, reinterpret_cast<const unsigned char*>(uncompressedData), uncompressedSize);
-	const bool isCompressed = status == MZ_OK;
+	const auto dataPtr { reinterpret_cast<const unsigned char*>(uncompressedData) };
+	const int status { mz_compress(compressedBuffer.data(), &compressedSize, dataPtr, uncompressedSize) };
+
+	const bool isCompressed { status == MZ_OK };
 	ST_WRITE(isCompressed);
 
 	if (isCompressed)
@@ -563,14 +571,14 @@ void GBCore::writeState(std::ostream& os) const
 	const auto streamData { st.view().data() };
 	const auto dataSize { static_cast<size_t>(st.tellp()) };
 
-	const uint64_t hash = calculateHash({ reinterpret_cast<const uint8_t*>(streamData), dataSize });
+	const uint64_t hash { calculateHash({ reinterpret_cast<const uint8_t*>(streamData), dataSize }) };
 	os.write(reinterpret_cast<const char*>(&hash), sizeof(hash));
 	os.write(streamData, dataSize);
 }
 
 std::vector<uint8_t> GBCore::getStateData(std::istream& st)
 {
-	uint64_t storedHash{};
+	uint64_t storedHash;
 	ST_READ(storedHash);
 
 	std::vector<uint8_t> buffer(FileUtils::remainingBytes(st));
@@ -584,7 +592,7 @@ std::vector<uint8_t> GBCore::getStateData(std::istream& st)
 
 FileLoadResult GBCore::loadState(std::istream& is)
 {
-	const auto buffer = getStateData(is);
+	const auto buffer { getStateData(is) };
 
 	if (buffer.empty())
 		return FileLoadResult::CorruptSaveState;
@@ -606,7 +614,7 @@ FileLoadResult GBCore::loadState(std::istream& is)
 			return FileLoadResult::ROMNotFound;
 	}
 
-	uint32_t framebufDataOffset = st.tellg();
+	const uint32_t framebufDataOffset { static_cast<uint32_t>(st.tellg()) };
 
 	bool isFramebufCompressed;
 	ST_READ(isFramebufCompressed);
@@ -627,7 +635,7 @@ FileLoadResult GBCore::loadState(std::istream& is)
 		readGBState(st);
 	else
 	{
-		mz_ulong uncompressedSize { };
+		mz_ulong uncompressedSize { 0 };
 		st.read(reinterpret_cast<char*>(&uncompressedSize), sizeof(uint32_t));
 
 		const auto compressedSize { static_cast<mz_ulong>(FileUtils::remainingBytes(st)) };
@@ -636,7 +644,8 @@ FileLoadResult GBCore::loadState(std::istream& is)
 		st.read(reinterpret_cast<char*>(compressedBuffer.data()), compressedSize);
 
 		std::vector<uint8_t> buffer(uncompressedSize);
-		int status = mz_uncompress(reinterpret_cast<unsigned char*>(buffer.data()), &uncompressedSize, compressedBuffer.data(), compressedSize);
+		const auto bufPtr { reinterpret_cast<unsigned char*>(buffer.data()) };
+		const int status { mz_uncompress(bufPtr, &uncompressedSize, compressedBuffer.data(), compressedSize) };
 
 		if (status != MZ_OK)
 			return FileLoadResult::CorruptSaveState;
@@ -706,7 +715,7 @@ bool GBCore::loadSaveStateThumbnail(const std::filesystem::path& path, std::span
 	if (!ifs || !isSaveStateFile(ifs))
 		return false;
 
-	const auto buffer = getStateData(ifs);
+	const auto buffer { getStateData(ifs) };
 
 	if (buffer.empty())
 		return false;

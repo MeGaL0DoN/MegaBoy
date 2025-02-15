@@ -58,18 +58,18 @@ namespace PixelOps
 		}
 	};
 
-	inline void setPixel(uint8_t* buffer, uint16_t width, uint8_t x, uint8_t y, color c)
+	inline void setPixel(uint8_t* buffer, int width, int x, int y, color c)
 	{
-		auto pixel = reinterpret_cast<color*>(buffer + (y * width + x) * 3);
+		auto pixel { reinterpret_cast<color*>(buffer + (y * width + x) * 3) };
 		*pixel = { c.R, c.G, c.B };
 	}
-	inline color getPixel(const uint8_t* buffer, uint16_t width, uint8_t x, uint8_t y)
+	inline color getPixel(const uint8_t* buffer, int width, int x, int y)
 	{
-		const auto pixel = reinterpret_cast<const color*>(buffer + (y * width + x) * 3);
+		const auto pixel { reinterpret_cast<const color*>(buffer + (y * width + x) * 3) };
 		return *pixel;
 	}
 
-	inline void clearBuffer(uint8_t* buffer, uint16_t width, uint16_t height, color c) 
+	inline void clearBuffer(uint8_t* buffer, int width, int height, color c) 
 	{
 		if (!buffer) return;
 

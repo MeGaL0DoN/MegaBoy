@@ -3,7 +3,6 @@
 MBC2::MBC2(Cartridge& cartridge) : MBC(cartridge)
 {
 	ram.resize(512);
-	cartridge.hasRAM = true;
 }
 
 uint8_t MBC2::read(uint16_t addr) const

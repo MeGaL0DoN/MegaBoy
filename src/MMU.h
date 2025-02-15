@@ -17,6 +17,8 @@ enum class GHDMAStatus
 
 class MMU
 {
+	friend class debugUI;
+
 public:
 	explicit MMU(GBCore& gbCore);
 

@@ -9,7 +9,6 @@
 #include "Utils/Shader.h"
 #include "Utils/fileUtils.h"
 #include "Utils/glFunctions.h"
-#include "Utils/memstream.h"
 
 #include <iostream>
 #include <filesystem>
@@ -86,7 +85,7 @@ bool emscripten_saves_syncing { false };
 const char* popupTitle { "" };
 bool showInfoPopUp { false };
 
-std::string FPS_text{ "FPS: 00.00 - 0.00 ms" };
+std::string fpsText { "FPS: 00.00 - 0.00 ms" }, gbFpsText { "Core time: 0.00 ms" };
 
 constexpr float FADE_DURATION { 0.9f };
 bool fadeEffectActive { false };
@@ -105,8 +104,7 @@ bool showSaveStatePopUp{ false };
 
 inline bool emulationRunning()
 {
-    const bool isRunning = !gb.emulationPaused && gb.cartridge.ROMLoaded() && !gb.breakpointHit;
-
+    const bool isRunning { !gb.emulationPaused && gb.cartridge.ROMLoaded() && !gb.breakpointHit };
 #ifdef EMSCRIPTEN
     return isRunning && !emscripten_saves_syncing;
 #else
@@ -116,11 +114,7 @@ inline bool emulationRunning()
 
 inline void updateWindowTitle()
 {
-    std::string title = (gb.gameTitle.empty() ? APP_NAME : "MegaBoy - " + gb.gameTitle);
-#ifndef EMSCRIPTEN
-    if (emulationRunning())
-        title += " (" + FPS_text + ")";
-#endif
+    const std::string title { (gb.gameTitle.empty() ? APP_NAME : "MegaBoy - " + gb.gameTitle) };
     glfwSetWindowTitle(window, title.c_str());
 }
 
@@ -191,7 +185,7 @@ void handleBootROMLoad(GBSystem sys, std::istream& st, const std::filesystem::pa
 {
     if (GBCore::isBootROMValid(st, filePath))
     {
-        auto& destPath = sys == GBSystem::DMG ? appConfig::dmgBootRomPath : appConfig::cgbBootRomPath;
+        auto& destPath { sys == GBSystem::DMG ? appConfig::dmgBootRomPath : appConfig::cgbBootRomPath };
 #ifdef EMSCRIPTEN
         std::ofstream destFile { destPath, std::ios::binary | std::ios::out };
         destFile << st.rdbuf();
@@ -213,7 +207,7 @@ bool loadFile(std::istream& st, const std::filesystem::path& filePath)
         { GBCore::CGB_BOOTROM_NAME, GBSystem::CGB },
     };
 
-    if (auto it = bootRomMap.find(filePath.filename()); it != bootRomMap.end()) 
+    if (const auto it { bootRomMap.find(filePath.filename()) }; it != bootRomMap.end())
     {
         handleBootROMLoad(it->second, st, filePath);
         return true;
@@ -302,7 +296,7 @@ bool loadFile(std::istream& st, const std::filesystem::path& filePath)
 bool loadFile(const std::filesystem::path& filePath)
 {
     std::ifstream st { filePath, std::ios::in | std::ios::binary };
-    const auto result = loadFile(st, filePath);
+    const auto result { loadFile(st, filePath) };
 #ifdef EMSCRIPTEN
     std::error_code err;
     std::filesystem::remove(filePath, err); // Remove the file from memfs.
@@ -314,8 +308,7 @@ constexpr int QUICK_SAVE_STATE = 0;
 
 inline void loadState(int num)
 {
-    const auto result = num == QUICK_SAVE_STATE ? gb.loadState(gb.getSaveStateFolderPath() / "quicksave.mbs")
-                                                : gb.loadState(num);
+    const auto result { num == QUICK_SAVE_STATE ? gb.loadState(gb.getSaveStateFolderPath() / "quicksave.mbs") : gb.loadState(num) };
 
     if (result == FileLoadResult::SuccessSaveState)
     {
@@ -362,36 +355,33 @@ void takeScreenshot(bool captureOpenGL)
 
     const auto writePng = [=]()
     {
-        void* pngBuffer = nullptr;
-        size_t pngDataSize = 0;
+        const int width { captureOpenGL ? viewport_width : PPU::SCR_WIDTH };
+        const int height { captureOpenGL ? viewport_height : PPU::SCR_HEIGHT };
+        const uint8_t* framebuffer { captureOpenGL ? glFramebuffer.get() : gb.ppu->framebufferPtr() };
 
-        const int width = captureOpenGL ? viewport_width : PPU::SCR_WIDTH;
-        const int height = captureOpenGL ? viewport_height : PPU::SCR_HEIGHT;
-        const uint8_t* framebuffer = captureOpenGL ? glFramebuffer.get() : gb.ppu->framebufferPtr();
-
-        pngBuffer = tdefl_write_image_to_png_file_in_memory_ex(framebuffer, width, height, CHANNELS, &pngDataSize, 3, captureOpenGL);
+        size_t pngDataSize { 0 };
+        const auto pngBuffer { tdefl_write_image_to_png_file_in_memory_ex(framebuffer, width, height, CHANNELS, &pngDataSize, 3, captureOpenGL) };
 
         if (!pngBuffer)
             return;
 
 #ifdef EMSCRIPTEN
-        const std::string fileName = gb.gameTitle + " - Screenshot.png";
+        const std::string fileName { gb.gameTitle + " - Screenshot.png" };
         emscripten_browser_file::download(fileName.c_str(), "image/png", pngBuffer, pngDataSize);
 #else
-        const auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-        std::tm* now_tm = std::localtime(&now);
+        const auto now { std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) };
 
         std::stringstream ss;
-        ss << std::put_time(now_tm, "%H-%M-%S");
+        ss << std::put_time(std::localtime(&now), "%H-%M-%S");
 
-        const std::string fileName = gb.gameTitle + " (" + ss.str() + ").png";
-        const auto screenshotsFolder = FileUtils::executableFolderPath / "screenshots";
+        const std::string fileName { gb.gameTitle + " (" + ss.str() + ").png" };
+        const auto screenshotsFolder { FileUtils::executableFolderPath / "screenshots" };
                 
         if (!std::filesystem::exists(screenshotsFolder))
             std::filesystem::create_directory(screenshotsFolder);
 
         std::ofstream st(screenshotsFolder / fileName, std::ios::binary);
-        st.write(reinterpret_cast<const char*>(pngBuffer), pngDataSize);
+        st.write(static_cast<const char*>(pngBuffer), static_cast<std::streamsize>(pngDataSize));
 #endif
         mz_free(pngBuffer);
     };
@@ -474,24 +464,18 @@ void setOpenGL()
 int getResolutionX()
 {
 #ifdef EMSCRIPTEN
-    int screenWidth = EM_ASM_INT({
-        return window.screen.width * window.devicePixelRatio;
-    });
+    return EM_ASM_INT({ return window.screen.width * window.devicePixelRatio; });
 #else
-    int screenWidth = glfwGetVideoMode(glfwGetPrimaryMonitor())->width;
+    return glfwGetVideoMode(glfwGetPrimaryMonitor())->width;
 #endif
-    return screenWidth;
 }
 int getResolutionY()
 {
 #ifdef EMSCRIPTEN
-    int screenHeight = EM_ASM_INT({
-        return window.screen.height * window.devicePixelRatio;
-    });
+    return EM_ASM_INT({ return window.screen.height * window.devicePixelRatio; });
 #else
-    int screenHeight = glfwGetVideoMode(glfwGetPrimaryMonitor())->height;
+    return glfwGetVideoMode(glfwGetPrimaryMonitor())->height;
 #endif
-    return screenHeight;
 }
 
 void updateGLViewport()
@@ -506,8 +490,8 @@ void setIntegerScale(int newScale)
     if (newScale <= 0)
         return;
 
-    int newWindowWidth = newScale * PPU::SCR_WIDTH;
-    int newWindowHeight = newScale * PPU::SCR_HEIGHT + menuBarHeight;
+    const int newWindowWidth { newScale * PPU::SCR_WIDTH };
+    const int newWindowHeight { newScale * PPU::SCR_HEIGHT + menuBarHeight };
 
 #ifndef EMSCRIPTEN
     if (!glfwGetWindowAttrib(window, GLFW_MAXIMIZED)) // Only resize window if its not maximized.
@@ -542,8 +526,8 @@ void rescaleWindow()
     }
     else
     {
-        constexpr float targetAspectRatio = static_cast<float>(PPU::SCR_WIDTH) / PPU::SCR_HEIGHT;
-        const float windowAspectRatio = static_cast<float>(viewport_width) / static_cast<float>(viewport_height);
+        constexpr float targetAspectRatio { static_cast<float>(PPU::SCR_WIDTH) / PPU::SCR_HEIGHT };
+        const float windowAspectRatio { static_cast<float>(viewport_width) / static_cast<float>(viewport_height) };
 
         if (windowAspectRatio > targetAspectRatio)
             viewport_width = viewport_height * targetAspectRatio;
@@ -567,10 +551,10 @@ inline void updateImGUIViewports()
 {
     if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
     {
-        GLFWwindow* backup_current_context = glfwGetCurrentContext();
+        GLFWwindow* backupContext { glfwGetCurrentContext() };
         ImGui::UpdatePlatformWindows();
         ImGui::RenderPlatformWindowsDefault();
-        glfwMakeContextCurrent(backup_current_context);
+        glfwMakeContextCurrent(backupContext);
     }
 }
 
@@ -581,7 +565,7 @@ std::filesystem::path saveFileDialog(const std::string& defaultName, const nfdnf
     fileDialogOpen = true;
 
     NFD::UniquePathN outPath;
-    nfdresult_t result = NFD::SaveDialog(outPath, filter, 1, nullptr, FileUtils::nativePathFromUTF8(defaultName).c_str());
+    const auto result { NFD::SaveDialog(outPath, filter, 1, nullptr, FileUtils::nativePathFromUTF8(defaultName).c_str()) };
 
     APU::IsMainThreadBlocked = false;
     fileDialogOpen = false;
@@ -595,7 +579,7 @@ std::filesystem::path openFileDialog(const nfdnfilteritem_t* filter)
     fileDialogOpen = true;
 
     NFD::UniquePathN outPath;
-    nfdresult_t result = NFD::OpenDialog(outPath, filter, 1);
+    const auto result { NFD::OpenDialog(outPath, filter, 1) };
 
     APU::IsMainThreadBlocked = false;
     fileDialogOpen = false;
@@ -671,11 +655,11 @@ void renderKeyConfigGUI()
     {
         constexpr int totalItems = KeyBindManager::TOTAL_KEYS;
         constexpr int itemsPerColumn = (totalItems + 1) / 2;
-        const float padding = ImGui::GetStyle().FramePadding.x * 2;
+        const float padding { ImGui::GetStyle().FramePadding.x * 2 };
 
         const auto calculateColumnWidths = [&]()
         {
-            float widths[2] = { 0.0f, 0.0f };
+            std::array<float, 2> widths { 0.0f, 0.0f };
             for (int i = 0; i < totalItems; i++)
             {
                 const char* keyName = KeyBindManager::getMegaBoyKeyName(static_cast<MegaBoyKey>(i));
@@ -686,7 +670,7 @@ void renderKeyConfigGUI()
             return std::make_pair(widths[0] + padding, widths[1] + padding);
         };
 
-        const auto [maxWidthCol1, maxWidthCol2] = calculateColumnWidths();
+        const auto [maxWidthCol1, maxWidthCol2] { calculateColumnWidths() };
 
         if (ImGui::BeginTable("KeyBindTable", 2, ImGuiTableFlags_NoKeepColumnsVisible | ImGuiTableFlags_SizingFixedFit))
         {
@@ -695,20 +679,20 @@ void renderKeyConfigGUI()
 
             const auto renderKeyBinding = [&](int index, float maxWidth)
             {
-                if (index >= totalItems) return;
+                if (index >= totalItems)
+                    return;
 
                 ImGui::PushID(index);
-                const char* keyName = KeyBindManager::getMegaBoyKeyName(static_cast<MegaBoyKey>(index));
+                const char* keyName { KeyBindManager::getMegaBoyKeyName(static_cast<MegaBoyKey>(index)) };
                 ImGui::Text("%s", keyName);
 
-                float currentTextWidth = ImGui::CalcTextSize(keyName).x;
-                float offsetX = maxWidth - currentTextWidth;
+                const float offsetX { maxWidth - ImGui::CalcTextSize(keyName).x };
                 ImGui::SameLine(0.0f, offsetX);
 
-                const char* currentKey = KeyBindManager::getKeyName(KeyBindManager::keyBinds[index]);
-                std::string buttonLabel = awaitingKeyBind == index ? "Press any key..." : currentKey;
+                const char* currentKey { KeyBindManager::getKeyName(KeyBindManager::keyBinds[index]) };
+                const std::string buttonLabel { awaitingKeyBind == index ? "Press any key..." : currentKey };
 
-                const bool yellowText = KeyBindManager::keyBinds[index] == GLFW_KEY_UNKNOWN || index == awaitingKeyBind;
+                const bool yellowText { KeyBindManager::keyBinds[index] == GLFW_KEY_UNKNOWN || index == awaitingKeyBind };
                 if (yellowText) ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 255, 0, 255));
 
                 if (ImGui::Button(buttonLabel.c_str(), ImVec2(130 * scaleFactor, 0)))
@@ -737,8 +721,8 @@ void renderKeyConfigGUI()
 
         const auto renderModifierSelection = []<MegaBoyKey modifier, MegaBoyKey otherModifier>()
         {
-            constexpr const char* comboLabel = KeyBindManager::getMegaBoyKeyName(modifier);
-            const int selectedModifier = KeyBindManager::getBind(modifier);
+            constexpr const char* comboLabel { KeyBindManager::getMegaBoyKeyName(modifier) };
+            const int selectedModifier { KeyBindManager::getBind(modifier) };
             const char* modifierLabel = [&]()
             {
                 switch (selectedModifier)
@@ -754,15 +738,16 @@ void renderKeyConfigGUI()
             ImGui::SameLine();
             ImGui::PushItemWidth(140 * scaleFactor);
 
-            constexpr std::pair<int, const char*> modifiers[] = { { GLFW_MOD_SHIFT, "Shift" }, { GLFW_MOD_CONTROL, "Ctrl" }, { GLFW_MOD_ALT, "Alt" } };
+            constexpr std::pair<int, const char*> modifiers[] { { GLFW_MOD_SHIFT, "Shift" }, { GLFW_MOD_CONTROL, "Ctrl" }, { GLFW_MOD_ALT, "Alt" } };
 
             if (ImGui::BeginCombo((std::string("##") + comboLabel).c_str(), modifierLabel))
             {
                 for (const auto& [modValue, modName] : modifiers)
                 {
-                    if (modValue == KeyBindManager::getBind(otherModifier)) continue;
+                    if (modValue == KeyBindManager::getBind(otherModifier)) 
+                        continue;
 
-                    const bool isSelected = selectedModifier == modValue;
+                    const bool isSelected { selectedModifier == modValue };
 
                     if (ImGui::Selectable(modName, isSelected))
                     {
@@ -770,7 +755,8 @@ void renderKeyConfigGUI()
                         appConfig::updateConfigFile();
                     }
 
-                    if (isSelected) ImGui::SetItemDefaultFocus();
+                    if (isSelected)
+                        ImGui::SetItemDefaultFocus();
                 }
 
                 ImGui::EndCombo();
@@ -802,11 +788,12 @@ bool saveStatesWindowOpen { false };
 void renderSaveStatesGUI()
 {
     constexpr int THUMBNAILS_PER_ROW = 3;
+
     static std::array<uint32_t, NUM_SAVE_STATES> saveStateTextures{};
-    static int selectedSaveState = -1;
+    static int selectedSaveState { -1 };
 
     ImGui::Begin("Save States", &saveStatesWindowOpen, ImGuiWindowFlags_AlwaysAutoResize);
-    int renderedCount = 0;
+    int renderedCount { 0 };
 
     for (int i = 1; i < NUM_SAVE_STATES; i++)
     {
@@ -837,8 +824,8 @@ void renderSaveStatesGUI()
         ImGui::BeginGroup();
         ImGui::PushID(i);
 
-        const float textWidth = ImGui::CalcTextSize(("Save " + std::to_string(i)).c_str()).x;
-        const float cursorX = ImGui::GetCursorPosX() + (PPU::SCR_WIDTH - textWidth) / 2.0f;
+        const float textWidth { ImGui::CalcTextSize(("Save " + std::to_string(i)).c_str()).x };
+        const float cursorX { ImGui::GetCursorPosX() + (PPU::SCR_WIDTH - textWidth) / 2.0f };
         ImGui::SetCursorPosX(cursorX);
         ImGui::Text("Save %d", i);
 
@@ -846,8 +833,8 @@ void renderSaveStatesGUI()
 
         if (gb.getSaveNum() == i)
         {
-            constexpr auto lightGolden{ ImVec4(1.0f, 0.92f, 0.5f, 1.0f) };
-            constexpr auto golden{ ImVec4(1.0f, 0.84f, 0.0f, 1.0f) };
+            constexpr auto lightGolden { ImVec4(1.0f, 0.92f, 0.5f, 1.0f) };
+            constexpr auto golden { ImVec4(1.0f, 0.84f, 0.0f, 1.0f) };
 
             ImGui::PushStyleColor(ImGuiCol_Button, lightGolden);
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, golden);
@@ -878,8 +865,7 @@ void renderSaveStatesGUI()
     if (showSaveStatePopUp && !ImGui::IsPopupOpen("Save Options"))
         ImGui::OpenPopup("Save Options");
 
-    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 
     if (ImGui::BeginPopupModal("Save Options", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove))
     {
@@ -1003,7 +989,7 @@ void renderCheatsGUI()
     static std::array<char, 9> sharkBuf{};
     static std::array<char, 12> genieBuf{};
 
-    static auto isHexChar = [](char c) -> bool {
+    const static auto isHexChar = [](char c) -> bool {
         return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
     };
 
@@ -1013,12 +999,12 @@ void renderCheatsGUI()
     ImGui::Columns(2);
     ImGui::GetCurrentWindow()->DC.CurrentColumns->Flags |= ImGuiOldColumnFlags_NoResize;
 
-    auto renderCheatSection = [&](const char* name, auto& buf, auto& cheats, auto validateFunc, auto addFunc)
+    const auto renderCheatSection = [&](const char* name, auto& buf, auto& cheats, auto validateFunc, auto addFunc)
     {
         ImGui::BeginChild(name);
         ImGui::SeparatorText(name);
 
-        const bool isValid = validateFunc(buf);
+        const bool isValid { validateFunc(buf) };
 
         if (ImGui::InputText("##input", buf.data(), buf.size(), ImGuiInputTextFlags_EnterReturnsTrue))
         {
@@ -1044,7 +1030,7 @@ void renderCheatsGUI()
 
         ImGui::Spacing();
 
-        const bool cheatsEmpty = cheats.empty();
+        const bool cheatsEmpty { cheats.empty() };
 
         if (cheatsEmpty)
             ImGui::BeginDisabled();
@@ -1061,7 +1047,8 @@ void renderCheatsGUI()
 
         for (int i = 0; i < cheats.size(); i++) 
         {
-            auto& cheat = cheats[i];
+            auto& cheat { cheats[i] };
+
             ImGui::PushID(i);
             ImGui::Spacing();
 
@@ -1078,7 +1065,7 @@ void renderCheatsGUI()
         ImGui::EndChild();
     };
 
-    auto validateGenie = [](const auto& buf)
+    const auto validateGenie = [](const auto& buf)
     {
         return std::all_of(buf.begin(), buf.end() - 1,
             [i = -1](char ch) mutable {
@@ -1087,12 +1074,12 @@ void renderCheatsGUI()
             });
     };
 
-    auto validateShark = [](const auto& buf) 
+    const auto validateShark = [](const auto& buf) 
     {
         return std::all_of(buf.begin(), buf.end() - 1, isHexChar);
     };
 
-    auto addGenie = [](const auto& buf, auto& cheats) 
+    const auto addGenie = [](const auto& buf, auto& cheats)
     {
         gameGenieCheat cheat;
 
@@ -1115,7 +1102,7 @@ void renderCheatsGUI()
         }
     };
 
-    auto addShark = [](const auto& buf, auto& cheats) 
+    const auto addShark = [](const auto& buf, auto& cheats) 
     {
         gameSharkCheat cheat;
 
@@ -1218,14 +1205,14 @@ void renderImGUI()
                 cgbBootLoaded = GBCore::isBootROMValid(appConfig::cgbBootRomPath);
             }
 
-            bool bootRomsLoaded = gb.cartridge.ROMLoaded() ? 
-                                  (System::Current() == GBSystem::DMG ? dmgBootLoaded : cgbBootLoaded) : (dmgBootLoaded || cgbBootLoaded);
+            bool bootRomsLoaded { gb.cartridge.ROMLoaded() ?
+                                  (System::Current() == GBSystem::DMG ? dmgBootLoaded : cgbBootLoaded) : (dmgBootLoaded || cgbBootLoaded) };
 
             if (!bootRomsLoaded)
             {
-                const std::string tooltipText = gb.cartridge.ROMLoaded() ? 
+                const std::string tooltipText { gb.cartridge.ROMLoaded() ?
                                                 (System::Current() == GBSystem::DMG ? "Drop 'dmg_boot.bin'" : "Drop 'cgb_boot.bin'") :
-                                                "Drop 'dmg_boot.bin' or 'cgb_boot.bin'";
+                                                "Drop 'dmg_boot.bin' or 'cgb_boot.bin'" };
 
                 ImGui::BeginDisabled();
                 ImGui::Checkbox("Boot ROM not Loaded!", &bootRomsLoaded);
@@ -1256,7 +1243,7 @@ void renderImGUI()
 
             ImGui::SeparatorText("Emulated System");
 
-            constexpr std::array preferences = { "Prefer GB Color", "Force GB Color", "Prefer DMG", "Force DMG" };
+            constexpr std::array preferences { "Prefer GB Color", "Force GB Color", "Prefer DMG", "Force DMG" };
 
             if (ImGui::ListBox("##1", &appConfig::systemPreference, preferences.data(), preferences.size()))
                 appConfig::updateConfigFile();
@@ -1266,8 +1253,7 @@ void renderImGUI()
 
         if (ImGui::BeginMenu("Graphics"))
         {
-            if (emulationRunning())
-                ImGui::SeparatorText(FPS_text.c_str());;
+            ImGui::SeparatorText(fpsText.c_str());
 
             if (lockVSyncSetting) ImGui::BeginDisabled();
 
@@ -1275,8 +1261,8 @@ void renderImGUI()
             {
                 appConfig::updateConfigFile();
 #ifdef EMSCRIPTEN
-                const int newMode = appConfig::vsync ? EM_TIMING_RAF : EM_TIMING_SETTIMEOUT;
-                const int newVal = appConfig::vsync ? 1 : 16; // Swap interval 1 with vsync, or 16 ms interval when no vsync.
+                const int newMode { appConfig::vsync ? EM_TIMING_RAF : EM_TIMING_SETTIMEOUT };
+                const int newVal { appConfig::vsync ? 1 : 16 }; // Swap interval 1 with vsync, or 16 ms interval when no vsync.
                 emscripten_set_main_loop_timing(newMode, newVal);
 #else
                 glfwSwapInterval(appConfig::vsync ? 1 : 0);
@@ -1338,7 +1324,7 @@ void renderImGUI()
 
             ImGui::SeparatorText("Filter");
 
-            constexpr std::array filters = { "None", "LCD", "Upscaling" };
+            constexpr std::array filters { "None", "LCD", "Upscaling" };
             const int filterCount { appConfig::bilinearFiltering ? 2 : 3 }; // Upscaling filter is disabled when bilinear filtering is enabled
 
             if (ImGui::Combo("##Filter", &appConfig::filter, filters.data(), filterCount))
@@ -1350,11 +1336,11 @@ void renderImGUI()
             ImGui::Spacing();
             ImGui::SeparatorText("DMG Palette");
 
-            constexpr std::array palettes = { "BGB Green", "Grayscale", "Classic", "Custom" };
+            constexpr std::array palettes { "BGB Green", "Grayscale", "Classic", "Custom" };
 
             static bool customPaletteOpen { false };
-            static std::array<std::array<float, 3>, 4> colors{ };
-            static std::array<color, 4> tempCustomPalette{ };
+            static std::array<std::array<float, 3>, 4> colors {};
+            static std::array<color, 4> tempCustomPalette {};
 
             const auto updateColors = []()
             {
@@ -1450,9 +1436,8 @@ void renderImGUI()
 
                 ImGui::SameLine();
 
-                const auto minutes = static_cast<int>(gb.apu.recordedSeconds) / 60;
-                const auto seconds = static_cast<int>(gb.apu.recordedSeconds) % 60;
-
+                const auto minutes { static_cast<int>(gb.apu.recordedSeconds) / 60 };
+                const auto seconds { static_cast<int>(gb.apu.recordedSeconds) % 60 };
                 ImGui::Text("%d:%02d", minutes, seconds);
             }
             else
@@ -1462,7 +1447,7 @@ void renderImGUI()
 #ifdef EMSCRIPTEN
                     gb.apu.startRecording("recording.wav");
 #else
-                    const auto result{ saveFileDialog("MegaBoy - Recording", audioSaveFilterItem) };
+                    const auto result { saveFileDialog("MegaBoy - Recording", audioSaveFilterItem) };
 
                     if (!result.empty())
                         gb.apu.startRecording(result);
@@ -1475,11 +1460,13 @@ void renderImGUI()
         {
             if (gb.cartridge.ROMLoaded())
             {
+                ImGui::SeparatorText(gbFpsText.c_str());
+
                 const auto formatKeyBind = [](MegaBoyKey key) { return "(" + std::string(KeyBindManager::getKeyName(KeyBindManager::getBind(key))) + ")"; };
 
-                const std::string pauseKeyStr = formatKeyBind(MegaBoyKey::Pause);
-                const std::string resetKeyStr = formatKeyBind(MegaBoyKey::Reset);
-                const std::string screenshotKeyStr = formatKeyBind(MegaBoyKey::Screenshot);
+                const std::string pauseKeyStr { formatKeyBind(MegaBoyKey::Pause) };
+                const std::string resetKeyStr { formatKeyBind(MegaBoyKey::Reset) };
+                const std::string screenshotKeyStr { formatKeyBind(MegaBoyKey::Screenshot) };
 
                 if (ImGui::MenuItem(gb.emulationPaused ? "Resume" : "Pause", pauseKeyStr.c_str()))
                     setEmulationPaused(!gb.emulationPaused);
@@ -1530,7 +1517,7 @@ void renderImGUI()
         }
         else if (gb.cartridge.ROMLoaded() && gb.getSaveNum() != 0)
         {
-            const std::string saveText = "Save: " + std::to_string(gb.getSaveNum());
+            const std::string saveText { "Save: " + std::to_string(gb.getSaveNum()) };
             ImGui::Separator();
             ImGui::Text("%s", saveText.c_str());
         }
@@ -1550,15 +1537,14 @@ void renderImGUI()
             ImGui::CloseCurrentPopup();
         else
         {
-            ImVec2 viewportCenter = ImGui::GetMainViewport()->GetCenter();
-            ImVec2 windowSize = ImGui::GetWindowSize();
+            const auto viewportCenter { ImGui::GetMainViewport()->GetCenter() };
+            const auto windowSize { ImGui::GetWindowSize() };
 
-            ImVec2 windowPos = ImVec2(viewportCenter.x - windowSize.x * 0.5f, viewportCenter.y - windowSize.y * 0.5f);
+            const auto windowPos { ImVec2(viewportCenter.x - windowSize.x * 0.5f, viewportCenter.y - windowSize.y * 0.5f) };
             ImGui::SetWindowPos(windowPos);
 
-            const float buttonWidth = ImGui::GetContentRegionAvail().x * 0.4f;
-            const float windowWidth = ImGui::GetWindowSize().x;
-            ImGui::SetCursorPosX((windowWidth - buttonWidth) * 0.5f);
+            const float buttonWidth { ImGui::GetContentRegionAvail().x * 0.4f };
+            ImGui::SetCursorPosX((ImGui::GetWindowSize().x - buttonWidth) * 0.5f);
 
             if (ImGui::Button("OK", ImVec2(buttonWidth, 0)))
             {
@@ -1598,7 +1584,7 @@ void renderGameBoy(double deltaTime)
     if (fadeEffectActive)
     {
         fadeTime += static_cast<float>(deltaTime);
-        const float fadeAmount = fadeTime / FADE_DURATION;
+        const float fadeAmount { fadeTime / FADE_DURATION };
 
         if (fadeAmount >= 0.95f)
         {
@@ -1664,8 +1650,8 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
         return;
     }
 
-    auto scaleUpKey = KeyBindManager::getBind(MegaBoyKey::ScaleUp);
-    auto scaleDownKey = KeyBindManager::getBind(MegaBoyKey::ScaleDown);
+    const auto scaleUpKey { KeyBindManager::getBind(MegaBoyKey::ScaleUp) };
+    const auto scaleDownKey { KeyBindManager::getBind(MegaBoyKey::ScaleDown) };
 
     if (key == scaleUpKey || key == scaleDownKey)
     {
@@ -1675,7 +1661,8 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
         return;
     }
 
-    if (!gb.cartridge.ROMLoaded()) return;
+    if (!gb.cartridge.ROMLoaded()) 
+        return;
 
     if (action == GLFW_PRESS)
     {
@@ -1831,7 +1818,7 @@ void checkVSyncStatus()
     appConfig::vsync = false;
     lockVSyncSetting = true;
 #elif defined(_WIN32) 
-    auto vsyncCheckFunc = reinterpret_cast<int(*)()>(glfwGetProcAddress("wglGetSwapIntervalEXT"));
+    const auto vsyncCheckFunc { reinterpret_cast<int(*)()>(glfwGetProcAddress("wglGetSwapIntervalEXT")) };
 
     glfwSwapInterval(0);
 
@@ -1934,10 +1921,10 @@ void setWindowSize()
     glfwSetWindowSize(window, window_width, window_height);
     rescaleWindow();
 #else
-    const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+    const GLFWvidmode* mode { glfwGetVideoMode(glfwGetPrimaryMonitor()) };
 
-    const int maxViewportHeight = static_cast<int>(static_cast<float>(mode->height) * 0.70f);
-    const int scaleFactor = std::min(maxViewportHeight / PPU::SCR_HEIGHT, mode->width / PPU::SCR_WIDTH);
+    const int maxViewportHeight { static_cast<int>(mode->height * 0.70f) };
+    const int scaleFactor { std::min(maxViewportHeight / PPU::SCR_HEIGHT, mode->width / PPU::SCR_WIDTH) };
 
     glfwSetWindowSize(window, scaleFactor * PPU::SCR_WIDTH, (scaleFactor * PPU::SCR_HEIGHT) + menuBarHeight);
     glfwSetWindowSizeLimits(window, PPU::SCR_WIDTH, PPU::SCR_HEIGHT + menuBarHeight, GLFW_DONT_CARE, GLFW_DONT_CARE);
@@ -1950,7 +1937,7 @@ void setImGUI()
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
 
-    ImGuiIO& io = ImGui::GetIO();
+    auto& io { ImGui::GetIO() };
     io.IniFilename = nullptr;
 
     scaleFactor = (static_cast<float>(getResolutionX()) / 1920.0f + static_cast<float>(getResolutionY()) / 1080.0f) / 2.0f;
@@ -1998,22 +1985,20 @@ void mainLoop()
 
     static double lastFrameTime { glfwGetTime() }, lastRenderTime { lastFrameTime };
     static double gbTimer { 0.0 }, secondsTimer { 0.0 };
-    static double executeTimes { 0.0 };
+    static double gbExecuteTimes { 0.0 }, frameTimes { 0.0 };
     static int frameCount { 0 }, gbFrameCount { 0 };
 
     const double currentTime { glfwGetTime() };
     
 #ifndef EMSCRIPTEN
-    const bool waitEvents = glfwGetWindowAttrib(window, GLFW_ICONIFIED);
-
-    if (waitEvents)
+    if (glfwGetWindowAttrib(window, GLFW_ICONIFIED))
     {
         glfwWaitEvents();
         lastFrameTime = currentTime;
     }
 #endif
 
-    const double deltaTime = std::clamp(currentTime - lastFrameTime, 0.0, MAX_DELTA_TIME);
+    const double deltaTime { std::clamp(currentTime - lastFrameTime, 0.0, MAX_DELTA_TIME) };
     lastFrameTime = currentTime;
 
     secondsTimer += deltaTime;
@@ -2055,12 +2040,12 @@ void mainLoop()
     {
         if (emulationRunning())
 		{
-            const auto execStart = glfwGetTime();
+            const auto execStart { glfwGetTime() };
             APU::LastMainThreadTime = execStart;
 
             gb.emulateFrame();
 
-            executeTimes += (glfwGetTime() - execStart);
+            gbExecuteTimes += (glfwGetTime() - execStart);
             gbFrameCount++;
 		}
 
@@ -2069,34 +2054,38 @@ void mainLoop()
 
     if (shouldRender)
     {
-        render(currentTime - lastRenderTime);
-        lastRenderTime = currentTime;
+        const auto cur { glfwGetTime() };
+        render(cur - lastRenderTime);
+        frameTimes += (glfwGetTime() - lastFrameTime);
+        lastRenderTime = cur;
         frameCount++;
     }
 
     if (secondsTimer >= 1.0)
     {
+        std::ostringstream oss;
+
+        const double avgFrameTime { (frameTimes / frameCount) * 1000 };
+        oss << "FPS: " << std::fixed << std::setprecision(2) << (frameCount / secondsTimer) << " - " << avgFrameTime << " ms";
+        fpsText = oss.str();
+        oss.str("");
+
+        const double avgGBExecuteTime { gbFrameCount == 0 ? 0.0 : ((gbExecuteTimes / gbFrameCount) * 1000) };
+        oss << "Core time: " << std::fixed << std::setprecision(2) << avgGBExecuteTime << " ms";
+        gbFpsText = oss.str();
+
         if (emulationRunning())
         {
-            const double avgExecuteTime = (executeTimes / gbFrameCount) * 1000;
-            const double fps = frameCount / secondsTimer;
-
-            std::ostringstream oss;
-            oss << "FPS: " << std::fixed << std::setprecision(2) << fps << " - " << avgExecuteTime << " ms";
-            FPS_text = oss.str();
-
-#ifndef EMSCRIPTEN
-            updateWindowTitle();
-#endif
             gb.autoSave();
 
             if (appConfig::autosaveState && gb.getSaveNum() != 0)
                 modifiedSaveStates[gb.getSaveNum()] = true;
         }
 
-        gbFrameCount = 0;
         frameCount = 0;
-        executeTimes = 0;
+        frameTimes = 0;
+        gbFrameCount = 0;
+        gbExecuteTimes = 0;
         secondsTimer = 0;
     }
 }
@@ -2121,7 +2110,7 @@ void runApp(int argc, char* argv[])
     if (argc > 1)
     {
 #ifdef _WIN32
-        auto argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+        const auto argv { CommandLineToArgvW(GetCommandLineW(), &argc) };
 #endif
         loadFile(argv[1]);
 }

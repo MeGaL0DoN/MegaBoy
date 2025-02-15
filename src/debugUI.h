@@ -28,6 +28,17 @@ private:
 		WindowMap,
 		PPUOutput
 	};
+	enum class MemView : int
+	{
+		MemSpace,
+		ROM,
+		WRAM,
+		SRAM,
+		VRAM,
+		OAM,
+		IO,
+		HRAM
+	};
 	struct instructionDisasmEntry
 	{
 		uint16_t addr { };
@@ -48,7 +59,8 @@ private:
 	static inline bool showAudioView { false };
 
 	static inline bool showVRAMView { false };
-	static inline auto currentTab { VRAMTab::TileData };
+	static inline auto currentVramTab { VRAMTab::TileData };
+	static inline int vramTileBank{ 0 };
 
 	static inline std::unique_ptr<uint8_t[]> BGFrameBuffer;
 	static inline std::unique_ptr<uint8_t[]> windowFrameBuffer;
@@ -61,26 +73,20 @@ private:
     static inline uint32_t backgroundTexture {0};
 	static inline uint32_t windowTexture {0};
 
-	static inline int vramTileBank {0};
-
-	static inline int romMemoryView { false };
-	static inline int romDisassemblyView{  false };
-
-	static inline int dissasmRomBank {0};
-	static inline int memoryRomBank {0};
-
 	static inline std::vector<uint16_t> breakpoints{};
 	static inline std::vector<uint8_t> opcodeBreakpoints{};
 
 	static inline std::vector<instructionDisasmEntry> romDisassembly;
 	static inline std::vector<instructionDisasmEntry> breakpointDisassembly;
 
+	static inline int dissasmRomBank{ 0 };
 	static inline int breakpointDisasmLine  {0};
 	static inline bool showBreakpointHitWindow { false };
 	static inline bool shouldScrollToPC { false };
 	static inline int32_t tempBreakpointAddr { -1 };
 	static inline int32_t stepOutStartSPVal { -1 };
 
+	static inline void refreshCurrentVRAMTab();
 	static inline void disassembleRom();
 	static inline void removeTempBreakpoint();
 	static inline void extendBreakpointDisasmWindow();

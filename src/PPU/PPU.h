@@ -143,14 +143,14 @@ struct ppuState
 	bool latchWindowEnable{};
 	bool cgbVBlankFlag{};
 
-	uint8_t LY{ 0 };
-	uint8_t WLY{ 0 };
-	uint8_t xPosCounter{ 0 };
-
-	uint16_t vblankLineCycles{};
-	uint16_t hblankCycles{};
-	PPUMode state{ PPUMode::OAMSearch };
+	uint8_t LY{};
+	uint8_t WLY{};
+	uint8_t xPosCounter{};
+	PPUMode state{};
 	PPUMode prevState{};
+
+	uint8_t hblankCycles{};
+	uint16_t vblankLineCycles{};
 	uint16_t videoCycles{ 0 };
 	uint32_t dotsUntilVBlank{};
 };
@@ -161,8 +161,8 @@ struct ppuGBCPaletteData
 	uint8_t regValue{ 0x00 };
 	bool autoIncrement{ false };
 
-	static constexpr std::array<uint8_t, 8> DEFAULT_DMG_COMPAT_BG_PALETTE = { 255, 127, 239, 27, 128, 97, 0, 0 };
-	static constexpr std::array<uint8_t, 16> DEFAULT_DMG_COMPAT_OBJ_PALETTE = { 255, 127, 31, 66, 242, 28, 0, 0, 255, 127, 31, 66, 242, 28, 0, 0 };
+	static constexpr std::array<uint8_t, 8> DEFAULT_DMG_COMPAT_BG_PALETTE { 255, 127, 239, 27, 128, 97, 0, 0 };
+	static constexpr std::array<uint8_t, 16> DEFAULT_DMG_COMPAT_OBJ_PALETTE { 255, 127, 31, 66, 242, 28, 0, 0, 255, 127, 31, 66, 242, 28, 0, 0 };
 
 	// BCPS (bg) palette is set to white by default (0xFF -> 0x7F pattern, bit 7 of first byte is zero), OCPS (obj) is random.
 	inline void reset(bool obj)
@@ -191,11 +191,11 @@ struct ppuGBCPaletteData
 
 	inline uint8_t readPaletteRAM() const
 	{
-		return paletteRAM[regValue];
+		return paletteRAM[regValue & 0x3F];
 	}
 	inline void writePaletteRAM(uint8_t val)
 	{
-		paletteRAM[regValue] = val;
+		paletteRAM[regValue & 0x3F] = val;
 		regValue = autoIncrement ? ((regValue + 1) & 0x3F) : regValue;
 	}
 
@@ -286,7 +286,7 @@ public:
 
 	std::function<void(const uint8_t*, bool)> drawCallback { nullptr };
 
-	virtual void execute(uint8_t cycles) = 0;
+	virtual void execute() = 0;
 	virtual void reset(bool clearBuf) = 0;
 
 	virtual void setLCDEnable(bool val) = 0;

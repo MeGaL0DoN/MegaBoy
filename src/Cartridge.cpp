@@ -81,7 +81,7 @@ void Cartridge::updateSystem(uint8_t cgbFlag)
 
 bool Cartridge::proccessCartridgeHeader(std::istream& is, uint32_t fileSize)
 {
-	auto readByte = [&is](uint16_t ind) -> uint8_t
+	const auto readByte = [&is](uint16_t ind) -> uint8_t
 	{
 		uint8_t byte;
 		is.seekg(ind, std::ios::beg);
@@ -89,8 +89,8 @@ bool Cartridge::proccessCartridgeHeader(std::istream& is, uint32_t fileSize)
 		return byte;
 	};
 
-	const uint8_t checksum = calculateHeaderChecksum(is);
-	const uint8_t storedChecksum = readByte(0x14D);
+	const uint8_t checksum { calculateHeaderChecksum(is) };
+	const uint8_t storedChecksum { readByte(0x14D) };
 
 	if (checksum != storedChecksum) 
 		return false;
@@ -100,8 +100,8 @@ bool Cartridge::proccessCartridgeHeader(std::istream& is, uint32_t fileSize)
 	if (romBanks > std::max(fileSize, MIN_ROM_SIZE * 2) / ROM_BANK_SIZE) 
 		return false;
 
-	const bool initialHasBattery = hasBattery;
-	const bool initialHasTimer = hasTimer;
+	const bool initialHasBattery { hasBattery };
+	const bool initialHasTimer { hasTimer };
 
 	hasBattery = false;
 	hasTimer = false;

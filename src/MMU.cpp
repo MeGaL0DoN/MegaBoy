@@ -53,7 +53,7 @@ void MMU::saveState(std::ostream& st) const
 	if (System::IsCGBDevice(System::Current())) // Some registers in gbc struct still usable in DMG compat mode.
 		ST_WRITE(gbc); 
 
-	const uint16_t WRAMSize = System::Current() == GBSystem::CGB ? 0x8000 : 0x2000;
+	const int WRAMSize { System::Current() == GBSystem::CGB ? 0x8000 : 0x2000 };
 
 	st.write(reinterpret_cast<const char*>(WRAM_BANKS.data()), WRAMSize);
 	ST_WRITE_ARR(HRAM);
@@ -63,10 +63,13 @@ void MMU::loadState(std::istream& st)
 {
 	ST_READ(s);
 
+	// It's used to index array, so clamp it to 0 so it doesn't crash the emulator if state is invalid.
+	s.dma.cycles = s.dma.cycles >= sizeof(PPU::OAM) ? 0 : s.dma.cycles;
+
 	if (System::IsCGBDevice(System::Current()))
 		ST_READ(gbc);
 
-	const uint16_t WRAMSize = System::Current() == GBSystem::CGB ? 0x8000 : 0x2000;
+	const int WRAMSize { System::Current() == GBSystem::CGB ? 0x8000 : 0x2000 };
 
 	st.read(reinterpret_cast<char*>(WRAM_BANKS.data()), WRAMSize);
 	ST_READ_ARR(HRAM);
@@ -299,10 +302,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 		case 0xFF4D:
 			if constexpr (sys == GBSystem::CGB)
-			{
-				if (gb.cpu.s.GBCdoubleSpeed != (val & 1))
-					gb.cpu.s.prepareSpeedSwitch = true;
-			}
+				gb.cpu.s.prepareSpeedSwitch = getBit(val, 0);
 			break;
 		case 0xFF4F:
 			if constexpr (sys == GBSystem::CGB)

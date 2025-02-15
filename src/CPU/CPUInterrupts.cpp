@@ -44,7 +44,7 @@ constexpr std::array<uint16_t, 4> TIMAcycles = { 256, 4, 16, 64 };
 
 void CPU::updateTimer()
 {
-	if (!s.stopState)
+	if (!s.stopState) [[likely]]
 	{
 		s.DIV_COUNTER++;
 

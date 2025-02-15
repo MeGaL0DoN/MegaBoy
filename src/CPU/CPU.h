@@ -43,6 +43,7 @@ public:
 	void setHaltExitEvent(void(*event)()) { haltExitEvent = event; }
 
 	constexpr uint8_t TcyclesPerM() const { return tCyclesPerM; }
+	constexpr bool doubleSpeedMode() const { return s.GBCdoubleSpeed; }
 
 	void saveState(std::ostream& st) const;
 	void loadState(std::istream& st);

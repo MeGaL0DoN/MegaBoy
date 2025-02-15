@@ -4,7 +4,6 @@
 #include <vector>
 #include <filesystem>
 #include <fstream>
-#include <memory>
 #include <atomic>
 
 #include "squareWave.h"
@@ -18,11 +17,13 @@ struct globalAPURegs
 	std::atomic<bool> apuEnable; // Instead of NR52, since it is the only writable bit.
 };
 
+class GBCore;
+
 class APU
 {
 public:
 	friend class MMU;
-	friend class GBCore;
+	friend GBCore;
 
 	void reset();
 
@@ -73,7 +74,7 @@ private:
 
 	globalAPURegs regs{};
 
-	inline uint8_t getNR52()
+	inline uint8_t getNR52() const
 	{
 		uint8_t NR52 = setBit(0x70, 7, regs.apuEnable);
 		NR52 = setBit(NR52, 3, channel4.s.enabled);

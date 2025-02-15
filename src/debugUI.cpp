@@ -2,7 +2,6 @@
 #include "Utils/bitOps.h"
 
 #include <algorithm>
-#include <cmath>
 #include <ImGUI/imgui.h>
 
 extern GBCore gb;
@@ -48,11 +47,11 @@ void debugUI::disassembleRom()
 {
     uint8_t instrLen;
     uint16_t addr = (dissasmRomBank == 0) ? 0 : 0x4000;  
-    uint16_t endAddr = addr + 0x3FFF; 
+    const uint16_t endAddr = addr + 0x3FFF;
 
     while (addr <= endAddr)
     {
-        std::string disasm = hexOps::toHexStr<true>(addr).append(": ").append(gb.cpu.disassemble(addr, [](uint16_t addr) 
+        const std::string disasm = hexOps::toHexStr<true>(addr).append(": ").append(gb.cpu.disassemble(addr, [](uint16_t addr) 
         {
             return gb.cartridge.rom[(dissasmRomBank * 0x4000) + (addr - (dissasmRomBank == 0 ? 0 : 0x4000))];
         }, &instrLen));
@@ -66,7 +65,6 @@ void debugUI::signalROMreset()
 {
     romDisassembly.clear();
     dissasmRomBank = 0;
-    memoryRomBank = 0;
     removeTempBreakpoint();
     showBreakpointHitWindow = false;
 }
@@ -76,36 +74,37 @@ void debugUI::signalSaveStateChange()
     showBreakpointHitWindow = false;
 }
 
-void debugUI::signalVBlank() 
+void debugUI::refreshCurrentVRAMTab()
 {
-    if (!showVRAMView) return;
+    if (!gb.cartridge.ROMLoaded())
+        return;
 
-    auto updateTexture = [](uint32_t& texture, uint16_t width, uint16_t height, uint8_t* data)
+    const auto updateTexture = [](uint32_t& texture, uint16_t width, uint16_t height, const uint8_t* data)
     {
-        if (!texture) 
+        if (!texture)
             OpenGL::createTexture(texture, width, height, data);
-        else 
+        else
             OpenGL::updateTexture(texture, width, height, data);
     };
 
-    switch (currentTab) 
+    switch (currentVramTab)
     {
     case VRAMTab::TileData:
-        if (!tileDataFrameBuffer) 
+        if (!tileDataFrameBuffer)
             tileDataFrameBuffer = std::make_unique<uint8_t[]>(PPU::TILEDATA_FRAMEBUFFER_SIZE);
 
-        gb.ppu->renderTileData(tileDataFrameBuffer.get(),System::Current() == GBSystem::DMG ? 0 : vramTileBank);
+        gb.ppu->renderTileData(tileDataFrameBuffer.get(), System::Current() == GBSystem::CGB ? vramTileBank : 0);
         updateTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileDataFrameBuffer.get());
         break;
     case VRAMTab::BackgroundMap:
-        if (!BGFrameBuffer) 
+        if (!BGFrameBuffer)
             BGFrameBuffer = std::make_unique<uint8_t[]>(PPU::TILEMAP_FRAMEBUFFER_SIZE);
 
         gb.ppu->renderBGTileMap(BGFrameBuffer.get());
         updateTexture(backgroundMapTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, BGFrameBuffer.get());
         break;
     case VRAMTab::WindowMap:
-        if (!windowFrameBuffer) 
+        if (!windowFrameBuffer)
             windowFrameBuffer = std::make_unique<uint8_t[]>(PPU::TILEMAP_FRAMEBUFFER_SIZE);
 
         gb.ppu->renderWindowTileMap(windowFrameBuffer.get());
@@ -123,11 +122,18 @@ void debugUI::signalVBlank()
     }
 }
 
+void debugUI::signalVBlank() 
+{
+    if (!showVRAMView) 
+        return;
+
+    refreshCurrentVRAMTab();
+}
+
 inline void displayImage(uint32_t texture, uint16_t width, uint16_t height, int& scale)
 {
-    const float windowWidth = ImGui::GetWindowWidth();
-    const float textWidth = ImGui::CalcTextSize("Scale: 00").x + ImGui::GetFrameHeight() * 2 + ImGui::GetStyle().ItemSpacing.x * 2;
-    ImGui::SetCursorPosX((windowWidth - textWidth) * 0.5f);
+    const float textWidth { ImGui::CalcTextSize("Scale: 00").x + ImGui::GetFrameHeight() * 2 + ImGui::GetStyle().ItemSpacing.x * 2 };
+    ImGui::SetCursorPosX((ImGui::GetWindowWidth() - textWidth) * 0.5f);
 
     if (ImGui::ArrowButton("##left", ImGuiDir_Left))
         scale = std::max(1, scale - 1);
@@ -139,9 +145,8 @@ inline void displayImage(uint32_t texture, uint16_t width, uint16_t height, int&
     if (ImGui::ArrowButton("##right", ImGuiDir_Right))
         scale++;
 
-    ImVec2 imageSize{ static_cast<float>(width * scale), static_cast<float>(height * scale) };
-    ImVec2 contentRegion = ImGui::GetContentRegionAvail();
-    float xPos = (contentRegion.x - imageSize.x) * 0.5f;
+    const ImVec2 imageSize { static_cast<float>(width * scale), static_cast<float>(height * scale) };
+    const float xPos { (ImGui::GetContentRegionAvail().x - imageSize.x) * 0.5f };
 
     if (xPos > 0)
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + xPos);
@@ -153,10 +158,10 @@ inline void displayImage(uint32_t texture, uint16_t width, uint16_t height, int&
     }
     else
     {
-        const auto screenPos = ImGui::GetCursorScreenPos();
-        const auto color = IM_COL32(PPU::ColorPalette[0].R, PPU::ColorPalette[0].G, PPU::ColorPalette[0].B, 255);
+        const auto screenPos { ImGui::GetCursorScreenPos() };
+        const auto color { IM_COL32(PPU::ColorPalette[0].R, PPU::ColorPalette[0].G, PPU::ColorPalette[0].B, 255) };
 
-        ImGui::GetWindowDrawList()->AddRectFilled(screenPos, ImVec2(screenPos.x + imageSize.x, screenPos.y + imageSize.y), color);
+        ImGui::GetWindowDrawList()->AddRectFilled(ImGui::GetCursorScreenPos(), ImVec2(screenPos.x + imageSize.x, screenPos.y + imageSize.y), color);
         ImGui::Dummy(imageSize);  
     }
 }
@@ -169,11 +174,11 @@ inline std::string disassemble(uint16_t addr, uint8_t* instrLen)
 void debugUI::extendBreakpointDisasmWindow()
 {
     shouldScrollToPC = true;
-    uint16_t addr = gb.cpu.s.PC;
+    uint16_t addr { gb.cpu.s.PC };
     uint8_t instrLen;
-    std::string disasm = disassemble(addr, &instrLen);
+    std::string disasm { disassemble(addr, &instrLen) };
 
-    auto createEntry = [&]()
+    const auto createEntry = [&]()
     {
         std::array<uint8_t, 3> data{};
 
@@ -182,7 +187,7 @@ void debugUI::extendBreakpointDisasmWindow()
 
         return instructionDisasmEntry{ addr, instrLen, data, disasm };
     };
-    auto isModified = [](const instructionDisasmEntry& entry) // Handle self-modifying code
+    const auto isModified = [](const instructionDisasmEntry& entry) 
     {
         for (int i = 0; i < entry.length; i++)
         {
@@ -192,8 +197,8 @@ void debugUI::extendBreakpointDisasmWindow()
         return false;
     };
 
-    auto currentInstr = std::lower_bound(breakpointDisassembly.begin(), breakpointDisassembly.end(), addr);
-    bool exists = currentInstr != breakpointDisassembly.end() && currentInstr->addr == addr;
+    auto currentInstr { std::lower_bound(breakpointDisassembly.begin(), breakpointDisassembly.end(), addr) };
+    const bool exists { currentInstr != breakpointDisassembly.end() && currentInstr->addr == addr };
 
     if (exists)
     {
@@ -206,8 +211,8 @@ void debugUI::extendBreakpointDisasmWindow()
     breakpointDisasmLine = currentInstr - breakpointDisassembly.begin();
     addr += instrLen;
 
-    auto nextInstr = std::next(currentInstr);
-    bool nextExists = (nextInstr != breakpointDisassembly.end() && nextInstr->addr == addr);
+    const auto nextInstr { std::next(currentInstr) };
+    const bool nextExists { (nextInstr != breakpointDisassembly.end() && nextInstr->addr == addr) };
 
     if (nextExists)
     {
@@ -228,7 +233,7 @@ void debugUI::removeTempBreakpoint()
 {
     if (tempBreakpointAddr != -1)
     {
-        if (std::find(breakpoints.begin(), breakpoints.end(), tempBreakpointAddr) == breakpoints.end())
+        if (std::ranges::find(breakpoints, tempBreakpointAddr) == breakpoints.end())
             gb.breakpoints[tempBreakpointAddr] = false;
 
         tempBreakpointAddr = -1;
@@ -263,29 +268,108 @@ void debugUI::renderWindows(float scaleFactor)
 
         if (ImGui::Begin("Memory View", &showMemoryView))
         {
-            ImGui::RadioButton("Memory Space", &romMemoryView, 0);
+            static MemView currentView { MemView::MemSpace };
+            static int memViewRomBank { 0 }, memViewRamBank { 0 }, memViewWramBank { 0 }, memViewVramBank { 0 };
+
+            ImGui::RadioButton("Mem Space", reinterpret_cast<int*>(&currentView), static_cast<int>(MemView::MemSpace));
             ImGui::SameLine();
-            ImGui::RadioButton("ROM Banks", &romMemoryView, 1);
+            ImGui::RadioButton("ROM", reinterpret_cast<int*>(&currentView), static_cast<int>(MemView::ROM));
+            ImGui::SameLine();
+            ImGui::RadioButton("WRAM", reinterpret_cast<int*>(&currentView), static_cast<int>(MemView::WRAM));
+            ImGui::SameLine();
+
+            if (gb.cartridge.hasRAM)
+            {
+                ImGui::RadioButton("SRAM", reinterpret_cast<int*>(&currentView), static_cast<int>(MemView::SRAM));
+                ImGui::SameLine();
+            }
+            else if (currentView == MemView::SRAM)
+                currentView = MemView::WRAM;
+
+            ImGui::RadioButton("VRAM", reinterpret_cast<int*>(&currentView), static_cast<int>(MemView::VRAM));
+            ImGui::SameLine();
+            ImGui::RadioButton("OAM", reinterpret_cast<int*>(&currentView), static_cast<int>(MemView::OAM));
+            ImGui::SameLine();
+            ImGui::RadioButton("IO", reinterpret_cast<int*>(&currentView), static_cast<int>(MemView::IO));
+            ImGui::SameLine();
+            ImGui::RadioButton("HRAM", reinterpret_cast<int*>(&currentView), static_cast<int>(MemView::HRAM));
             ImGui::Spacing();
 
-            if (romMemoryView)
+            switch (currentView)
             {
-                const std::string romBankText = "ROM Bank (Total: " + std::to_string(gb.cartridge.romBanks) + ")";
+            case MemView::ROM:
+            {
+                const std::string romBankText{ "ROM Bank (Total: " + std::to_string(gb.cartridge.romBanks) + ")" };
                 ImGui::Text("%s", romBankText.c_str());
-                ImGui::SameLine();
 
+                ImGui::SameLine();
                 ImGui::PushItemWidth(150 * scaleFactor);
 
-                if (ImGui::InputInt("##rombank", &memoryRomBank, 1, 1, ImGuiInputTextFlags_CharsDecimal))
-                {
-                    if (gb.cartridge.ROMLoaded())
-                        memoryRomBank = std::clamp(memoryRomBank, 0, static_cast<int>(gb.cartridge.romBanks - 1));
-                    else
-                        memoryRomBank = 0;
-                }
+                ImGui::InputInt("##rombank", &memViewRomBank, 1, 1, ImGuiInputTextFlags_CharsDecimal);
+
+                if (gb.cartridge.ROMLoaded())
+                    memViewRomBank = std::clamp(memViewRomBank, 0, static_cast<int>(gb.cartridge.romBanks - 1));
+                else
+                    memViewRomBank = 0;
 
                 ImGui::PopItemWidth();
                 ImGui::Spacing();
+                break;
+            }
+            case MemView::WRAM:
+            {
+                if (System::Current() == GBSystem::CGB)
+                {
+                    ImGui::Text("RAM Bank (Total: 8)");
+
+                    ImGui::SameLine();
+                    ImGui::PushItemWidth(150 * scaleFactor);
+
+                    if (ImGui::InputInt("##rambank", &memViewWramBank, 1, 1, ImGuiInputTextFlags_CharsDecimal))
+                        memViewWramBank = std::clamp(memViewWramBank, 0, 7);
+
+                    ImGui::PopItemWidth();
+                }
+                else
+                {
+                    memViewWramBank = std::clamp(memViewWramBank, 0, 1);
+
+                    ImGui::RadioButton("Bank 0", &memViewWramBank, 0);
+                    ImGui::SameLine();
+                    ImGui::RadioButton("Bank 1", &memViewWramBank, 1);
+                }
+
+                ImGui::Spacing();
+                break;
+            }
+            case MemView::SRAM:
+            {
+                const std::string ramBankText { "SRAM Bank (Total: " + std::to_string(gb.cartridge.ramBanks) + ")" };
+                ImGui::Text("%s", ramBankText.c_str());
+
+                ImGui::SameLine();
+                ImGui::PushItemWidth(150 * scaleFactor);
+
+                ImGui::InputInt("##rambank", &memViewRamBank, 1, 1, ImGuiInputTextFlags_CharsDecimal);
+                memViewRamBank = std::clamp(memViewRamBank, 0, static_cast<int>(gb.cartridge.ramBanks - 1));
+
+                ImGui::PopItemWidth();
+                ImGui::Spacing();
+                break;
+            }
+            case MemView::VRAM:
+            {
+                if (System::Current() == GBSystem::CGB)
+                {
+                    ImGui::RadioButton("Bank 0", &memViewVramBank, 0);
+                    ImGui::SameLine();
+                    ImGui::RadioButton("Bank 1", &memViewVramBank, 1);
+                    ImGui::Spacing();
+                }
+                break;
+            }
+            default:
+                break;
             }
 
             constexpr const char* header = "Offset 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F                    ";
@@ -299,17 +383,16 @@ void debugUI::renderWindows(float scaleFactor)
             {
                 ImGuiListClipper clipper;
 
-                auto printMem = [&clipper](uint16_t viewStartAddr, uint8_t(*readFunc)(uint16_t))
+                const auto printMem = [&clipper](uint16_t viewStartAddr, uint8_t(*readFunc)(uint16_t))
                 {
                     std::string memoryData(72, '\0');
 
-                    auto drawList = ImGui::GetWindowDrawList();
-                    const float charWidth = ImGui::CalcTextSize("0").x;
-                    const float vertLineX = ImGui::GetCursorScreenPos().x + (charWidth * 53.1f);
+                    const float charWidth { ImGui::CalcTextSize("0").x };
+                    const float vertLineX { ImGui::GetCursorScreenPos().x + (charWidth * 53.1f) };
 
                     while (clipper.Step())
                     {
-                        const float startY = ImGui::GetCursorScreenPos().y;
+                        const float startY { ImGui::GetCursorScreenPos().y };
 
                         for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++)
                         {
@@ -336,20 +419,48 @@ void debugUI::renderWindows(float scaleFactor)
                             ImGui::Text("%s", memoryData.c_str());
                         }
 
-                        const float endY = ImGui::GetCursorScreenPos().y;
-                        drawList->AddLine(ImVec2(vertLineX, startY), ImVec2(vertLineX, endY), ImGui::GetColorU32(ImGuiCol_Separator), 1.0f);
+                        const float endY { ImGui::GetCursorScreenPos().y };
+                        ImGui::GetWindowDrawList()->AddLine(ImVec2(vertLineX, startY), ImVec2(vertLineX, endY), ImGui::GetColorU32(ImGuiCol_Separator), 1.0f);
                     }
                 };
 
-                if (romMemoryView)
+                switch (currentView)
                 {
-                    clipper.Begin(1024);
-                    printMem(memoryRomBank == 0 ? 0 : 0x4000, [](uint16_t addr) { return gb.cartridge.rom[(memoryRomBank * 0x4000) + addr]; });
-                }
-                else
-                {
-                    clipper.Begin(4096);
+                case MemView::MemSpace:
+                    clipper.Begin(0x10000 / 16);
                     printMem(0, [](uint16_t addr) { return gb.mmu.read8(addr); });
+                    break;
+                case MemView::ROM:
+                    clipper.Begin(0x4000 / 16);
+                    printMem(memViewRomBank == 0 ? 0 : 0x4000, [](uint16_t addr) { return gb.cartridge.rom[(memViewRomBank * 0x4000) + addr]; });
+                    break;
+                case MemView::WRAM:
+                    clipper.Begin(0x1000 / 16);
+                    printMem(memViewWramBank == 0 ? 0xC000 : 0xD000, [](uint16_t addr) { return gb.mmu.WRAM_BANKS[(memViewWramBank * 0x1000) + addr]; });
+                    break;
+                case MemView::SRAM:
+                    clipper.Begin(0x2000 / 16);
+                    printMem(0xA000, [](uint16_t addr) { return gb.cartridge.ram[(memViewRamBank) * 0x2000 + addr]; });
+                    break;
+                case MemView::VRAM:
+                    clipper.Begin(0x2000 / 16);
+                    printMem(0x8000, [](uint16_t addr) 
+                    {
+                        return System::Current() != GBSystem::CGB || memViewVramBank == 0 ? gb.ppu->VRAM_BANK0[addr] : gb.ppu->VRAM_BANK1[addr];
+                    });
+                    break;
+                case MemView::OAM:
+                    clipper.Begin(sizeof(PPU::OAM) / 16);
+                    printMem(0xFE00, [](uint16_t addr) { return gb.ppu->OAM[addr]; });
+                    break;
+                case MemView::IO:
+                    clipper.Begin(0x80 / 16);
+                    printMem(0xFF00, [](uint16_t addr) { return gb.mmu.read8(addr + 0xFF00); });
+                    break;
+                case MemView::HRAM:
+                    clipper.Begin((sizeof(MMU::HRAM) / 16) + 1);
+                    printMem(0xFF80, [](uint16_t addr) { return addr == sizeof(MMU::HRAM) ? gb.cpu.s.IE : gb.mmu.HRAM[addr]; });
+                    break;
                 }
             }
 
@@ -440,7 +551,7 @@ void debugUI::renderWindows(float scaleFactor)
 
         if (ImGui::Begin("Disassembly", &showDisassembly))
         {
-            static bool firstTimeBreakpointWindow{ true };
+            static bool firstTimeBreakpointWindow { true };
 
             if (showBreakpointHitWindow && firstTimeBreakpointWindow)
             {
@@ -453,10 +564,11 @@ void debugUI::renderWindows(float scaleFactor)
                 ImGui::Columns(2);
 
             ImGui::SeparatorText("Disassembly View");
+            static int romDisassemblyView { false };
 
-            ImGui::RadioButton("Memory Space", &romDisassemblyView, 0);
+            ImGui::RadioButton("Memory Space", &romDisassemblyView, false);
             ImGui::SameLine();
-            ImGui::RadioButton("ROM Banks", &romDisassemblyView, 1);
+            ImGui::RadioButton("ROM Banks", &romDisassemblyView, true);
 
             if (!romDisassemblyView)
             {
@@ -476,13 +588,13 @@ void debugUI::renderWindows(float scaleFactor)
                     ImGui::PopItemWidth();
 
                     ImGui::SameLine();
-                    const bool exists = std::ranges::find(breakpointList, value) != breakpointList.end();
+                    const bool exists { std::ranges::find(breakpointList, value) != breakpointList.end() };
 
                     ImGui::PushStyleColor(ImGuiCol_Button, exists ? ImVec4(0.8f, 0.2f, 0.2f, 1.0f) : ImVec4(0.2f, 0.4f, 0.8f, 1.0f));
                     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, exists ? ImVec4(0.9f, 0.3f, 0.3f, 1.0f) : ImVec4(0.3f, 0.5f, 0.9f, 1.0f));
 
-                    const bool textBoxEnterWasPressed = ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_Enter);
-                    const char* buttonLabel = exists ? "Remove" : "Add";
+                    const bool textBoxEnterWasPressed { ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_Enter) };
+                    const char* buttonLabel { exists ? "Remove" : "Add" };
 
                     if (ImGui::Button(buttonLabel) || (!exists && textBoxEnterWasPressed))
                     {
@@ -523,7 +635,7 @@ void debugUI::renderWindows(float scaleFactor)
                         }
                         else
                         {
-                            const bool breakpointEnabled = breakpointArr[*it];
+                            const bool breakpointEnabled { breakpointArr[*it] };
                             ImGui::SameLine();
 
                             const auto [btnColor, btnHoverColor] = breakpointEnabled ?
@@ -542,7 +654,7 @@ void debugUI::renderWindows(float scaleFactor)
                         ImGui::PopStyleColor(2);
 
                         if (incrementIt)
-                            it++;
+                            ++it;
 
                         ImGui::PopID();
                     }
@@ -551,7 +663,7 @@ void debugUI::renderWindows(float scaleFactor)
                 renderBreakpointControl("Breakpoint on Address", breakpointAddr, gb.breakpoints, breakpoints, 0xFFFF);
                 renderBreakpointControl("Breakpoint on Opcode", breakpointOpcode, gb.opcodeBreakpoints, opcodeBreakpoints, 0xFF);
 
-                static bool showBreakpoints{ false };
+                static bool showBreakpoints { false };
 
                 ImGui::Spacing();
 
@@ -583,7 +695,7 @@ void debugUI::renderWindows(float scaleFactor)
             }
             else
             {
-                std::string romBankText = "ROM Bank (Total: " + std::to_string(gb.cartridge.romBanks) + ")";
+                const std::string romBankText { "ROM Bank (Total: " + std::to_string(gb.cartridge.romBanks) + ")" };
                 ImGui::SeparatorText(romBankText.c_str());
 
                 ImGui::PushItemWidth(200 * scaleFactor);
@@ -628,8 +740,8 @@ void debugUI::renderWindows(float scaleFactor)
                     {
                         for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++)
                         {
-                            const auto& disasm = romDisassembly[i];
-                            const bool isPcInBank = dissasmRomBank == 0 || dissasmRomBank == gb.cartridge.getMapper()->getCurrentRomBank();
+                            const auto& disasm { romDisassembly[i] };
+                            const bool isPcInBank { dissasmRomBank == 0 || dissasmRomBank == gb.cartridge.getMapper()->getCurrentRomBank() };
 
                             if (isPcInBank)
                                 displayDisasm(disasm.addr, disasm.str);
@@ -678,8 +790,8 @@ void debugUI::renderWindows(float scaleFactor)
 
                 ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10, 0));
 
-                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.7f, 0.2f, 1.0f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.8f, 0.3f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.15f, 0.6f, 0.15f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.2f, 0.7f, 0.2f, 1.0f));
 
                 if (ImGui::Button("Continue"))
                 {
@@ -731,7 +843,7 @@ void debugUI::renderWindows(float scaleFactor)
 
                 ImGui::SameLine();
 
-                bool stepsDisabled = tempBreakpointAddr != -1 || stepOutStartSPVal != -1 || gb.cpu.s.halted;
+                const bool stepsDisabled { tempBreakpointAddr != -1 || stepOutStartSPVal != -1 || gb.cpu.s.halted };
 
                 if (stepsDisabled)
                     ImGui::BeginDisabled();
@@ -810,18 +922,18 @@ void debugUI::renderWindows(float scaleFactor)
                 {
                     if (shouldScrollToPC)
                     {
-                        const float currentScrollY = ImGui::GetScrollY();
-                        const float windowHeight = ImGui::GetWindowHeight();
-                        const float itemHeight = ImGui::GetTextLineHeightWithSpacing();
-                        const float targetY = itemHeight * static_cast<float>(breakpointDisasmLine);
+                        const float currentScrollY { ImGui::GetScrollY() };
+                        const float windowHeight { ImGui::GetWindowHeight() };
+                        const float itemHeight { ImGui::GetTextLineHeightWithSpacing() };
+                        const float targetY { itemHeight * static_cast<float>(breakpointDisasmLine) };
 
-                        const float visibleStart = currentScrollY + itemHeight;
-                        const float visibleEnd = currentScrollY + windowHeight - (2 * itemHeight);
+                        const float visibleStart { currentScrollY + itemHeight };
+                        const float visibleEnd { currentScrollY + windowHeight - (2 * itemHeight) };
 
                         if (targetY < visibleStart || targetY > visibleEnd)
                         {
-                            const float centerOffset = (windowHeight - itemHeight) * 0.5f;
-                            const float scrollTarget = std::max(0.0f, targetY - centerOffset);
+                            const float centerOffset { (windowHeight - itemHeight) * 0.5f };
+                            const float scrollTarget { std::max(0.0f, targetY - centerOffset) };
                             ImGui::SetScrollY(scrollTarget);
                         }
                         shouldScrollToPC = false;
@@ -939,9 +1051,22 @@ void debugUI::renderWindows(float scaleFactor)
         {
             if (ImGui::BeginTabBar("vramTabBar"))
             {
+                const auto displayRefreshButton = []()
+                {
+                    ImGui::Spacing();
+
+                    const float buttonWidth { ImGui::CalcTextSize("Refresh").x + ImGui::GetStyle().FramePadding.x * 2 };
+                    ImGui::SetCursorPosX((ImGui::GetWindowSize().x - buttonWidth) * 0.5f);
+
+                    if (ImGui::Button("Refresh"))
+                        refreshCurrentVRAMTab();
+
+                    ImGui::Spacing();
+                };
+
                 if (ImGui::BeginTabItem("Tile Data"))
                 {
-                    currentTab = VRAMTab::TileData;
+                    currentVramTab = VRAMTab::TileData;
 
                     if (System::Current() == GBSystem::CGB)
                     {
@@ -950,6 +1075,7 @@ void debugUI::renderWindows(float scaleFactor)
                         ImGui::RadioButton("VRAM Bank 1", &vramTileBank, 1);
                     }
 
+                    displayRefreshButton();
                     displayImage(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileViewScale);
                     ImGui::EndTabItem();
                 }
@@ -959,14 +1085,15 @@ void debugUI::renderWindows(float scaleFactor)
                     {
                         if (ImGui::BeginTabItem("Background Map"))
                         {
-                            currentTab = VRAMTab::BackgroundMap;
+                            currentVramTab = VRAMTab::BackgroundMap;
+                            displayRefreshButton();
                             displayImage(backgroundMapTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, tileMapViewScale);
                             ImGui::EndTabItem();
                         }
-
                         if (ImGui::BeginTabItem("Window Map"))
                         {
-                            currentTab = VRAMTab::WindowMap;
+                            currentVramTab = VRAMTab::WindowMap;
+                            displayRefreshButton();
                             displayImage(windowMapTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, tileMapViewScale);
                             ImGui::EndTabItem();
                         }
@@ -979,7 +1106,7 @@ void debugUI::renderWindows(float scaleFactor)
                 {
                     if (ImGui::BeginTabBar("outputTabBar"))
                     {
-                        currentTab = VRAMTab::PPUOutput;
+                        currentVramTab = VRAMTab::PPUOutput;
 
                         if (ImGui::BeginTabItem("OAM"))
                         {
@@ -1006,7 +1133,7 @@ void debugUI::renderWindows(float scaleFactor)
             }
         }
 
-        gb.setPPUDebugEnable(showVRAMView && currentTab == VRAMTab::PPUOutput);
+        gb.setPPUDebugEnable(showVRAMView && currentVramTab == VRAMTab::PPUOutput);
         ImGui::End();
     }
     if (showAudioView)
@@ -1017,8 +1144,8 @@ void debugUI::renderWindows(float scaleFactor)
 
             for (int i = 0; i < 4; i++)
             {
-                const auto channelStr = "Channel " + std::to_string(i + 1);
-                bool tempFlag = gb.apu.enabledChannels[i].load();
+                const auto channelStr { "Channel " + std::to_string(i + 1) };
+                bool tempFlag { gb.apu.enabledChannels[i].load() };
 
                 if (ImGui::Checkbox(channelStr.c_str(), &tempFlag))
                     gb.apu.enabledChannels[i].store(tempFlag);

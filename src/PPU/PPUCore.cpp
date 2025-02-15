@@ -4,7 +4,6 @@
 
 #include "PPUCore.h"
 #include "../GBCore.h"
-#include "../Utils/rngOps.h"
 #include "../Utils/bitOps.h"
 
 template class PPUCore<GBSystem::DMG>;
@@ -36,8 +35,8 @@ void PPUCore<sys>::reset(bool clearBuf)
 	s.LY = 144;
 }
 
-template <GBSystem sys>
-void PPUCore<sys>::saveState(std::ostream& st) const
+template <GBSystem s>
+void PPUCore<s>::saveState(std::ostream& st) const
 {
 	ST_WRITE(regs);
 	ST_WRITE(s);
@@ -46,7 +45,7 @@ void PPUCore<sys>::saveState(std::ostream& st) const
 	// Like when running CGB boot rom with DMG game, once boot rom finishes we need to convert PPU to DMG version, so the state need to be saved first,
 	// but no need to save CGB only state, like VRAM_BANK1.
 
-	const auto sys = System::Current();
+	const auto sys { System::Current() };
 
 	if (System::IsCGBDevice(sys))
 	{
@@ -71,13 +70,13 @@ void PPUCore<sys>::saveState(std::ostream& st) const
 	}
 }
 
-template <GBSystem sys>
-void PPUCore<sys>::loadState(std::istream& st)
+template <GBSystem s>
+void PPUCore<s>::loadState(std::istream& st)
 {
 	ST_READ(regs);
 	ST_READ(s);
 
-	const auto sys = System::Current();
+	const auto sys { System::Current() };
 
 	if (System::IsCGBDevice(sys))
 	{
@@ -118,8 +117,8 @@ void PPUCore<sys>::refreshDMGScreenColors(const std::array<color, 4>& newColorPa
 	{
 		for (uint8_t x = 0; x < SCR_WIDTH; x++)
 		{
-			color pixel = getPixel(x, y);
-			uint8_t pixelInd { static_cast<uint8_t>(std::find(PPU::ColorPalette, PPU::ColorPalette + 4, pixel) - PPU::ColorPalette) };
+			const color pixel { getPixel(x, y) };
+			const uint8_t pixelInd { static_cast<uint8_t>(std::find(PPU::ColorPalette, PPU::ColorPalette + 4, pixel) - PPU::ColorPalette) };
 			PixelOps::setPixel(framebuffer.get(), SCR_WIDTH, x, y, newColorPalette[pixelInd]);
 		}
 	}
@@ -182,7 +181,7 @@ void PPUCore<sys>::updateInterrupts()
 	bool interrupt { false };
 
 	// For 1M cycle after hblank is over and LY is incremented, lyc flag is forced to false.
-	if (s.lyIncremented)
+	if (s.lyIncremented) [[unlikely]]
 	{
 		regs.STAT = resetBit(regs.STAT, 2);
 		s.lyIncremented = false;
@@ -251,13 +250,13 @@ void PPUCore<sys>::SetPPUMode(PPUMode mode)
 }
 
 template <GBSystem sys>
-void PPUCore<sys>::execute(uint8_t cycles)
+void PPUCore<sys>::execute()
 {
 	s.prevState = s.state;
 
 	if constexpr (System::IsCGBDevice(sys))
 	{
-		if (s.cgbVBlankFlag)
+		if (s.cgbVBlankFlag) [[unlikely]]
 		{
 			cpu.requestInterrupt(Interrupt::VBlank);
 			s.cgbVBlankFlag = false;
@@ -273,9 +272,9 @@ void PPUCore<sys>::execute(uint8_t cycles)
 
 			if (s.videoCycles < TOTAL_VBLANK_CYCLES)
 			{
-				s.videoCycles += cycles;
+				s.videoCycles += cpu.TcyclesPerM();
 
-				if (s.videoCycles >= TOTAL_VBLANK_CYCLES)
+				if (s.videoCycles >= TOTAL_VBLANK_CYCLES) [[unlikely]]
 					clearBuffer();
 			}
 		}
@@ -283,7 +282,7 @@ void PPUCore<sys>::execute(uint8_t cycles)
 		return;
 	};
 
-	for (int i = 0; i < cycles; i++)
+	const auto tick = [&]()
 	{
 		s.videoCycles++;
 		s.dotsUntilVBlank--;
@@ -303,6 +302,23 @@ void PPUCore<sys>::execute(uint8_t cycles)
 			handleVBlank();
 			break;
 		}
+	};
+
+	tick();
+	tick();
+
+	if constexpr (sys == GBSystem::CGB)
+	{
+		if (!cpu.doubleSpeedMode())
+		{
+			tick();
+			tick();
+		}
+	}
+	else
+	{
+		tick();
+		tick();
 	}
 
 	updateInterrupts();
@@ -311,14 +327,14 @@ void PPUCore<sys>::execute(uint8_t cycles)
 template <GBSystem sys>
 void PPUCore<sys>::handleHBlank()
 {
-	if (s.videoCycles >= s.hblankCycles)
+	if (s.videoCycles >= s.hblankCycles) [[unlikely]]
 	{
 		s.videoCycles -= s.hblankCycles;
 
 		// After LCD is being enabled, first hblank is "fake" and is 4 cycles shorter than oam scan, and continues to pixel transfer instead of oam scan.
 		const bool isFakeHBlank { s.hblankCycles == OAM_SCAN_CYCLES - 4 };
 
-		if (!isFakeHBlank)
+		if (!isFakeHBlank) [[likely]]
 		{
 			s.LY++;
 			if (bgFIFO.s.fetchingWindow) s.WLY++;
@@ -331,7 +347,7 @@ void PPUCore<sys>::handleHBlank()
 				mmu.gbc.ghdma.active = false;
 		}
 
-		if (s.LY == 144)
+		if (s.LY == 144) [[unlikely]]
 		{
 			SetPPUMode(PPUMode::VBlank);
 
@@ -357,47 +373,37 @@ void PPUCore<sys>::handleHBlank()
 template <GBSystem sys>
 void PPUCore<sys>::handleOAMSearch()
 {
-	if (s.videoCycles >= OAM_SCAN_CYCLES)
+	if (s.videoCycles >= OAM_SCAN_CYCLES) [[unlikely]]
 	{
 		s.videoCycles -= OAM_SCAN_CYCLES;
 		objCount = 0;
 
-		const bool doubleObj { DoubleOBJSize() };
-
-		for (uint8_t OAMAddr = 0; OAMAddr < sizeof(OAM); OAMAddr += 4)
+		for (uint8_t oamAddr = 0; oamAddr < sizeof(OAM) && objCount < 10; oamAddr += 4)
 		{
-			const int16_t objY { static_cast<int16_t>(OAM[OAMAddr]) - 16 };
-			const int16_t objX { static_cast<int16_t>(OAM[OAMAddr + 1]) - 8 };
-			const uint8_t tileInd { OAM[OAMAddr + 2] };
-			const uint8_t attributes { OAM[OAMAddr + 3] };
+			const int16_t objY { static_cast<int16_t>(OAM[oamAddr] - 16) };
+			const int16_t objX { static_cast<int16_t>(OAM[oamAddr + 1] - 8) };
+			const uint8_t tileInd { OAM[oamAddr + 2] };
+			const uint8_t attributes { OAM[oamAddr + 3] };
 			const bool yFlip { static_cast<bool>(getBit(attributes, 6)) };
 
-			if (!doubleObj)
+			if (!DoubleOBJSize())
 			{
 				if (s.LY >= objY && s.LY < objY + 8)
-				{
-					selectedObjects[objCount] = OAMobject{ objX, objY, static_cast<uint16_t>(tileInd * 16), attributes, OAMAddr };
-					objCount++;
-				}
+					selectedObjects[objCount++] = OAMobject{ objX, objY, static_cast<uint16_t>(tileInd * 16), attributes, oamAddr };
 			}
 			else
 			{
 				if (s.LY >= objY && s.LY < objY + 8)
 				{
 					const uint16_t tileAddr = yFlip ? ((tileInd & 0xFE) + 1) * 16 : (tileInd & 0xFE) * 16;
-					selectedObjects[objCount] = OAMobject{ objX, objY, tileAddr, attributes, OAMAddr };
-					objCount++;
+					selectedObjects[objCount++] = OAMobject{ objX, objY, tileAddr, attributes, oamAddr };
 				}
 				else if (s.LY >= objY + 8 && s.LY < objY + 16)
 				{
 					const uint16_t tileAddr = yFlip ? (tileInd & 0xFE) * 16 : ((tileInd & 0xFE) + 1) * 16;
-					selectedObjects[objCount] = OAMobject{ objX, static_cast<int16_t>(objY + 8), tileAddr, attributes, OAMAddr };
-					objCount++;
+					selectedObjects[objCount++] = OAMobject{ objX, static_cast<int16_t>(objY + 8), tileAddr, attributes, oamAddr };
 				}
 			}
-
-			if (objCount == 10)
-				break;
 		}
 
 		std::stable_sort(selectedObjects.begin(), selectedObjects.begin() + objCount, [](const auto& a, const auto& b) { return a.X < b.X; });
@@ -409,7 +415,7 @@ void PPUCore<sys>::handleOAMSearch()
 template <GBSystem sys>
 void PPUCore<sys>::handleVBlank()
 {
-	if (s.videoCycles >= s.vblankLineCycles)
+	if (s.videoCycles >= s.vblankLineCycles) [[unlikely]]
 	{
 		s.videoCycles -= s.vblankLineCycles;
 		s.LY++;
@@ -450,7 +456,12 @@ void PPUCore<sys>::handlePixelTransfer()
 	tryStartSpriteFetcher();
 
 	if (objFIFO.s.fetcherActive)
-		executeObjFetcher();
+	{
+		//if (bgFIFO.s.state != FetcherState::PushFIFO)
+		//	executeBGFetcher();
+		//else
+			executeObjFetcher();
+	}
 	else
 		executeBGFetcher();
 
@@ -463,12 +474,15 @@ void PPUCore<sys>::handlePixelTransfer()
 		}
 	}
 
-	if (!objFIFO.s.fetcherActive && !bgFIFO.empty())
+	if (!objFIFO.s.fetcherActive && !bgFIFO.empty()) [[likely]]
 	{
 		renderFIFOs();
 
 		if (s.xPosCounter == SCR_WIDTH) [[unlikely]]
 		{
+			//if (s.videoCycles >= 289)
+			//	std::cout << "Dots: " << +s.videoCycles << " obj: " << +objCount << " scx: " << +regs.SCX << " new scaline: " << (bgFIFO.s.newScanline ? "true" : "false")  <<'\n';
+
 			SetPPUMode(PPUMode::HBlank);
 			s.videoCycles = 0;
 		}
@@ -527,13 +541,15 @@ void PPUCore<sys>::executeBGFetcher()
 
 		if ((bgFIFO.s.cycles & 0x1) == 0)
 		{
+			const int tileDataAddr { getBGTileAddr(bgFIFO.s.tileMap) + getBGTileOffset() };
+
 			if constexpr (sys == GBSystem::CGB)
 			{
-				const uint8_t* bank = getBit(bgFIFO.s.cgbAttributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data();
-				bgFIFO.s.tileLow = bank[getBGTileAddr(bgFIFO.s.tileMap) + getBGTileOffset()];
+				const uint8_t* bank { getBit(bgFIFO.s.cgbAttributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data() };
+				bgFIFO.s.tileLow = bank[tileDataAddr];
 			}
 			else
-				bgFIFO.s.tileLow = VRAM_BANK0[getBGTileAddr(bgFIFO.s.tileMap) + getBGTileOffset()];
+				bgFIFO.s.tileLow = VRAM_BANK0[tileDataAddr];
 
 			bgFIFO.s.state = FetcherState::FetchTileDataHigh;
 		}
@@ -551,13 +567,15 @@ void PPUCore<sys>::executeBGFetcher()
 				break;
 			}
 
+			const int tileDataAddr { getBGTileAddr(bgFIFO.s.tileMap) + getBGTileOffset() + 1 };
+
 			if constexpr (sys == GBSystem::CGB)
 			{
-				const uint8_t* bank = getBit(bgFIFO.s.cgbAttributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data();
-				bgFIFO.s.tileHigh = bank[getBGTileAddr(bgFIFO.s.tileMap) + getBGTileOffset() + 1];
+				const uint8_t* bank { getBit(bgFIFO.s.cgbAttributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data() };
+				bgFIFO.s.tileHigh = bank[tileDataAddr];
 			}
 			else
-				bgFIFO.s.tileHigh = VRAM_BANK0[getBGTileAddr(bgFIFO.s.tileMap) + getBGTileOffset() + 1];
+				bgFIFO.s.tileHigh = VRAM_BANK0[tileDataAddr];
 
 			bgFIFO.s.state = FetcherState::PushFIFO;
 		}
@@ -598,7 +616,6 @@ void PPUCore<sys>::executeBGFetcher()
 			bgFIFO.s.cycles = 0;
 			bgFIFO.s.state = FetcherState::FetchTileNo;
 		}
-
 		break;
 	}
 }
@@ -648,7 +665,7 @@ void PPUCore<sys>::executeObjFetcher()
 
 			objFIFO.s.state = FetcherState::PushFIFO;
 		}
-		break;
+		break; 
 	case FetcherState::PushFIFO:
 		const bool bgPriority = getBit(obj.attributes, 7);
 		const bool xFlip = getBit(obj.attributes, 5);
@@ -668,8 +685,8 @@ void PPUCore<sys>::executeObjFetcher()
 
 		for (int i = cntStart; i != cntEnd; i += cntStep)
 		{
-			const int fifoInd = xFlip ? (i - cntStart) : (cntStart - i);
-			const uint8_t colorId = getColorID(objFIFO.s.tileLow, objFIFO.s.tileHigh, i);
+			const int fifoInd { xFlip ? (i - cntStart) : (cntStart - i) };
+			const uint8_t colorId { getColorID(objFIFO.s.tileLow, objFIFO.s.tileHigh, i) };
 			bool overwriteObj;
 
 			if constexpr (sys == GBSystem::CGB)
@@ -678,7 +695,7 @@ void PPUCore<sys>::executeObjFetcher()
 				overwriteObj = objFIFO[fifoInd].color == 0;
 
 			if (overwriteObj)
-				objFIFO[fifoInd] = FIFOEntry{ colorId, palette, bgPriority };
+				objFIFO[fifoInd] = FIFOEntry { colorId, palette, bgPriority };
 		}
 
 		objFIFO.s.objInd++;
@@ -692,47 +709,48 @@ void PPUCore<sys>::executeObjFetcher()
 template <GBSystem sys>
 void PPUCore<sys>::renderFIFOs()
 {
-	auto bg = bgFIFO.pop();
+	auto bg { bgFIFO.pop() };
 
 	if (bgFIFO.s.scanlineDiscardPixels > 0)
-		bgFIFO.s.scanlineDiscardPixels--;
-	else
 	{
-		if constexpr (sys != GBSystem::CGB)
-			if (!DMGTileMapsEnable()) bg.color = 0;
-
-		color outputColor;
-
-		if (!objFIFO.empty())
-		{
-			const auto obj = objFIFO.pop();
-			bool objHasPriority = obj.color != 0 && OBJEnable();
-
-			if constexpr (sys == GBSystem::CGB)
-				objHasPriority &= (bg.color == 0 || GBCMasterPriority() || (!obj.priority && !bg.priority));
-			else
-				objHasPriority &= (!obj.priority || bg.color == 0);
-
-			outputColor = objHasPriority ? getColor<true>(obj.color, obj.palette) : getColor<false>(bg.color, bg.palette);
-
-			if (debugPPU) [[unlikely]]
-			{
-				if (objHasPriority)
-					PixelOps::setPixel(debugOAMFramebuffer.get(), SCR_WIDTH, s.xPosCounter, s.LY, getColor<true>(obj.color, obj.palette));
-			}
-		}
-		else
-			outputColor = getColor<false>(bg.color, bg.palette);
-
-		if (debugPPU) [[unlikely]]
-		{
-			const auto framebuffer = bgFIFO.s.fetchingWindow ? debugWindowFramebuffer.get() : debugBGFramebuffer.get();
-			PixelOps::setPixel(framebuffer, SCR_WIDTH, s.xPosCounter, s.LY, getColor<false>(bg.color, bg.palette));
-		}
-
-		setPixel(s.xPosCounter, s.LY, outputColor);
-		s.xPosCounter++;
+		bgFIFO.s.scanlineDiscardPixels--;
+		return;
 	}
+
+	if constexpr (sys != GBSystem::CGB)
+		if (!DMGTileMapsEnable()) bg.color = 0;
+
+	color outputColor;
+
+	if (!objFIFO.empty())
+	{
+		const auto obj { objFIFO.pop() };
+		bool objHasPriority { obj.color != 0 && OBJEnable() };
+
+		if constexpr (sys == GBSystem::CGB)
+			objHasPriority &= (bg.color == 0 || GBCMasterPriority() || (!obj.priority && !bg.priority));
+		else
+			objHasPriority &= (!obj.priority || bg.color == 0);
+
+		outputColor = objHasPriority ? getColor<true>(obj.color, obj.palette) : getColor<false>(bg.color, bg.palette);
+
+		if (debugPPU)
+		{
+			if (objHasPriority)
+				PixelOps::setPixel(debugOAMFramebuffer.get(), SCR_WIDTH, s.xPosCounter, s.LY, getColor<true>(obj.color, obj.palette));
+		}
+	}
+	else
+		outputColor = getColor<false>(bg.color, bg.palette);
+
+	if (debugPPU)
+	{
+		const auto framebuf { bgFIFO.s.fetchingWindow ? debugWindowFramebuffer.get() : debugBGFramebuffer.get() };
+		PixelOps::setPixel(framebuf, SCR_WIDTH, s.xPosCounter, s.LY, getColor<false>(bg.color, bg.palette));
+	}
+
+	setPixel(s.xPosCounter, s.LY, outputColor);
+	s.xPosCounter++;
 }
 
 
@@ -742,24 +760,24 @@ void PPUCore<sys>::renderFIFOs()
 template <GBSystem sys>
 void PPUCore<sys>::renderTileData(uint8_t* buffer, int vramBank)
 {
-	const uint8_t* vram = vramBank == 1 ? VRAM_BANK1.data() : VRAM_BANK0.data();
+	const uint8_t* vram { vramBank == 1 ? VRAM_BANK1.data() : VRAM_BANK0.data() };
 
-	for (uint16_t addr = 0; addr < 0x17FF; addr += 16)
+	for (int addr = 0; addr < 0x17FF; addr += 16)
 	{
-		const uint16_t tileInd = addr / 16;
-		const uint16_t screenX = (tileInd % 16) * 8;
-		const uint16_t screenY = (tileInd / 16) * 8;
+		const int tileInd { addr / 16 };
+		const int screenX { (tileInd % 16) * 8 };
+		const int screenY { (tileInd / 16) * 8 };
 
-		for (uint8_t y = 0; y < 8; y++)
+		for (int y = 0; y < 8; y++)
 		{
-			const uint8_t yPos { static_cast<uint8_t>(y + screenY) };
+			const int yPos { y + screenY };
 			const uint8_t lsbLineByte { vram[addr + y * 2] };
 			const uint8_t msbLineByte { vram[addr + y * 2 + 1] };
 
-			for (int8_t x = 7; x >= 0; x--)
+			for (int x = 7; x >= 0; x--)
 			{
-				const uint8_t colorId = (getBit(msbLineByte, x) << 1) | getBit(lsbLineByte, x);
-				const uint8_t xPos { static_cast<uint8_t>(7 - x + screenX) };
+				const uint8_t colorId { getColorID(lsbLineByte, msbLineByte, x) };
+				const int xPos { 7 - x + screenX };
 				PixelOps::setPixel(buffer, TILES_WIDTH, xPos, yPos, PPU::ColorPalette[colorId]);
 			}
 		}
@@ -769,53 +787,52 @@ void PPUCore<sys>::renderTileData(uint8_t* buffer, int vramBank)
 template <GBSystem sys>
 void PPUCore<sys>::renderTileMap(uint8_t* buffer, uint16_t tileMapAddr)
 {
-	for (uint16_t y = 0; y < 32; y++)
+	for (int y = 0; y < 32; y++)
 	{
-		for (uint16_t x = 0; x < 32; x++)
+		for (int x = 0; x < 32; x++)
 		{
-			const uint16_t tileMapInd = tileMapAddr + y * 32 + x;
-			const uint8_t tileMap = VRAM_BANK0[tileMapInd];
-			const uint16_t screenX = x * 8, screenY = y * 8;
+			const int tileMapInd { tileMapAddr + y * 32 + x };
+			const uint8_t tileMap { VRAM_BANK0[tileMapInd] };
+			const int screenX { x * 8 }, screenY { y * 8 };
 
 			if constexpr (sys == GBSystem::CGB)
 			{
-				const uint8_t attributes = VRAM_BANK1[tileMapInd];
+				const uint8_t attributes { VRAM_BANK1[tileMapInd] };
 
 				const bool yFlip = getBit(attributes, 6);
 				const bool xFlip = getBit(attributes, 5);
-				const uint8_t* bank = getBit(attributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data();
-				const uint8_t cgbPalette = attributes & 0x7;
+				const uint8_t* bank { getBit(attributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data() };
 
-				const int8_t yStart = (yFlip ? 7 : 0), yEnd = (yFlip ? -1 : 8), yStep = (yFlip ? -1 : 1);
+				const int yStart { yFlip ? 7 : 0 }, yEnd { yFlip ? -1 : 8 }, yStep { yFlip ? -1 : 1 };
 
-				for (int8_t tileY = yStart; tileY != yEnd; tileY += yStep)
+				for (int tileY = yStart; tileY != yEnd; tileY += yStep)
 				{
-					const uint8_t yPos { static_cast<uint8_t>(tileY + screenY) };
-					const uint8_t lsbLineByte{ bank[getBGTileAddr(tileMap) + tileY * 2] };
-					const uint8_t msbLineByte{ bank[getBGTileAddr(tileMap) + tileY * 2 + 1] };
+					const uint8_t lsbLineByte { bank[getBGTileAddr(tileMap) + tileY * 2] };
+					const uint8_t msbLineByte { bank[getBGTileAddr(tileMap) + tileY * 2 + 1] };
 
-					const int8_t xStart = (xFlip ? 0 : 7), xEnd = (xFlip ? 8 : -1), xStep = (xFlip ? 1 : -1);
+					const int yPos { tileY + screenY };
+					const int xStart { xFlip ? 0 : 7 }, xEnd { xFlip ? 8 : -1 }, xStep { xFlip ? 1 : -1 };
 
-					for (int8_t tileX = xStart; tileX != xEnd; tileX += xStep)
+					for (int tileX = xStart; tileX != xEnd; tileX += xStep)
 					{
-						const uint8_t colorId = getColorID(lsbLineByte, msbLineByte, tileX);
-						const uint8_t xPos{ static_cast<uint8_t>(7 - tileX + screenX) };
-						PixelOps::setPixel(buffer, TILEMAP_WIDTH, xPos, yPos, getColor<false>(colorId, cgbPalette));
+						const uint8_t colorId { getColorID(lsbLineByte, msbLineByte, tileX) };
+						const int xPos { 7 - tileX + screenX };
+						PixelOps::setPixel(buffer, TILEMAP_WIDTH, xPos, yPos, getColor<false>(colorId, attributes & 0x7));
 					}
 				}
 			}
 			else
 			{
-				for (uint8_t tileY = 0; tileY < 8; tileY++)
+				for (int tileY = 0; tileY < 8; tileY++)
 				{
-					const uint8_t yPos { static_cast<uint8_t>(tileY + screenY) };
+					const int yPos { tileY + screenY };
 					const uint8_t lsbLineByte { VRAM_BANK0[getBGTileAddr(tileMap) + tileY * 2] };
 					const uint8_t msbLineByte { VRAM_BANK0[getBGTileAddr(tileMap) + tileY * 2 + 1] };
 
-					for (int8_t tileX = 7; tileX >= 0; tileX--)
+					for (int tileX = 7; tileX >= 0; tileX--)
 					{
-						const uint8_t colorId = getColorID(lsbLineByte, msbLineByte, tileX);
-						const uint8_t xPos{ static_cast<uint8_t>(7 - tileX + screenX) };
+						const uint8_t colorId { getColorID(lsbLineByte, msbLineByte, tileX) };
+						const int xPos { 7 - tileX + screenX };
 						PixelOps::setPixel(buffer, TILEMAP_WIDTH, xPos, yPos, getColor<false>(colorId, 0));
 					}
 				}

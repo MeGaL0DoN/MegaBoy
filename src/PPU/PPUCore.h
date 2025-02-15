@@ -12,7 +12,7 @@ class PPUCore final : public PPU
 public:
 	PPUCore(MMU& mmu, CPU& cpu) : mmu(mmu), cpu(cpu) { }
 
-	void execute(uint8_t cycles) override;
+	void execute() override;
 	void reset(bool clearBuf) override;
 
 	void saveState(std::ostream& st) const override;
