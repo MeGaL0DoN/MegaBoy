@@ -7,7 +7,7 @@
 
 extern GBCore gb;
 
-const auto mINIFilePath = FileUtils::executableFolderPath / "data" / "config.ini";
+const auto mINIFilePath { FileUtils::executableFolderPath / "data" / "config.ini" };
 mINI::INIFile file { mINI::mINIFilePath(mINIFilePath) };
 mINI::INIStructure config;
 

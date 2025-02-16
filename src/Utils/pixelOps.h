@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <sstream>
 #include <iomanip>
+#include <array>
 #include <cstring>
 
 namespace PixelOps
@@ -60,18 +61,19 @@ namespace PixelOps
 
 	inline void setPixel(uint8_t* buffer, int width, int x, int y, color c)
 	{
-		auto pixel { reinterpret_cast<color*>(buffer + (y * width + x) * 3) };
+		auto* pixel { reinterpret_cast<color*>(buffer + (y * width + x) * 3) };
 		*pixel = { c.R, c.G, c.B };
 	}
 	inline color getPixel(const uint8_t* buffer, int width, int x, int y)
 	{
-		const auto pixel { reinterpret_cast<const color*>(buffer + (y * width + x) * 3) };
+		auto* pixel { reinterpret_cast<const color*>(buffer + (y * width + x) * 3) };
 		return *pixel;
 	}
 
 	inline void clearBuffer(uint8_t* buffer, int width, int height, color c) 
 	{
-		if (!buffer) return;
+		if (!buffer)
+			return;
 
 		const size_t totalBytes = width * height * 3;
 
@@ -82,7 +84,7 @@ namespace PixelOps
 		}
 
 		constexpr size_t PATTERN_SIZE = 384;
-		uint8_t pattern[PATTERN_SIZE];
+		std::array<uint8_t, PATTERN_SIZE> pattern;
 
 		for (int i = 0; i < PATTERN_SIZE; i += 3)
 		{
@@ -94,7 +96,7 @@ namespace PixelOps
 		size_t i = 0;
 
 		for (; i + PATTERN_SIZE <= totalBytes; i += PATTERN_SIZE)
-			std::memcpy(buffer + i, pattern, PATTERN_SIZE);
+			std::memcpy(buffer + i, pattern.data(), PATTERN_SIZE);
 
 		for (; i + 3 <= totalBytes; i += 3)
 		{

@@ -785,13 +785,13 @@ void PPUCore<sys>::renderTileData(uint8_t* buffer, int vramBank)
 }
 
 template <GBSystem sys>
-void PPUCore<sys>::renderTileMap(uint8_t* buffer, uint16_t tileMapAddr)
+void PPUCore<sys>::renderTileMap(uint8_t* buffer, uint16_t addr)
 {
 	for (int y = 0; y < 32; y++)
 	{
 		for (int x = 0; x < 32; x++)
 		{
-			const int tileMapInd { tileMapAddr + y * 32 + x };
+			const int tileMapInd { (addr - 0x8000) + y * 32 + x};
 			const uint8_t tileMap { VRAM_BANK0[tileMapInd] };
 			const int screenX { x * 8 }, screenY { y * 8 };
 

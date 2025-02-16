@@ -20,8 +20,7 @@ public:
 
 	void refreshDMGScreenColors(const std::array<color, 4>& newColors) override;
 
-	inline void renderBGTileMap(uint8_t* buffer) override { renderTileMap(buffer, BGTileMapAddr()); }
-	inline void renderWindowTileMap(uint8_t* buffer) override { renderTileMap(buffer, WindowTileMapAddr()); }
+	void renderTileMap(uint8_t* buffer, uint16_t addr) override;
 	void renderTileData(uint8_t* buffer, int vramBank) override;
 private:
 	MMU& mmu;
@@ -46,10 +45,7 @@ private:
 		invokeDrawCallback(firstFrame);
 	}
 
-	void renderTileMap(uint8_t* buffer, uint16_t tileMapAddr);
-
 	void updateInterrupts();
-
 	void SetPPUMode(PPUMode ppuState);
 	void setLCDEnable(bool val) override;
 

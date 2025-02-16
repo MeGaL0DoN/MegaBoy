@@ -90,25 +90,25 @@ void debugUI::refreshCurrentVRAMTab()
     switch (currentVramTab)
     {
     case VRAMTab::TileData:
-        if (!tileDataFrameBuffer)
-            tileDataFrameBuffer = std::make_unique<uint8_t[]>(PPU::TILEDATA_FRAMEBUFFER_SIZE);
+        if (!tileDataFramebuffer)
+            tileDataFramebuffer = std::make_unique<uint8_t[]>(PPU::TILEDATA_FRAMEBUFFER_SIZE);
 
-        gb.ppu->renderTileData(tileDataFrameBuffer.get(), System::Current() == GBSystem::CGB ? vramTileBank : 0);
-        updateTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileDataFrameBuffer.get());
+        gb.ppu->renderTileData(tileDataFramebuffer.get(), System::Current() == GBSystem::CGB ? vramTileBank : 0);
+        updateTexture(tileDataTexture, PPU::TILES_WIDTH, PPU::TILES_HEIGHT, tileDataFramebuffer.get());
         break;
-    case VRAMTab::BackgroundMap:
-        if (!BGFrameBuffer)
-            BGFrameBuffer = std::make_unique<uint8_t[]>(PPU::TILEMAP_FRAMEBUFFER_SIZE);
+    case VRAMTab::TileMap9800:
+        if (!map9800Framebuffer)
+            map9800Framebuffer = std::make_unique<uint8_t[]>(PPU::TILEMAP_FRAMEBUFFER_SIZE);
 
-        gb.ppu->renderBGTileMap(BGFrameBuffer.get());
-        updateTexture(backgroundMapTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, BGFrameBuffer.get());
+        gb.ppu->renderTileMap(map9800Framebuffer.get(), 0x9800);
+        updateTexture(map9800Texture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, map9800Framebuffer.get());
         break;
-    case VRAMTab::WindowMap:
-        if (!windowFrameBuffer)
-            windowFrameBuffer = std::make_unique<uint8_t[]>(PPU::TILEMAP_FRAMEBUFFER_SIZE);
+    case VRAMTab::TileMap9C00:
+        if (!map9C00Framebuffer)
+            map9C00Framebuffer = std::make_unique<uint8_t[]>(PPU::TILEMAP_FRAMEBUFFER_SIZE);
 
-        gb.ppu->renderWindowTileMap(windowFrameBuffer.get());
-        updateTexture(windowMapTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, windowFrameBuffer.get());
+        gb.ppu->renderTileMap(map9C00Framebuffer.get(), 0x9C00);
+        updateTexture(map9C00Texture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, map9C00Framebuffer.get());
         break;
     case VRAMTab::PPUOutput:
         updateTexture(oamTexture, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gb.ppu->oamFramebuffer());
@@ -1083,18 +1083,18 @@ void debugUI::renderWindows(float scaleFactor)
                 {
                     if (ImGui::BeginTabBar("tileMapsTabBar"))
                     {
-                        if (ImGui::BeginTabItem("Background Map"))
+                        if (ImGui::BeginTabItem("9800 Map"))
                         {
-                            currentVramTab = VRAMTab::BackgroundMap;
+                            currentVramTab = VRAMTab::TileMap9800;
                             displayRefreshButton();
-                            displayImage(backgroundMapTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, tileMapViewScale);
+                            displayImage(map9800Texture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, tileMapViewScale);
                             ImGui::EndTabItem();
                         }
-                        if (ImGui::BeginTabItem("Window Map"))
+                        if (ImGui::BeginTabItem("9C00 Map"))
                         {
-                            currentVramTab = VRAMTab::WindowMap;
+                            currentVramTab = VRAMTab::TileMap9C00;
                             displayRefreshButton();
-                            displayImage(windowMapTexture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, tileMapViewScale);
+                            displayImage(map9C00Texture, PPU::TILEMAP_WIDTH, PPU::TILEMAP_HEIGHT, tileMapViewScale);
                             ImGui::EndTabItem();
                         }
 

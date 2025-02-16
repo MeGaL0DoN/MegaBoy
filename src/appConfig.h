@@ -10,7 +10,7 @@ namespace appConfig
 	inline bool autosaveState{ true };
 	inline bool batterySaves{ true };
 
-	inline bool blending { false };
+	inline bool blending { true };
 	inline bool vsync { true };
 	inline bool integerScaling { true };
 	inline bool bilinearFiltering { false };

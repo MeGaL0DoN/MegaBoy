@@ -9,6 +9,7 @@
 #include "Utils/Shader.h"
 #include "Utils/fileUtils.h"
 #include "Utils/glFunctions.h"
+#include "Utils/memstream.h"
 
 #include <iostream>
 #include <filesystem>
@@ -91,7 +92,7 @@ constexpr float FADE_DURATION { 0.9f };
 bool fadeEffectActive { false };
 float fadeTime { 0.0f };
 
-bool fastForwarding { false };
+bool fastForwarding { false }, fastForwardChangeFlag { false };
 constexpr int FAST_FORWARD_SPEED = 5;
 
 bool lockVSyncSetting { false };
@@ -561,13 +562,13 @@ inline void updateImGUIViewports()
 #ifndef EMSCRIPTEN
 std::filesystem::path saveFileDialog(const std::string& defaultName, const nfdnfilteritem_t* filter)
 {
-    APU::IsMainThreadBlocked = true;
+    APU::isMainThreadBlocked = true;
     fileDialogOpen = true;
 
     NFD::UniquePathN outPath;
     const auto result { NFD::SaveDialog(outPath, filter, 1, nullptr, FileUtils::nativePathFromUTF8(defaultName).c_str()) };
 
-    APU::IsMainThreadBlocked = false;
+    APU::isMainThreadBlocked = false;
     fileDialogOpen = false;
 
     return result == NFD_OKAY ? outPath.get() : std::filesystem::path();
@@ -575,13 +576,13 @@ std::filesystem::path saveFileDialog(const std::string& defaultName, const nfdnf
 
 std::filesystem::path openFileDialog(const nfdnfilteritem_t* filter)
 {
-    APU::IsMainThreadBlocked = true;
+    APU::isMainThreadBlocked = true;
     fileDialogOpen = true;
 
     NFD::UniquePathN outPath;
     const auto result { NFD::OpenDialog(outPath, filter, 1) };
 
-    APU::IsMainThreadBlocked = false;
+    APU::isMainThreadBlocked = false;
     fileDialogOpen = false;
 
     return result == NFD_OKAY ? outPath.get() : std::filesystem::path();
@@ -1339,8 +1340,8 @@ void renderImGUI()
             constexpr std::array palettes { "BGB Green", "Grayscale", "Classic", "Custom" };
 
             static bool customPaletteOpen { false };
-            static std::array<std::array<float, 3>, 4> colors {};
-            static std::array<color, 4> tempCustomPalette {};
+            static std::array<std::array<float, 3>, 4> colors{};
+            static std::array<color, 4> tempCustomPalette{};
 
             const auto updateColors = []()
             {
@@ -1726,6 +1727,7 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
             gb.disableFastForward();
         }
 
+        fastForwardChangeFlag = true;
         return;
     }
 
@@ -2004,6 +2006,12 @@ void mainLoop()
     secondsTimer += deltaTime;
     gbTimer += deltaTime;
 
+    if (fastForwardChangeFlag)
+    {
+        gbTimer = std::clamp(gbTimer, 0.0, GBCore::FRAME_RATE);
+        fastForwardChangeFlag = false;
+    }
+
     const bool shouldRender { appConfig::vsync || gbTimer >= GBCore::FRAME_RATE };
 
     if (shouldRender)
@@ -2017,14 +2025,14 @@ void mainLoop()
 
             constexpr double SLEEP_THRESHOLD = 
 #ifdef _WIN32
-                0.0025; 
+                0.002; 
 #else
                 0.001;
 #endif
             if (remainder >= SLEEP_THRESHOLD) 
             {
                 // Sleep on windows is less precise than linux/macos, even with timeBeginPeriod(1). So need to sleep less time.
-                std::chrono::duration<double> sleepTime {
+                const std::chrono::duration<double> sleepTime {
 #ifdef _WIN32
                     remainder <= 0.004 ? 0.001 : remainder <= 0.006 ? 0.002 : remainder / 1.6
 #else
@@ -2036,28 +2044,36 @@ void mainLoop()
         }
 #endif
     }
-    while (gbTimer >= GBCore::FRAME_RATE)
+
+    constexpr int MAX_UPDATES = 2;
+    int numUpdates { 0 };
+
+    while (gbTimer >= GBCore::FRAME_RATE && numUpdates < MAX_UPDATES)
     {
         if (emulationRunning())
 		{
             const auto execStart { glfwGetTime() };
-            APU::LastMainThreadTime = execStart;
-
+            APU::lastMainThreadTime = execStart;
+            
             gb.emulateFrame();
-
+            
             gbExecuteTimes += (glfwGetTime() - execStart);
             gbFrameCount++;
-		}
 
+            numUpdates++;
+		}
+        
         gbTimer -= GBCore::FRAME_RATE;
     }
 
     if (shouldRender)
     {
         const auto cur { glfwGetTime() };
-        render(cur - lastRenderTime);
-        frameTimes += (glfwGetTime() - lastFrameTime);
+        const auto elapsed { cur - lastRenderTime };
+        render(elapsed);
         lastRenderTime = cur;
+
+        frameTimes += elapsed;
         frameCount++;
     }
 

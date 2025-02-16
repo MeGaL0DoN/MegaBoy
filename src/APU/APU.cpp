@@ -69,12 +69,12 @@ void APU::reset()
 
 void sound_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
 {
-	auto* gb = static_cast<GBCore*>(pDevice->pUserData);
-	auto& apu = gb->apu;
-	auto* pOutput16 = static_cast<int16_t*>(pOutput);
+	auto& gb { *static_cast<GBCore*>(pDevice->pUserData) };
+	auto& apu { gb.apu };
+	auto* pOutput16 { static_cast<int16_t*>(pOutput) };
 
-	const bool mainThreadBlocked { APU::IsMainThreadBlocked || ((glfwGetTime() - APU::LastMainThreadTime) > 0.1) };
-	const bool emulationStopped { gb->emulationPaused || gb->breakpointHit || !gb->cartridge.ROMLoaded() || mainThreadBlocked };
+	const bool mainThreadBlocked { APU::isMainThreadBlocked || ((glfwGetTime() - APU::lastMainThreadTime) > 0.1) };
+	const bool emulationStopped { gb.emulationPaused || gb.breakpointHit || !gb.cartridge.ROMLoaded() || mainThreadBlocked };
 
 	if (!appConfig::enableAudio || emulationStopped || !apu.enabled())
 	{
@@ -241,8 +241,8 @@ void APU::execute(int cycles)
 
 std::pair<int16_t, int16_t> APU::generateSamples() 
 {
-	float leftSample = 0.f, rightSample = 0.f;
-	const uint8_t nr51 = regs.NR51.load();
+	float leftSample { 0.f }, rightSample { 0.f };
+	const uint8_t nr51 { regs.NR51.load() };
 
 	const float sample1 = (channel1.getSample() / 15.f) * enabledChannels[0], sample2 = (channel2.getSample() / 15.f) * enabledChannels[1],
 				sample3 = (channel3.getSample() / 15.f) * enabledChannels[2], sample4 = (channel4.getSample() / 15.f) * enabledChannels[3];
@@ -260,7 +260,7 @@ std::pair<int16_t, int16_t> APU::generateSamples()
 	rightSample += sample4 * getBit(nr51, 3);
 
 	const uint8_t leftVolume = ((regs.NR50 & 0x70) >> 4) + 1, rightVolume = (regs.NR50 & 0x7) + 1;
-	const float scaleFactor = (volume * INT16_MAX) / 4.0f;
+	const float scaleFactor { (volume * INT16_MAX) / 4.0f };
 
 	leftSample *= scaleFactor * (leftVolume / 8.f);
 	rightSample *= scaleFactor * (rightVolume / 8.f);

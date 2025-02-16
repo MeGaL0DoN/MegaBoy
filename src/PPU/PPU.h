@@ -297,8 +297,7 @@ public:
 	virtual void refreshDMGScreenColors(const std::array<color, 4>& newColorPalette) = 0;
 
 	virtual void renderTileData(uint8_t* buffer, int vramBank) = 0;
-	virtual void renderBGTileMap(uint8_t* buffer) = 0;
-	virtual void renderWindowTileMap(uint8_t* buffer) = 0;
+	virtual void renderTileMap(uint8_t* buffer, uint16_t addr) = 0;
 
 	inline uint8_t* framebufferPtr() { return framebuffer.get(); }
 	inline uint8_t* backbufferPtr() { return backbuffer.get(); }

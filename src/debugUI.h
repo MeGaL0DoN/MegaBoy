@@ -24,8 +24,8 @@ private:
 	enum class VRAMTab 
 	{
 		TileData,
-		BackgroundMap,
-		WindowMap,
+		TileMap9800,
+		TileMap9C00,
 		PPUOutput
 	};
 	enum class MemView : int
@@ -62,12 +62,12 @@ private:
 	static inline auto currentVramTab { VRAMTab::TileData };
 	static inline int vramTileBank{ 0 };
 
-	static inline std::unique_ptr<uint8_t[]> BGFrameBuffer;
-	static inline std::unique_ptr<uint8_t[]> windowFrameBuffer;
-	static inline std::unique_ptr<uint8_t[]> tileDataFrameBuffer;
+	static inline std::unique_ptr<uint8_t[]> map9800Framebuffer;
+	static inline std::unique_ptr<uint8_t[]> map9C00Framebuffer;
+	static inline std::unique_ptr<uint8_t[]> tileDataFramebuffer;
 
-	static inline uint32_t backgroundMapTexture {0};
-	static inline uint32_t windowMapTexture {0};
+	static inline uint32_t map9800Texture {0};
+	static inline uint32_t map9C00Texture {0};
 	static inline uint32_t tileDataTexture {0};
 	static inline uint32_t oamTexture {0};
     static inline uint32_t backgroundTexture {0};

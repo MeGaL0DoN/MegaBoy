@@ -27,15 +27,15 @@ struct noiseWave
 		regs.NR44 = 0xBF;
 	}
 
-	inline bool dacEnabled() { return (regs.NR42 & 0xF8) != 0; }
+	inline bool dacEnabled() const { return (regs.NR42 & 0xF8) != 0; }
 
-	inline uint8_t getDivisor()
+	inline uint8_t getDivisor() const
 	{
 		const uint8_t divisorCode = regs.NR43 & 0x7;
 		return divisorCode == 0 ? 8 : divisorCode << 4;
 	}
 
-	inline uint16_t getPeriodTimer()
+	inline uint16_t getPeriodTimer() const
 	{
 		const uint8_t shiftAmount = (regs.NR43 & 0xF0) >> 4;
 		return getDivisor() << shiftAmount;
@@ -110,7 +110,7 @@ struct noiseWave
 		s.freqPeriodTimer--;
 	}
 
-	inline uint8_t getSample()
+	inline uint8_t getSample() const
 	{
 		const uint8_t baseAmplitude = ~s.LFSR & 0x01;
 		return baseAmplitude * s.amplitude * s.enabled;

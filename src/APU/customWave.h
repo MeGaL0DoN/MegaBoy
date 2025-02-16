@@ -32,14 +32,14 @@ struct customWave
 		regs.NR34 = 0xBF;
 	}
 
-	inline uint16_t getFrequency()
+	inline uint16_t getFrequency() const
 	{
 		return regs.NR33 | ((regs.NR34 & 0b111) << 8);
 	}
 
-	inline bool dacEnabled() { return getBit(regs.NR30.load(), 7); }
+	inline bool dacEnabled() const { return getBit(regs.NR30.load(), 7); }
 
-	inline uint8_t getVolumeShift()
+	inline uint8_t getVolumeShift() const
 	{
 		switch (regs.NR32 & 0b01100000)
 		{
@@ -84,7 +84,7 @@ struct customWave
 		s.freqPeriodTimer--;
 	}
 
-	inline uint8_t getSample()
+	inline uint8_t getSample() const
 	{
 		const uint8_t sample = (s.sampleInd & 1) == 0 ? (waveRAM[s.sampleInd >> 1] >> 4) : (waveRAM[s.sampleInd >> 1] & 0xF);
 		return (sample >> getVolumeShift()) * s.enabled;

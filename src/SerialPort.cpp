@@ -30,7 +30,7 @@ void SerialPort::execute()
         return;
 
     const bool highClockSpeed { System::Current() == GBSystem::CGB && (s.serial_control & 0b10) };
-    const uint16_t serialTransferCycles = highClockSpeed ? 128 : 4;
+    const int serialTransferCycles { highClockSpeed ? 128 : 4 };
 
     if (++s.serialCycles >= serialTransferCycles)
     {

@@ -30,9 +30,9 @@ struct squareWave
 		regs.NRx4 = 0xBF;
 	}
 
-	inline bool dacEnabled() { return (regs.NRx2 & 0xF8) != 0; }
+	inline bool dacEnabled() const { return (regs.NRx2 & 0xF8) != 0; }
 
-	inline uint16_t getFrequency()
+	inline uint16_t getFrequency() const
 	{
 		return regs.NRx3 | ((regs.NRx4 & 0b111) << 8);
 	}
@@ -100,7 +100,7 @@ struct squareWave
 		s.freqPeriodTimer--;
 	}
 
-	inline uint8_t getSample()
+	inline uint8_t getSample() const
 	{
 		const uint8_t dutyType = regs.NRx1 >> 6;
 		return DUTY_TABLE[dutyType][s.dutyStep] * s.amplitude * s.enabled;

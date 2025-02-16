@@ -33,7 +33,7 @@ public:
 	void execute(int cycles);
 	std::pair<int16_t, int16_t> generateSamples();
 
-	inline bool enabled() { return regs.apuEnable; }
+	inline bool enabled() const { return regs.apuEnable; }
 
 	void saveState(std::ostream& st) const;
 	void loadState(std::istream& st);
@@ -49,8 +49,8 @@ public:
 	std::atomic<bool> isRecording { false };
 	std::atomic<float> recordedSeconds { 0.f };
 
-	static inline std::atomic<bool> IsMainThreadBlocked { false };
-	static inline std::atomic<double> LastMainThreadTime { 0.0 };
+	static inline std::atomic<bool> isMainThreadBlocked { false };
+	static inline std::atomic<double> lastMainThreadTime { 0.0 };
 
 	void startRecording(const std::filesystem::path& filePath);
 	void stopRecording();
@@ -84,11 +84,11 @@ private:
 		return NR52;
 	}
 
-	inline uint8_t readPCM12()
+	inline uint8_t readPCM12() const
 	{
 		return (channel2.getSample() << 4) | channel1.getSample();
 	}
-	inline uint8_t readPCM34()
+	inline uint8_t readPCM34() const
 	{
 		return (channel4.getSample() << 4) | channel3.getSample();
 	}

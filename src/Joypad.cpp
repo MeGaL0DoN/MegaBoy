@@ -22,7 +22,7 @@ void Joypad::reset()
 
 void Joypad::update(int key, int action)
 {
-	auto updateInput = [&](uint8_t& keyState, bool readGroup, int keyConfigOffset) -> bool
+	const auto updateInput = [&](uint8_t& keyState, bool readGroup, int keyConfigOffset) -> bool
 	{
 		for (int i = keyConfigOffset; i < 4 + keyConfigOffset; i++)
 		{
