@@ -32,23 +32,25 @@ public:
 	explicit Cartridge(GBCore& gbCore);
 
 	inline MBCBase* getMapper() const { return mapper.get(); }
-	constexpr bool ROMLoaded() const { return romLoaded; }
+	constexpr bool loaded() const { return romLoaded; }
 	constexpr uint8_t getChecksum() const { return checksum; }
 
 	uint64_t getGBTotalCycles() const;
 
 	bool hasRAM { false };
 	bool hasBattery { false };
-	uint16_t romBanks { 0 };
+	uint16_t romBanks { 2 };
 	uint16_t ramBanks { 0 };
 
 	bool hasTimer { false };
 	RTCTimer timer { };
 
-	std::vector<uint8_t> rom { };
-	std::vector<uint8_t> ram { };
+	std::vector<uint8_t> rom{};
+	std::vector<uint8_t> ram{};
 
 	bool loadROM(std::istream& is);
+	void unload();
+
 	uint8_t calculateHeaderChecksum(std::istream& is) const;
 
 	inline void updateSystem()

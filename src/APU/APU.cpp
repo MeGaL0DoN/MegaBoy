@@ -74,7 +74,7 @@ void sound_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, 
 	auto* pOutput16 { static_cast<int16_t*>(pOutput) };
 
 	const bool mainThreadBlocked { APU::isMainThreadBlocked || ((glfwGetTime() - APU::lastMainThreadTime) > 0.1) };
-	const bool emulationStopped { gb.emulationPaused || gb.breakpointHit || !gb.cartridge.ROMLoaded() || mainThreadBlocked };
+	const bool emulationStopped { gb.emulationPaused || gb.breakpointHit || !gb.executingProgram() || mainThreadBlocked };
 
 	if (!appConfig::enableAudio || emulationStopped || !apu.enabled())
 	{

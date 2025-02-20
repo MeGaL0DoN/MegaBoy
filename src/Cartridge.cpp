@@ -10,9 +10,29 @@
 #include "Mappers/MBC5.h"
 #include "Mappers/HuC1.h"
 
-Cartridge::Cartridge(GBCore& gbCore) : gb(gbCore) { }
+Cartridge::Cartridge(GBCore& gbCore) : gb(gbCore), rom(std::vector<uint8_t>(MIN_ROM_SIZE * 2, 0xFF)), mapper(std::make_unique<RomOnlyMBC>(*this))
+{}
 
 uint64_t Cartridge::getGBTotalCycles() const { return gb.totalCycles(); }
+
+void Cartridge::unload()
+{
+	romLoaded = false;
+	hasRAM = false;
+	hasBattery = false;
+	hasTimer = false;
+	romBanks = 2;
+	ramBanks = 0;
+
+	rom.resize(MIN_ROM_SIZE * 2);
+	std::memset(rom.data(), 0xFF, MIN_ROM_SIZE * 2);
+	rom.shrink_to_fit();
+
+	ram.clear();
+	ram.shrink_to_fit();
+
+	mapper = std::make_unique<RomOnlyMBC>(*this);
+}
 
 bool Cartridge::loadROM(std::istream& is)
 {
@@ -190,7 +210,8 @@ bool Cartridge::proccessCartridgeHeader(std::istream& is, uint32_t fileSize)
 	this->checksum = checksum;
 
 	hasRAM = ramBanks != 0;
-	if (hasRAM) ram.resize(RAM_BANK_SIZE * ramBanks);
+	ram.resize(RAM_BANK_SIZE * ramBanks);
+	ram.shrink_to_fit();
 
 	gb.gameTitle = "";
 	is.seekg(0x134, std::ios::beg);

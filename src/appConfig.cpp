@@ -127,7 +127,7 @@ void appConfig::updateConfigFile()
 	config["bootroms"]["runBootROM"] = to_string(runBootROM);
 
 #ifndef EMSCRIPTEN
-	if (gb.cartridge.ROMLoaded())
+	if (gb.cartridge.loaded())
 	{
 		config["gameState"]["romPath"] = FileUtils::pathToUTF8(gb.getROMPath());
 		config["gameState"]["saveStateNum"] = std::to_string(gb.getSaveNum());

@@ -28,6 +28,7 @@ void MMU::reset()
 {
 	s = {};
 	gbc = {};
+	dmgCompatSwitch = false;
 
 	for (int i = 0; i < 0x2000; i++)
 		WRAM_BANKS[i] = RngOps::gen8bit();
@@ -286,18 +287,15 @@ void MMU::write8(uint16_t addr, uint8_t val)
 
 			isBootROMMapped = false;
 
-			if constexpr (sys == GBSystem::CGB)
-			{
-				if (gb.dmgCompatSwitch)
-					gb.enableDMGCompatMode();
-			}
+			if (bootRomExitEvent != nullptr)
+				bootRomExitEvent();
 
 			break;
 		case 0xFF4C: // KEY0
 			if constexpr (sys == GBSystem::CGB)
 			{
 				if (isBootROMMapped && getBit(val, 2))
-					gb.dmgCompatSwitch = true;
+					dmgCompatSwitch = true;
 			}
 			break;
 		case 0xFF4D:

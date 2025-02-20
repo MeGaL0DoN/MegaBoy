@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <array>
 #include <iostream>
+#include <functional>
 #include "gbSystem.h"
 
 class GBCore;
@@ -35,6 +36,8 @@ public:
 
 	void executeDMA();
 	void executeGHDMA();
+
+	std::function<void()> bootRomExitEvent{nullptr};
 
 	struct DMAstate
 	{
@@ -82,7 +85,8 @@ public:
 	DMGstate s{};
 	GBCState gbc{};
 
-	bool isBootROMMapped{ false };
+	bool isBootROMMapped { false };
+	bool dmgCompatSwitch { false };
 
 	std::array<uint8_t, 256> baseBootROM{};
 	std::array<uint8_t, 0x700> cgbBootROM{};

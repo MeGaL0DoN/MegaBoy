@@ -40,7 +40,7 @@ struct gameSharkCheat
 };
 struct gameGenieCheat
 {
-	bool enable{ true };
+	bool enable { true };
 	uint16_t addr{};
 	uint8_t newData{};
 	uint8_t oldData{};
@@ -58,7 +58,6 @@ class GBCore
 {
 	friend class debugUI;
 	friend class CPU;
-	friend class MMU;
 
 public:
 	static constexpr const char* DMG_BOOTROM_NAME = "dmg_boot.bin";
@@ -78,14 +77,16 @@ public:
 		return isBootROMValid(st, path);
 	}
 
-	GBCore() { updatePPUSystem(); }
+	GBCore();
 
-	constexpr void emulateFrame() { (this->*emulateFrameFunc)(); }
+	inline void emulateFrame() { (this->*emulateFrameFunc)(); }
 
-	inline void setDrawCallback(void (*callback)(const uint8_t*, bool))
-	{
-		this->drawCallback = callback;
-	}
+	inline void unmapBootROM() { mmu.isBootROMMapped = false; }
+	inline bool executingBootROM() { return mmu.isBootROMMapped; }
+	inline bool executingProgram() { return cartridge.loaded() || mmu.isBootROMMapped; }
+
+	inline void setDrawCallback(void (*callback)(const uint8_t*, bool)) { drawCallback = callback; }
+	inline void setBootRomExitCallback(void(*callback)()) { bootRomExitCallback = callback; }
 
 	static constexpr std::string_view SAVE_STATE_SIGNATURE = "MegaBoy Emulator Save State";
 	static bool isSaveStateFile(std::istream& st);
@@ -94,16 +95,18 @@ public:
 
 	inline FileLoadResult loadFile(const std::filesystem::path& filePath, bool loadBatteryOnRomload)
 	{
-		std::ifstream st{ filePath, std::ios::in | std::ios::binary };
+		std::ifstream st { filePath, std::ios::in | std::ios::binary };
 		return loadFile(st, filePath, loadBatteryOnRomload);
 	}
+
+	bool runNoCartridgeBootROM(GBSystem bootSys);
 
 	inline void loadCurrentBatterySave() const
 	{
 		if (!cartridge.hasBattery || !appConfig::batterySaves)
 			return;
 
-		if (std::ifstream st{ getBatteryFilePath(), std::ios::in | std::ios::binary })
+		if (std::ifstream st { getBatteryFilePath(), std::ios::in | std::ios::binary })
 		{
 			backupBatteryFile();
 			cartridge.getMapper()->loadBattery(st);
@@ -114,7 +117,7 @@ public:
 	FileLoadResult loadState(int num);
 	bool loadSaveStateThumbnail(const std::filesystem::path& path, std::span<uint8_t> framebuffer) const;
 
-	constexpr bool canSaveStateNow() const { return cartridge.ROMLoaded() && !mmu.isBootROMMapped; }
+	constexpr bool canSaveStateNow() const { return cartridge.loaded() && !mmu.isBootROMMapped; }
 
 	void saveState(const std::filesystem::path& path) const;
 	void saveState(int num);
@@ -159,13 +162,18 @@ public:
 
 	inline void resetRom(bool resetBattery)
 	{
-		if (!cartridge.ROMLoaded())
+		if (!executingProgram())
 			return;
 
-		if (resetBattery) 
-			backupBatteryFile();
+		if (cartridge.loaded())
+		{
+			if (resetBattery)
+				backupBatteryFile();
 
-		reset(resetBattery);
+			reset(resetBattery);
+		}
+		else
+			reset(false, true, false);
 	}
 
 	constexpr void enableFastForward(int factor)
@@ -196,6 +204,9 @@ public:
 	Cartridge cartridge { *this };
 private:
 	void (*drawCallback)(const uint8_t* framebuffer, bool firstFrame) { nullptr };
+	void (*bootRomExitCallback)() { nullptr };
+	void (GBCore::*emulateFrameFunc)() { &GBCore::_emulateFrame<false> };
+
 	bool ppuDebugEnable{ false };
 
 	uint64_t cycleCounter{ 0 };
@@ -209,10 +220,6 @@ private:
 
 	std::array<bool, 0x10000> breakpoints{};
 	std::array<bool, 0x100> opcodeBreakpoints{};
-
-	bool dmgCompatSwitch { false };
-
-	void (GBCore::*emulateFrameFunc)() { &GBCore::_emulateFrame<false> };
 
 	inline void enableBreakpointChecks(bool val)
 	{
@@ -229,7 +236,6 @@ private:
 		ppuDebugEnable = val;
 		if (ppu) ppu->setDebugEnable(val);
 	}
-
 	inline void updateSelectedSaveInfo(int saveStateNum)
 	{
 		currentSave = saveStateNum;
@@ -242,15 +248,10 @@ private:
 	void loadBootROM();
 	void enableDMGCompatMode();
 
-	inline void vBlankHandler(const uint8_t* framebuffer, bool firstFrame)
+	inline void updateSystem()
 	{
-		for (const auto& cheat : gameSharks)
-		{
-			if (cheat.enable)
-				mmu.write8(cheat.addr, cheat.newData);
-		}
-
-		drawCallback(framebuffer, firstFrame);
+		updatePPUSystem();
+		mmu.updateSystem();
 	}
 
 	bool loadROM(std::istream& st, const std::filesystem::path& filePath);

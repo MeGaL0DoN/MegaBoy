@@ -75,7 +75,7 @@ private:
 	}
 	inline uint16_t fetch16()
 	{
-		uint8_t low = read8(s.PC++);
+		const uint8_t low { read8(s.PC++) };
 		return (read8(s.PC++) << 8) | low;
 	}
 

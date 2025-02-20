@@ -66,7 +66,9 @@ Shader scalingShader{};
 Shader lcdShader{};
 
 Shader* currentShader{ };
-std::array<uint32_t, 2> gbFramebufferTextures{};
+std::array<uint32_t, 2> gbTextures{};
+
+const std::vector<uint8_t> whiteBG(PPU::FRAMEBUFFER_SIZE, 255);
 
 bool glScreenshotRequested { false };
 bool fileDialogOpen { false };
@@ -103,9 +105,9 @@ constexpr int NUM_SAVE_STATES { 10 };
 std::array<bool, NUM_SAVE_STATES> modifiedSaveStates{};
 bool showSaveStatePopUp{ false };
 
-inline bool emulationRunning()
+bool emulationRunning()
 {
-    const bool isRunning { !gb.emulationPaused && gb.cartridge.ROMLoaded() && !gb.breakpointHit };
+    const bool isRunning { !gb.emulationPaused && gb.executingProgram() && !gb.breakpointHit};
 #ifdef EMSCRIPTEN
     return isRunning && !emscripten_saves_syncing;
 #else
@@ -113,15 +115,15 @@ inline bool emulationRunning()
 #endif
 }
 
-inline void updateWindowTitle()
+void updateWindowTitle()
 {
-    const std::string title { (gb.gameTitle.empty() ? APP_NAME : "MegaBoy - " + gb.gameTitle) };
+    const std::string title { ((gb.gameTitle.empty() || !gb.cartridge.loaded()) ? APP_NAME : "MegaBoy - " + gb.gameTitle) };
     glfwSetWindowTitle(window, title.c_str());
 }
 
-inline void updateColorCorrection()
+void updateColorCorrection()
 {
-    currentShader->setBool("gbcColorCorrection", appConfig::gbcColorCorrection && System::IsCGBDevice(System::Current()) && gb.cartridge.ROMLoaded());
+    currentShader->setBool("gbcColorCorrection", appConfig::gbcColorCorrection && System::IsCGBDevice(System::Current()) && gb.executingProgram());
 }
 void updateSelectedFilter()
 {
@@ -154,12 +156,22 @@ void updateSelectedFilter()
     updateColorCorrection();
 }
 
-inline void setEmulationPaused(bool val)
+void setEmulationPaused(bool val)
 {
     gb.emulationPaused = val;
     updateWindowTitle();
 }
-inline void resetRom(bool fullReset)
+void setFastForwarding(bool val)
+{        
+	if (val)
+		gb.enableFastForward(FAST_FORWARD_SPEED);
+	else
+		gb.disableFastForward();
+
+	fastForwarding = val;
+	fastForwardChangeFlag = true;
+}
+void resetRom(bool fullReset)
 {
     gb.resetRom(fullReset);
     updateColorCorrection(); // For hybrid GB/GBC roms, if user changed system preference then color correction setting may need to be updated.
@@ -218,7 +230,7 @@ bool loadFile(std::istream& st, const std::filesystem::path& filePath)
     {
         activateInfoPopUp(errorMessage);
 
-        if (!gb.cartridge.ROMLoaded())
+        if (!gb.cartridge.loaded())
         {
             appConfig::romPath.clear();
             appConfig::updateConfigFile();
@@ -325,6 +337,9 @@ inline void loadState(int num)
 }
 inline void saveState(int num) 
 {
+	if (!gb.canSaveStateNow())
+		return;
+
     if (num == QUICK_SAVE_STATE)
         gb.saveState(gb.getSaveStateFolderPath() / "quicksave.mbs");
     else
@@ -409,30 +424,52 @@ void resetFade()
 
 void drawCallback(const uint8_t* framebuffer, bool firstFrame)
 {
-    OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
+    OpenGL::updateTexture(gbTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
 
     if (firstFrame)
-        OpenGL::updateTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
+        OpenGL::updateTexture(gbTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, framebuffer);
     else
-        std::swap(gbFramebufferTextures[0], gbFramebufferTextures[1]);
+        std::swap(gbTextures[0], gbTextures[1]);
 
     debugUI::signalVBlank();
 }
 
-void refreshGBTextures()
+void clearGBTexture()
 {
-    OpenGL::updateTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gb.ppu->framebufferPtr());
-    OpenGL::updateTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gb.ppu->framebufferPtr());
+    for (auto t : gbTextures)
+        OpenGL::updateTexture(t, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, whiteBG.data());
+}
+
+void handleCartridgeUnload()
+{
+    if (!gb.executingBootROM())
+    {
+        clearGBTexture();
+        resetFade();
+        setFastForwarding(false);
+    }
+
+    updateWindowTitle();
+    debugUI::signalROMreset();
+}
+
+// To clear the screen in no cartridge boot rom execute mode (for unofficial boot roms which don't do cartridge header checks and always unmap itself).
+void bootRomExitCallback()
+{
+    if (!gb.cartridge.loaded())
+        clearGBTexture();
 }
 
 // For new palette to be applied on screen even if emulation is paused.
-void refreshDMGPaletteColors(const std::array<color, 4>& newColors) 
+void refreshDMGPaletteColors(const std::array<color, 4>& newPalette) 
 {
-    if (!gb.cartridge.ROMLoaded() || emulationRunning() || System::Current() != GBSystem::DMG)
+    if (!gb.executingProgram() || emulationRunning() || System::Current() != GBSystem::DMG)
         return;
 
-    gb.ppu->refreshDMGScreenColors(newColors);
-    refreshGBTextures();
+    gb.ppu->refreshDMGScreenColors(newPalette);
+    
+    for (auto t : gbTextures)
+        OpenGL::updateTexture(t, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, gb.ppu->framebufferPtr());
 }
 void updateSelectedPalette()
 {
@@ -448,15 +485,11 @@ void setOpenGL()
     uint32_t VAO, VBO, EBO;
     OpenGL::createQuad(VAO, VBO, EBO);
 
-    const std::vector<uint8_t> whiteBG(PPU::FRAMEBUFFER_SIZE, 255);
-
-    OpenGL::createTexture(gbFramebufferTextures[0], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, whiteBG.data(), appConfig::bilinearFiltering);
-    OpenGL::createTexture(gbFramebufferTextures[1], PPU::SCR_WIDTH, PPU::SCR_HEIGHT, whiteBG.data(), appConfig::bilinearFiltering);
+    for (auto& t : gbTextures)
+        OpenGL::createTexture(t, PPU::SCR_WIDTH, PPU::SCR_HEIGHT, whiteBG.data(), appConfig::bilinearFiltering);
 
     updateSelectedFilter();
     updateSelectedPalette(); 
-
-    gb.setDrawCallback(drawCallback);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -548,11 +581,11 @@ void rescaleWindow()
 #endif
 }
 
-inline void updateImGUIViewports()
+void updateImGUIViewports()
 {
     if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
     {
-        GLFWwindow* backupContext { glfwGetCurrentContext() };
+        auto backupContext { glfwGetCurrentContext() };
         ImGui::UpdatePlatformWindows();
         ImGui::RenderPlatformWindowsDefault();
         glfwMakeContextCurrent(backupContext);
@@ -1133,6 +1166,18 @@ void renderImGUI()
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
+    static bool dmgBootLoaded { false };
+    static bool cgbBootLoaded { false };
+
+	const auto updateBootROMLoadedValues = []()
+	{
+        if (ImGui::IsWindowAppearing())
+        {
+            dmgBootLoaded = GBCore::isBootROMValid(appConfig::dmgBootRomPath);
+            cgbBootLoaded = GBCore::isBootROMValid(appConfig::cgbBootRomPath);
+        }
+	};
+
     if (ImGui::BeginMainMenuBar())
     {
         if (ImGui::BeginMenu("File"))
@@ -1148,7 +1193,7 @@ void renderImGUI()
                     loadFile(result);
 #endif
             }
-            if (gb.cartridge.ROMLoaded())
+            if (gb.cartridge.loaded())
             {
                 if (ImGui::MenuItem("View Save States"))
                     saveStatesWindowOpen = true;
@@ -1197,21 +1242,14 @@ void renderImGUI()
             if (ImGui::Checkbox("Load last ROM on Startup", &appConfig::loadLastROM))
                 appConfig::updateConfigFile();
 #endif
-            static bool dmgBootLoaded { false };
-            static bool cgbBootLoaded { false };
+            updateBootROMLoadedValues();
 
-            if (ImGui::IsWindowAppearing())
-            {
-                dmgBootLoaded = GBCore::isBootROMValid(appConfig::dmgBootRomPath);
-                cgbBootLoaded = GBCore::isBootROMValid(appConfig::cgbBootRomPath);
-            }
-
-            bool bootRomsLoaded { gb.cartridge.ROMLoaded() ?
+            bool bootRomsLoaded { gb.cartridge.loaded() ?
                                   (System::Current() == GBSystem::DMG ? dmgBootLoaded : cgbBootLoaded) : (dmgBootLoaded || cgbBootLoaded) };
 
             if (!bootRomsLoaded)
             {
-                const std::string tooltipText { gb.cartridge.ROMLoaded() ?
+                const std::string tooltipText { gb.cartridge.loaded() ?
                                                 (System::Current() == GBSystem::DMG ? "Drop 'dmg_boot.bin'" : "Drop 'cgb_boot.bin'") :
                                                 "Drop 'dmg_boot.bin' or 'cgb_boot.bin'" };
 
@@ -1312,8 +1350,9 @@ void renderImGUI()
                 if (ImGui::Checkbox("Bilinear Filtering", &appConfig::bilinearFiltering))
                 {
                     appConfig::updateConfigFile();
-                    OpenGL::setTextureScalingMode(gbFramebufferTextures[0], appConfig::bilinearFiltering);
-                    OpenGL::setTextureScalingMode(gbFramebufferTextures[1], appConfig::bilinearFiltering);
+
+                    for (auto t : gbTextures)
+                        OpenGL::setTextureScalingMode(t, appConfig::bilinearFiltering);
                 }
             }
 
@@ -1459,7 +1498,7 @@ void renderImGUI()
         }
         if (ImGui::BeginMenu("Emulation"))
         {
-            if (gb.cartridge.ROMLoaded())
+            if (gb.executingProgram())
             {
                 ImGui::SeparatorText(gbFpsText.c_str());
 
@@ -1486,6 +1525,15 @@ void renderImGUI()
                         resetRom(true);
                 }
 
+                if (gb.cartridge.loaded())
+                {
+                    if (ImGui::MenuItem("Unload Cartridge"))
+                    {
+                        gb.cartridge.unload();
+                        handleCartridgeUnload();
+                    }
+                }
+
                 if (ImGui::MenuItem("Take Screenshot", screenshotKeyStr.c_str()))
                     takeScreenshot(true);
 
@@ -1496,31 +1544,71 @@ void renderImGUI()
                     cheatsWindowOpen = true;
             }
 
+            if (!gb.cartridge.loaded())
+            {
+                ImGui::SeparatorText("No Cartridge!");
+
+                if (!gb.executingBootROM())
+                {
+                    std::optional<GBSystem> bootRomSys{};
+
+					updateBootROMLoadedValues();
+
+                    if (dmgBootLoaded)
+                    {
+                        if (ImGui::MenuItem("Run DMG Boot ROM"))
+                            bootRomSys = GBSystem::DMG;
+                    }
+                    if (cgbBootLoaded)
+                    {
+                        if (ImGui::MenuItem("Run CGB Boot ROM"))
+                            bootRomSys = GBSystem::CGB;
+                    }
+
+                    if (bootRomSys.has_value())
+                    {
+                        gb.runNoCartridgeBootROM(*bootRomSys);
+                        updateColorCorrection();
+                    }
+                }
+                else
+                {
+                    if (ImGui::MenuItem("Shut Down"))
+                    {
+                        gb.unmapBootROM();
+                        handleCartridgeUnload();
+                    }
+                }
+            }
+
             ImGui::EndMenu();
         }
 
         debugUI::renderMenu();
 
-        if (gb.breakpointHit)
+        if (gb.executingProgram())
         {
-            ImGui::Separator();
-            ImGui::Text("Breakpoint Hit!");
-        }
-        else if (gb.emulationPaused)
-        {
-            ImGui::Separator();
-            ImGui::Text("Emulation Paused");
-        }
-        else if (fastForwarding)
-        {
-            ImGui::Separator();
-            ImGui::Text("Fast Forward...");
-        }
-        else if (gb.cartridge.ROMLoaded() && gb.getSaveNum() != 0)
-        {
-            const std::string saveText { "Save: " + std::to_string(gb.getSaveNum()) };
-            ImGui::Separator();
-            ImGui::Text("%s", saveText.c_str());
+            if (gb.breakpointHit)
+            {
+                ImGui::Separator();
+                ImGui::Text("Breakpoint Hit!");
+            }
+            else if (gb.emulationPaused)
+            {
+                ImGui::Separator();
+                ImGui::Text("Emulation Paused");
+            }
+            else if (fastForwarding)
+            {
+                ImGui::Separator();
+                ImGui::Text("Fast Forward...");
+            }
+            else if (gb.cartridge.loaded() && gb.getSaveNum() != 0)
+            {
+                const std::string saveText { "Save: " + std::to_string(gb.getSaveNum()) };
+                ImGui::Separator();
+                ImGui::Text("%s", saveText.c_str());
+            }
         }
 
         ImGui::EndMainMenuBar();
@@ -1579,7 +1667,7 @@ void renderImGUI()
 
 void renderGameBoy(double deltaTime)
 {
-    OpenGL::bindTexture(gbFramebufferTextures[0]);
+    OpenGL::bindTexture(gbTextures[0]);
     currentShader->setFloat("alpha", 1.0f);
 
     if (fadeEffectActive)
@@ -1596,11 +1684,11 @@ void renderGameBoy(double deltaTime)
             currentShader->setFloat("fadeAmount", fadeAmount);
     }
 
-    if (appConfig::blending)
+    if (appConfig::blending && gb.executingProgram())
     {
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
         currentShader->setFloat("alpha", 0.5f);
-        OpenGL::bindTexture(gbFramebufferTextures[1]);
+        OpenGL::bindTexture(gbTextures[1]);
     }
 
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
@@ -1662,7 +1750,7 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
         return;
     }
 
-    if (!gb.cartridge.ROMLoaded()) 
+    if (!gb.executingProgram())
         return;
 
     if (action == GLFW_PRESS)
@@ -1717,17 +1805,10 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
     if (key == KeyBindManager::getBind(MegaBoyKey::FastForward))
     {
         if (action == GLFW_PRESS)
-        {
-            fastForwarding = true;
-            gb.enableFastForward(FAST_FORWARD_SPEED);
-        }
-        else if (action == GLFW_RELEASE)
-        {
-            fastForwarding = false;
-            gb.disableFastForward();
-        }
+            setFastForwarding(true);
+		else if (action == GLFW_RELEASE)
+			setFastForwarding(false);
 
-        fastForwardChangeFlag = true;
         return;
     }
 
@@ -2113,6 +2194,9 @@ void runApp(int argc, char* argv[])
 #endif
 {
     appConfig::loadConfigFile();
+
+    gb.setDrawCallback(drawCallback);
+    gb.setBootRomExitCallback(bootRomExitCallback);
 
     setGLFW();
     setOpenGL();

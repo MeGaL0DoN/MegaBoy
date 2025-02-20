@@ -8,6 +8,20 @@
 #include "Utils/memstream.h"
 #include "debugUI.h"
 
+GBCore::GBCore()
+{
+	updatePPUSystem();
+
+	mmu.bootRomExitEvent = [&]()
+	{
+		if (System::Current() == GBSystem::CGB && mmu.dmgCompatSwitch)
+			enableDMGCompatMode();
+
+		if (this->bootRomExitCallback != nullptr)
+			this->bootRomExitCallback();
+	};
+}
+
 void GBCore::updatePPUSystem()
 {
 	switch (System::Current())
@@ -24,7 +38,18 @@ void GBCore::updatePPUSystem()
 	}
 
 	ppu->setDebugEnable(ppuDebugEnable);
-	ppu->drawCallback = [this](const uint8_t* framebuf, bool firstFrame) { vBlankHandler(framebuf, firstFrame); };
+
+	ppu->drawCallback = [&](const uint8_t* framebuf, bool firstFrame) 
+	{
+		for (const auto& cheat : gameSharks)
+		{
+			if (cheat.enable)
+				mmu.write8(cheat.addr, cheat.newData);
+		}
+
+		if (this->drawCallback != nullptr)
+			this->drawCallback(framebuf, firstFrame);
+	};
 }
 
 void GBCore::reset(bool resetBattery, bool clearBuf, bool fullReset)
@@ -34,19 +59,17 @@ void GBCore::reset(bool resetBattery, bool clearBuf, bool fullReset)
 		const auto prevSystem { System::Current() };
 		cartridge.updateSystem();
 
-		loadBootROM();
+		if (appConfig::runBootROM)
+			loadBootROM();
+		else
+			mmu.isBootROMMapped = false;
 
 		if (!mmu.isBootROMMapped && cartridge.isDMGCompatSystem()) // Since boot rom won't be executed, DMG compat mode needs to be enabled right away.
 			System::Set(GBSystem::DMGCompatMode);
 
 		if (prevSystem != System::Current())
-		{
-			updatePPUSystem();
-			mmu.updateSystem();
-		}
+			updateSystem();
 	}
-	else
-		mmu.isBootROMMapped = false;
 
 	ppu->reset(clearBuf);
 	cpu.reset();
@@ -66,7 +89,6 @@ void GBCore::reset(bool resetBattery, bool clearBuf, bool fullReset)
 
 	emulationPaused = false;
 	breakpointHit = false;
-	dmgCompatSwitch = false;
 	cycleCounter = 0;
 }
 
@@ -93,9 +115,6 @@ void GBCore::loadBootROM()
 {
 	mmu.isBootROMMapped = false;
 
-	if (!appConfig::runBootROM)
-		return;
-
 	const std::filesystem::path bootRomPath {
 		System::Current() == GBSystem::DMG ? appConfig::dmgBootRomPath : appConfig::cgbBootRomPath
 	};
@@ -107,7 +126,7 @@ void GBCore::loadBootROM()
 
 	ST_READ_ARR(mmu.baseBootROM);
 
-	if (System::IsCGBDevice(System::Current()))
+	if (System::Current() == GBSystem::CGB)
 	{
 		if (FileUtils::remainingBytes(st) == CGB_BOOTROM_SIZE)
 			st.seekg(0x100, std::ios::cur);
@@ -118,7 +137,7 @@ void GBCore::loadBootROM()
 	mmu.isBootROMMapped = true;
 }
 
-// Called by CGB boot rom if ROM is dmg only.
+// Will be called after CGB boot rom execution if ROM is dmg only.
 void GBCore::enableDMGCompatMode()
 {
 	System::Set(GBSystem::DMGCompatMode);
@@ -135,13 +154,31 @@ void GBCore::enableDMGCompatMode()
 	serial.writeSerialControl(0x7E);
 }
 
+bool GBCore::runNoCartridgeBootROM(GBSystem bootSys)
+{
+	if (cartridge.loaded())
+		return false;
+
+	System::Set(bootSys);
+	loadBootROM();
+
+	if (!mmu.isBootROMMapped)
+		return false;
+
+	System::Set(bootSys);
+	updateSystem();
+	reset(false, true, false);
+
+	return true;
+}
+
 template void GBCore::_emulateFrame<true>();
 template void GBCore::_emulateFrame<false>();
 
 template <bool checkBreakpoints>
 void GBCore::_emulateFrame()
 {
-	if (!cartridge.ROMLoaded() || emulationPaused) [[unlikely]]
+	if (!executingProgram() || emulationPaused) [[unlikely]]
 		return;
 
 	const uint64_t targetCycles { cycleCounter + (CYCLES_PER_FRAME * speedFactor) };
@@ -241,7 +278,7 @@ FileLoadResult GBCore::loadFile(std::istream& st, std::filesystem::path filePath
 
 			if (!romLoaded) 
 			{
-				if (!cartridge.ROMLoaded() || !cartridge.hasBattery)
+				if (!cartridge.loaded() || !cartridge.hasBattery)
 					return FileLoadResult::ROMNotFound;
 
 				if (!cartridge.getMapper()->loadBattery(st))
@@ -417,7 +454,7 @@ void GBCore::saveState(const std::filesystem::path& path) const
 }
 void GBCore::saveState(int num)
 {
-	if (!cartridge.ROMLoaded()) 
+	if (!canSaveStateNow())
 		return;
 
 	saveState(getSaveStatePath(num));
@@ -608,7 +645,7 @@ FileLoadResult GBCore::loadState(std::istream& is)
 	std::string romPath(filePathLen, 0);
 	st.read(romPath.data(), filePathLen);
 
-	if (!cartridge.ROMLoaded() || cartridge.getChecksum() != stateRomChecksum)
+	if (!cartridge.loaded() || cartridge.getChecksum() != stateRomChecksum)
 	{
 		if (!validateAndLoadRom(romPath, stateRomChecksum))
 			return FileLoadResult::ROMNotFound;
@@ -686,13 +723,13 @@ void GBCore::readGBState(std::istream& st)
 	if (System::Current() != system)
 	{
 		System::Set(system);
-		updatePPUSystem();
-		mmu.updateSystem();
+		updateSystem();
 	}
 
 	// Passing false to fullReset, because boot rom shouldn't be loaded and system should stay the one specified in save state.
 	// Also passing false to clearBuf, since save state thumbnail will be used as first frame instead of blank frame. 
 	reset(true, false, false);
+	mmu.isBootROMMapped = false;
 
 	ST_READ(cycleCounter);
 
@@ -707,7 +744,7 @@ void GBCore::readGBState(std::istream& st)
 
 bool GBCore::loadSaveStateThumbnail(const std::filesystem::path& path, std::span<uint8_t> framebuffer) const
 {
-	if (!cartridge.ROMLoaded())
+	if (!cartridge.loaded())
 		return false;
 
 	std::ifstream ifs { path, std::ios::in | std::ios::binary };

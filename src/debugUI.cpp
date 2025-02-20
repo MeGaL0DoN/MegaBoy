@@ -64,9 +64,10 @@ void debugUI::disassembleRom()
 void debugUI::signalROMreset()
 {
     romDisassembly.clear();
-    dissasmRomBank = 0;
     removeTempBreakpoint();
-    showBreakpointHitWindow = false;
+
+    if (showBreakpointHitWindow && !gb.executingBootROM())
+        showBreakpointHitWindow = false;
 }
 void debugUI::signalSaveStateChange()
 {
@@ -76,7 +77,7 @@ void debugUI::signalSaveStateChange()
 
 void debugUI::refreshCurrentVRAMTab()
 {
-    if (!gb.cartridge.ROMLoaded())
+    if (!gb.executingProgram())
         return;
 
     const auto updateTexture = [](uint32_t& texture, uint16_t width, uint16_t height, const uint8_t* data)
@@ -151,7 +152,7 @@ inline void displayImage(uint32_t texture, uint16_t width, uint16_t height, int&
     if (xPos > 0)
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + xPos);
 
-    if (texture)
+    if (texture && gb.executingProgram())
     {
         OpenGL::bindTexture(texture);;
         ImGui::Image((ImTextureID)(intptr_t)texture, imageSize);
@@ -264,7 +265,7 @@ void debugUI::renderWindows(float scaleFactor)
 {
     if (showMemoryView)
     {
-        ImGui::SetNextWindowSize(ImVec2(-1.f, scaleFactor * 327), ImGuiCond_Appearing);
+        ImGui::SetNextWindowSize(ImVec2(-1.f, scaleFactor * 350), ImGuiCond_Appearing);
 
         if (ImGui::Begin("Memory View", &showMemoryView))
         {
@@ -306,11 +307,7 @@ void debugUI::renderWindows(float scaleFactor)
                 ImGui::PushItemWidth(150 * scaleFactor);
 
                 ImGui::InputInt("##rombank", &memViewRomBank, 1, 1, ImGuiInputTextFlags_CharsDecimal);
-
-                if (gb.cartridge.ROMLoaded())
-                    memViewRomBank = std::clamp(memViewRomBank, 0, static_cast<int>(gb.cartridge.romBanks - 1));
-                else
-                    memViewRomBank = 0;
+                memViewRomBank = std::clamp(memViewRomBank, 0, static_cast<int>(gb.cartridge.romBanks - 1));
 
                 ImGui::PopItemWidth();
                 ImGui::Spacing();
@@ -398,7 +395,7 @@ void debugUI::renderWindows(float scaleFactor)
                         {
                             memoryData = "0x" + hexOps::toHexStr<true>(static_cast<uint16_t>(viewStartAddr + i * 16)) + " ";
 
-                            if (gb.cartridge.ROMLoaded())
+                            if (gb.executingProgram())
                             {
                                 std::array<uint8_t, 16> data{};
 
@@ -555,7 +552,7 @@ void debugUI::renderWindows(float scaleFactor)
 
             if (showBreakpointHitWindow && firstTimeBreakpointWindow)
             {
-                ImVec2 windowSize = ImGui::GetWindowSize();
+                const auto windowSize { ImGui::GetWindowSize() };
                 ImGui::SetWindowSize(ImVec2(windowSize.x * 2, windowSize.y));
                 firstTimeBreakpointWindow = false;
             }
@@ -701,19 +698,13 @@ void debugUI::renderWindows(float scaleFactor)
                 ImGui::PushItemWidth(200 * scaleFactor);
 
                 if (ImGui::InputInt("##rombank", &dissasmRomBank, 1, 1, ImGuiInputTextFlags_CharsDecimal))
-                {
-                    if (gb.cartridge.ROMLoaded())
-                    {
-                        dissasmRomBank = std::clamp(dissasmRomBank, 0, static_cast<int>(gb.cartridge.romBanks - 1));
-                        romDisassembly.resize(0);
-                    }
-                    else
-                        dissasmRomBank = 0;
-                }
+                    romDisassembly.clear();
+
+                dissasmRomBank = std::clamp(dissasmRomBank, 0, static_cast<int>(gb.cartridge.romBanks - 1));
 
                 ImGui::PopItemWidth();
 
-                if (romDisassembly.empty() && gb.cartridge.ROMLoaded())
+                if (romDisassembly.empty() && gb.executingProgram())
                     disassembleRom();
             }
 
@@ -728,7 +719,7 @@ void debugUI::renderWindows(float scaleFactor)
             };
 
             ImGui::SeparatorText("Disassembly");
-            if (ImGui::BeginChild("Disassembly") && gb.cartridge.ROMLoaded())
+            if (ImGui::BeginChild("Disassembly") && gb.executingProgram())
             {
                 ImGuiListClipper clipper;
 
