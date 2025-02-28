@@ -47,7 +47,6 @@ add_executable(MegaBoy
         "CPU/CPU.cpp"
         "CPU/CPU.h"
         "CPU/registers.h"
-        "CPU/regDefines.h"
         "CPU/CPUInstructions.h"
         "CPU/CPUInterrupts.cpp"
         "CPU/CPUDisassembly.cpp"

@@ -81,15 +81,15 @@ private:
 
 	inline bool getFlag(FlagType flag)
 	{
-		return getBit(registers.AF.pair.low.val, flag);
+		return getBit(registers.AF.low.val, flag);
 	}
 	inline void setFlag(FlagType flag, bool value)
 	{
-		registers.AF.pair.low = setBit(registers.AF.pair.low.val, flag, value);
+		registers.AF.low = setBit(registers.AF.low.val, flag, value);
 	}
 	inline void resetFlags()
 	{
-		registers.AF.pair.low.val &= 0x0F;
+		registers.AF.low.val &= 0x0F;
 	}
 
 	inline void exitHalt()

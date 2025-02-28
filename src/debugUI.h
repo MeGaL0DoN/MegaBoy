@@ -56,6 +56,7 @@ private:
 	static inline bool showCPUView { false };
 	static inline bool showDisassembly { false };
 	static inline bool showPPUView { false };
+	static inline bool showPaletteView { false };
 	static inline bool showAudioView { false };
 
 	static inline bool showVRAMView { false };

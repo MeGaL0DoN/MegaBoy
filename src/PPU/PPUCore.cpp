@@ -23,7 +23,7 @@ void PPUCore<sys>::reset(bool clearBuf)
 		gbcRegs.reset();
 	}
 	if constexpr (sys != GBSystem::CGB)
-		updatePalette(regs.BGP, BGpalette);
+		updatePalette(regs.BGP, this->BGP);
 
 	s = {};
 	regs = {};
@@ -87,9 +87,9 @@ void PPUCore<s>::loadState(std::istream& st)
 	}
 	if (sys != GBSystem::CGB)
 	{
-		updatePalette(regs.BGP, BGpalette);
-		updatePalette(regs.OBP0, OBP0palette);
-		updatePalette(regs.OBP1, OBP1palette);
+		updatePalette(regs.BGP,  this->BGP);
+		updatePalette(regs.OBP0, this->OBP0);
+		updatePalette(regs.OBP1, this->OBP1);
 	}
 
 	ST_READ_ARR(VRAM_BANK0);

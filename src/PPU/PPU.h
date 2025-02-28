@@ -151,18 +151,18 @@ struct ppuState
 
 	uint8_t hblankCycles{};
 	uint16_t vblankLineCycles{};
-	uint16_t videoCycles{ 0 };
+	uint16_t videoCycles{};
 	uint32_t dotsUntilVBlank{};
 };
 
-struct ppuGBCPaletteData
+struct gbcPaletteData
 {
-	std::array<uint8_t, 64> paletteRAM{};
-	uint8_t regValue{ 0x00 };
-	bool autoIncrement{ false };
+	std::array<uint8_t, 64> RAM{};
+	uint8_t regValue{};
+	bool autoIncrement{};
 
-	static constexpr std::array<uint8_t, 8> DEFAULT_DMG_COMPAT_BG_PALETTE { 255, 127, 239, 27, 128, 97, 0, 0 };
-	static constexpr std::array<uint8_t, 16> DEFAULT_DMG_COMPAT_OBJ_PALETTE { 255, 127, 31, 66, 242, 28, 0, 0, 255, 127, 31, 66, 242, 28, 0, 0 };
+	static constexpr std::array<uint8_t, 8> DEFAULT_DMG_COMPAT_BG { 255, 127, 239, 27, 128, 97, 0, 0 };
+	static constexpr std::array<uint8_t, 16> DEFAULT_DMG_COMPAT_OBJ { 255, 127, 31, 66, 242, 28, 0, 0, 255, 127, 31, 66, 242, 28, 0, 0 };
 
 	// BCPS (bg) palette is set to white by default (0xFF -> 0x7F pattern, bit 7 of first byte is zero), OCPS (obj) is random.
 	inline void reset(bool obj)
@@ -171,12 +171,12 @@ struct ppuGBCPaletteData
 
 		if (System::Current() == GBSystem::DMGCompatMode)
 		{
-			std::memcpy(paletteRAM.data(), obj ? DEFAULT_DMG_COMPAT_OBJ_PALETTE.data() : DEFAULT_DMG_COMPAT_BG_PALETTE.data(), obj ? 16 : 8);
+			std::memcpy(RAM.data(), obj ? DEFAULT_DMG_COMPAT_OBJ.data() : DEFAULT_DMG_COMPAT_BG.data(), obj ? 16 : 8);
 			i = obj ? 16 : 8;
 		}
 
-		for (; i < paletteRAM.size(); i++)
-			paletteRAM[i] = obj ? RngOps::gen8bit() : ((i & 1) == 0 ? 0xFF : 0x7F);
+		for (; i < RAM.size(); i++)
+			RAM[i] = obj ? RngOps::gen8bit() : ((i & 1) == 0 ? 0xFF : 0x7F);
 	}
 
 	inline uint8_t readReg() const
@@ -191,23 +191,23 @@ struct ppuGBCPaletteData
 
 	inline uint8_t readPaletteRAM() const
 	{
-		return paletteRAM[regValue & 0x3F];
+		return RAM[regValue & 0x3F];
 	}
 	inline void writePaletteRAM(uint8_t val)
 	{
-		paletteRAM[regValue & 0x3F] = val;
+		RAM[regValue & 0x3F] = val;
 		regValue = autoIncrement ? ((regValue + 1) & 0x3F) : regValue;
 	}
 
 	inline void loadState(std::istream& st)
 	{
-		ST_READ_ARR(paletteRAM);
+		ST_READ_ARR(RAM);
 		ST_READ(regValue);
 		ST_READ(autoIncrement);
 	}
 	inline void saveState(std::ostream& st) const
 	{
-		ST_WRITE_ARR(paletteRAM);
+		ST_WRITE_ARR(RAM);
 		ST_WRITE(regValue);
 		ST_WRITE(autoIncrement);
 	}
@@ -216,8 +216,8 @@ struct ppuGBCPaletteData
 struct ppuGBCRegs
 {
 	uint8_t VBK{};
-	ppuGBCPaletteData BCPS{};
-	ppuGBCPaletteData OCPS{};
+	gbcPaletteData BCPS{};
+	gbcPaletteData OCPS{};
 
 	inline void reset()
 	{
@@ -327,9 +327,9 @@ protected:
 
 	uint8_t* VRAM { VRAM_BANK0.data() };
 
-	std::array<uint8_t, 4> BGpalette{};
-	std::array<uint8_t, 4> OBP0palette{};
-	std::array<uint8_t, 4> OBP1palette{};
+	std::array<uint8_t, 4> BGP{};
+	std::array<uint8_t, 4> OBP0{};
+	std::array<uint8_t, 4> OBP1{};
 
 	uint8_t objCount{ 0 };
 	std::array<OAMobject, 10> selectedObjects{};

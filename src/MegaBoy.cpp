@@ -381,22 +381,25 @@ void takeScreenshot(bool captureOpenGL)
         if (!pngBuffer)
             return;
 
+        const std::string romNameFolder { gb.cartridge.loaded() ? (gb.gameTitle.empty() ? "Unknown" : gb.gameTitle) : "No ROM" };
+
 #ifdef EMSCRIPTEN
-        const std::string fileName { gb.gameTitle + " - Screenshot.png" };
+        const std::string fileName { romNameFolder + " - Screenshot.png" };
         emscripten_browser_file::download(fileName.c_str(), "image/png", pngBuffer, pngDataSize);
 #else
-        const auto now { std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) };
-
-        std::stringstream ss;
-        ss << std::put_time(std::localtime(&now), "%H-%M-%S");
-
-        const std::string fileName { gb.gameTitle + " (" + ss.str() + ").png" };
-        const auto screenshotsFolder { FileUtils::executableFolderPath / "screenshots" };
+        const auto screenshotsFolder { FileUtils::executableFolderPath / "screenshots" / romNameFolder };
                 
-        if (!std::filesystem::exists(screenshotsFolder))
-            std::filesystem::create_directory(screenshotsFolder);
+		std::error_code err;
 
-        std::ofstream st(screenshotsFolder / fileName, std::ios::binary);
+        if (!std::filesystem::exists(screenshotsFolder, err))
+            std::filesystem::create_directories(screenshotsFolder, err);
+
+		if (err)
+			return;
+
+        const auto unixTime { std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count() };
+
+        std::ofstream st { screenshotsFolder / (std::to_string(unixTime) + ".png"), std::ios::binary };
         st.write(static_cast<const char*>(pngBuffer), static_cast<std::streamsize>(pngDataSize));
 #endif
         mz_free(pngBuffer);

@@ -265,15 +265,15 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 		case 0xFF47:
 			gb.ppu->regs.BGP = val;
-			PPU::updatePalette(val, gb.ppu->BGpalette);
+			PPU::updatePalette(val, gb.ppu->BGP);
 			break;
 		case 0xFF48:
 			gb.ppu->regs.OBP0 = val;
-			PPU::updatePalette(val, gb.ppu->OBP0palette);
+			PPU::updatePalette(val, gb.ppu->OBP0);
 			break;
 		case 0xFF49:
 			gb.ppu->regs.OBP1 = val;
-			PPU::updatePalette(val, gb.ppu->OBP1palette);
+			PPU::updatePalette(val, gb.ppu->OBP1);
 			break;
 		case 0xFF4A:
 			gb.ppu->regs.WY = val;

@@ -82,16 +82,16 @@ private:
 			const uint8_t* paletteRamPtr;
 
 			if constexpr (obj)
-				paletteRamPtr = gbcRegs.OCPS.paletteRAM.data();
+				paletteRamPtr = gbcRegs.OCPS.RAM.data();
 			else
-				paletteRamPtr = gbcRegs.BCPS.paletteRAM.data();
+				paletteRamPtr = gbcRegs.BCPS.RAM.data();
 
 			if constexpr (sys == GBSystem::DMGCompatMode)
 			{
 				if constexpr (obj)
-					colorID = palette == 0 ? OBP0palette[colorID] : OBP1palette[colorID];
+					colorID = palette == 0 ? OBP0[colorID] : OBP1[colorID];
 				else
-					colorID = BGpalette[colorID];
+					colorID = BGP[colorID];
 			}
 
 			const uint8_t paletteRAMInd = palette * 8 + colorID * 2;
@@ -102,9 +102,9 @@ private:
 			uint8_t* palettePtr;
 
 			if constexpr (obj)
-				palettePtr = palette == 0 ? OBP0palette.data() : OBP1palette.data();
+				palettePtr = palette == 0 ? OBP0.data() : OBP1.data();
 			else
-				palettePtr = BGpalette.data();
+				palettePtr = BGP.data();
 
 			return PPU::ColorPalette[palettePtr[colorID]];
 		}

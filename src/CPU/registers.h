@@ -19,10 +19,10 @@ struct Register8
 union Register16 
 {
 	uint16_t val;
-	struct RegisterPair {
+	struct {
 		Register8 low;
 		Register8 high;
-	} pair;
+	};
 
 	Register16() = default;
 	explicit Register16(uint16_t v) : val(v)
@@ -76,7 +76,7 @@ private:
 				AF = 0x1180;
 				BC = 0x0000;
 				DE = 0x0008;
-				HL = (BC.pair.high.val == 0x43 || BC.pair.high.val == 0x58) ? 0x991A : 0x007C;
+				HL = (BC.high.val == 0x43 || BC.high.val == 0x58) ? 0x991A : 0x007C;
 				break;
 			}
 		}

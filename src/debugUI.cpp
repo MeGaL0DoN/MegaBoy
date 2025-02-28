@@ -34,6 +34,10 @@ void debugUI::renderMenu()
             if (!showVRAMView)
                 gb.setPPUDebugEnable(false);
         }
+        if (ImGui::MenuItem("Palettes"))
+        {
+			showPaletteView = !showPaletteView;
+        }
         if (ImGui::MenuItem("Audio View"))
         {
             showAudioView = !showAudioView;
@@ -258,7 +262,7 @@ void debugUI::signalBreakpoint()
     extendBreakpointDisasmWindow();
 }
 
-#include "CPU/regDefines.h"
+
 #include <ImGUI/imgui_internal.h>
 
 void debugUI::renderWindows(float scaleFactor)
@@ -484,18 +488,18 @@ void debugUI::renderWindows(float scaleFactor)
 
             ImGui::SeparatorText("Registers");
 
-            ImGui::Text("A: $%02X", gb.cpu.registers.A.val);
+            ImGui::Text("A: $%02X", gb.cpu.registers.AF.high.val);
             ImGui::SameLine();
-            ImGui::Text("F: $%02X", gb.cpu.registers.F.val);
-            ImGui::Text("B: $%02X", gb.cpu.registers.B.val);
+            ImGui::Text("F: $%02X", gb.cpu.registers.AF.low.val);
+            ImGui::Text("B: $%02X", gb.cpu.registers.BC.high.val);
             ImGui::SameLine();
-            ImGui::Text("C: $%02X", gb.cpu.registers.C.val);
-            ImGui::Text("D: $%02X", gb.cpu.registers.D.val);
+            ImGui::Text("C: $%02X", gb.cpu.registers.BC.low.val);
+            ImGui::Text("D: $%02X", gb.cpu.registers.DE.high.val);
             ImGui::SameLine();
-            ImGui::Text("E: $%02X", gb.cpu.registers.E.val);
-            ImGui::Text("H: $%02X", gb.cpu.registers.H.val);
+            ImGui::Text("E: $%02X", gb.cpu.registers.DE.low.val);
+            ImGui::Text("H: $%02X", gb.cpu.registers.HL.high.val);
             ImGui::SameLine();
-            ImGui::Text("L: $%02X", gb.cpu.registers.L.val);
+            ImGui::Text("L: $%02X", gb.cpu.registers.HL.low.val);
 
             ImGui::SeparatorText("Flags");
             ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
@@ -1125,6 +1129,128 @@ void debugUI::renderWindows(float scaleFactor)
         }
 
         gb.setPPUDebugEnable(showVRAMView && currentVramTab == VRAMTab::PPUOutput);
+        ImGui::End();
+    }
+    if (showPaletteView)
+    {
+        if (ImGui::Begin("Palettes", &showPaletteView, ImGuiWindowFlags_AlwaysAutoResize))
+        {
+            constexpr int COLORS = 4;
+
+            const auto drawList { ImGui::GetWindowDrawList() };
+            const int squareSize = 35 * scaleFactor, gapSize = 5 * scaleFactor;
+
+            const auto gbcColorToRGB5 = [](int palette, int color, const std::array<uint8_t, 64>& paletteRam) -> uint16_t
+            {
+                const int colorInd { palette * 8 + color * 2 };
+                const uint8_t low { paletteRam[colorInd] }, high { paletteRam[colorInd + 1] };
+                return high << 8 | low;
+            };
+
+            if (System::Current() == GBSystem::CGB && gb.executingProgram())
+            {
+                constexpr int PALETTES = 8;
+
+                const int columnWidth { COLORS * (squareSize + gapSize) };
+                const auto pos { ImGui::GetCursorScreenPos() };
+
+                ImGui::SetCursorScreenPos(ImVec2(pos.x + columnWidth / 2 - ImGui::CalcTextSize("BCPS").x / 2, pos.y));
+                ImGui::Text("BCPS");
+
+                ImGui::SetCursorScreenPos(ImVec2(pos.x + columnWidth + gapSize * 3 + columnWidth / 2 - ImGui::CalcTextSize("OCPS").x / 2, pos.y));
+                ImGui::Text("OCPS");
+
+                ImGui::Separator();
+                ImGui::Spacing();
+
+                const auto startPos { ImGui::GetCursorScreenPos() };
+
+                const auto drawPaletteRAM = [&](int xOffset, const std::array<uint8_t, 64>& paletteRam)
+                {
+                    for (int y = 0; y < PALETTES; y++)
+                    {
+                        for (int x = 0; x < COLORS; x++)
+                        {
+                            const uint16_t rgb5 { gbcColorToRGB5(y, x, paletteRam) };
+                            const auto col { color::fromRGB5(rgb5) };
+
+                            const auto pos { ImVec2(startPos.x + xOffset + x * (squareSize + gapSize), startPos.y + y * (squareSize + gapSize)) };
+                            drawList->AddRectFilled(pos, ImVec2(pos.x + squareSize, pos.y + squareSize), IM_COL32(col.R, col.G, col.B, 255));
+
+                            ImGui::SetCursorScreenPos(pos);
+                            ImGui::Dummy(ImVec2(squareSize, squareSize));
+
+                            std::stringstream ss;
+
+                            ss << "ID: " << x << " | Palette: " << y << '\n';
+                            ss << "Value: $" << hexOps::toHexStr<true>(rgb5) << '\n';
+                            ss << "RGB5: " << (rgb5 & 0x1F) << " " << ((rgb5 >> 5) & 0x1F) << " " << ((rgb5 >> 10) & 0x1F);
+
+                            if (ImGui::IsItemHovered())
+                                ImGui::SetTooltip(ss.str().c_str());
+                        }
+                    }
+                };
+
+                drawPaletteRAM(0, gb.ppu->gbcRegs.BCPS.RAM);
+                drawPaletteRAM(columnWidth + gapSize * 3, gb.ppu->gbcRegs.OCPS.RAM);
+            }
+            else
+            {
+                enum class DMGPalette { BGP, OBP0, OBP1 };
+
+                const auto drawPalette = [&](DMGPalette p)
+                {
+                    const auto startPos { ImGui::GetCursorScreenPos() };
+
+                    for (int i = 0; i < COLORS; i++)
+                    {
+                        const auto palette { p == DMGPalette::BGP ? gb.ppu->BGP : p == DMGPalette::OBP0 ? gb.ppu->OBP0 : gb.ppu->OBP1 };
+                        const int colInd { palette[i] };
+
+                        color col;
+					    uint16_t rgb5;
+
+                        if (System::Current() == GBSystem::DMGCompatMode)
+                        {
+                            const auto& ram { p == DMGPalette::BGP ? gb.ppu->gbcRegs.BCPS.RAM : gb.ppu->gbcRegs.OCPS.RAM };
+                            const int palette { p == DMGPalette::OBP1 ? 1 : 0 };
+
+							rgb5 = gbcColorToRGB5(palette, colInd, ram);
+							col = color::fromRGB5(rgb5);
+                        }
+                        else
+                            col = PPU::ColorPalette[colInd];
+
+						const auto pos { ImVec2(startPos.x + i * (squareSize + gapSize), startPos.y) };
+						drawList->AddRectFilled(pos, ImVec2(pos.x + squareSize, pos.y + squareSize), IM_COL32(col.R, col.G, col.B, 255));
+
+						ImGui::SetCursorScreenPos(pos);
+					    ImGui::Dummy(ImVec2(squareSize, squareSize));
+
+                        std::stringstream ss;
+
+                        ss << "ID: " << i << '\n';
+                        ss << "Assigned Color: " << colInd;
+
+			     		if (System::Current() == GBSystem::DMGCompatMode)
+                            ss << "\nRGB5: " << (rgb5 & 0x1F) << " " << ((rgb5 >> 5) & 0x1F) << " " << ((rgb5 >> 10) & 0x1F);
+
+                        if (ImGui::IsItemHovered())
+                            ImGui::SetTooltip(ss.str().c_str());
+                    }
+                };
+
+                ImGui::SeparatorText("BGP");
+                drawPalette(DMGPalette::BGP);
+
+				ImGui::SeparatorText("OBP 0");
+                drawPalette(DMGPalette::OBP0);
+
+				ImGui::SeparatorText("OBP 1");
+                drawPalette(DMGPalette::OBP1);
+            }
+        }
         ImGui::End();
     }
     if (showAudioView)

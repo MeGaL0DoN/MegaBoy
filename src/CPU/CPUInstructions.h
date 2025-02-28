@@ -1,6 +1,14 @@
 #pragma once
 #include "../GBCore.h"
-#include "regDefines.h"
+
+#define A AF.high
+#define F AF.low
+#define B BC.high
+#define C BC.low
+#define D DE.high
+#define E DE.low
+#define H HL.high
+#define L HL.low
 
 class CPUInstructions
 {
@@ -27,7 +35,7 @@ private:
 
 	inline void add8_base(Register8& reg, uint8_t add1, uint8_t add2)
 	{
-		uint16_t result = reg.val + add1 + add2;
+		const uint16_t result = reg.val + add1 + add2;
 
 		cpu->setFlag(Subtract, false);
 		cpu->setFlag(HalfCarry, halfCarry8(reg.val, add1, add2));
@@ -38,7 +46,7 @@ private:
 	}
 	inline void add16_signed(Register16& reg, int8_t val)
 	{
-		uint16_t result = reg.val + val;
+		const uint16_t result = reg.val + val;
 
 		cpu->resetFlags();
 		cpu->setFlag(HalfCarry, (reg.val ^ val ^ (result & 0xFFFF)) & 0x10);
@@ -49,7 +57,7 @@ private:
 
 	inline uint8_t cp_base(uint8_t reg, uint8_t sub1, uint8_t sub2)
 	{
-		int16_t result = reg - sub1 - sub2;
+		const int16_t result = reg - sub1 - sub2;
 
 		cpu->setFlag(Subtract, true);
 		cpu->setFlag(HalfCarry, halfBorrow8(reg, sub1, sub2));
@@ -82,7 +90,7 @@ private:
 
 	inline void rlc_base(uint8_t& reg)
 	{
-		uint8_t carry = reg >> 7;
+		const uint8_t carry = reg >> 7;
 		reg <<= 1;
 
 		if (carry) reg |= 1;
@@ -94,7 +102,7 @@ private:
 	}
 	inline void rrc_base(uint8_t& reg)
 	{
-		uint8_t carry = reg & 1;
+		const uint8_t carry = reg & 1;
 		reg >>= 1;
 
 		if (carry) reg |= 0x80;
@@ -107,7 +115,7 @@ private:
 
 	inline void rl_base(uint8_t& reg) 
 	{
-		uint8_t carry = reg >> 7;
+		const uint8_t carry = reg >> 7;
 		reg <<= 1;
 
 		if (cpu->getFlag(Carry)) reg |= 1;
@@ -119,7 +127,7 @@ private:
 	}
 	inline void rr_base(uint8_t& reg) 
 	{
-		uint8_t carry = reg & 1;
+		const uint8_t carry = reg & 1;
 		reg >>= 1;
 
 		if (cpu->getFlag(Carry)) reg |= 0x80;
@@ -140,7 +148,7 @@ public:
 	}
 	inline void INCR(uint8_t& reg)
 	{
-		bool halfCarry = halfCarry8(reg, 1, 0);
+		const bool halfCarry { halfCarry8(reg, 1, 0) };
 		reg++;
 
 		cpu->setFlag(Zero, reg == 0);
@@ -149,7 +157,7 @@ public:
 	}
 	inline void INCR_HL()
 	{
-		uint8_t val = cpu->read8(cpu->registers.HL.val);
+		uint8_t val { cpu->read8(cpu->registers.HL.val) };
 		INCR(val);
 		cpu->write8(cpu->registers.HL.val, val);
 	}
@@ -157,7 +165,7 @@ public:
 	inline void ADD(uint8_t regInd)
 	{
 		if (regInd == cpu->HL_IND) cpu->addCycle();
-		uint8_t& reg = cpu->getRegister(regInd);
+		const uint8_t& reg { cpu->getRegister(regInd) };
 		add8_base(cpu->registers.A, reg, 0);
 	}
 	inline void ADD(Register8& reg, uint8_t val)
@@ -171,13 +179,13 @@ public:
 	inline void ADC(uint8_t regInd)
 	{
 		if (regInd == cpu->HL_IND) cpu->addCycle();
-		uint8_t& reg = cpu->getRegister(regInd);
+		const uint8_t& reg { cpu->getRegister(regInd) };
 		add8_base(cpu->registers.A, reg, cpu->getFlag(Carry));
 	}
 
 	inline void addToHL(Register16 reg)
 	{
-		uint32_t result = cpu->registers.HL.val + reg.val;
+		const uint32_t result = cpu->registers.HL.val + reg.val;
 
 		cpu->setFlag(Subtract, 0);
 		cpu->setFlag(HalfCarry, halfCarry16(cpu->registers.HL.val, reg.val));
@@ -200,7 +208,7 @@ public:
 	}
     inline void DECR(uint8_t& reg)
 	{
-		bool halfCarry = (reg & 0x0F) == 0;
+		const bool halfCarry { (reg & 0x0F) == 0 };
 		reg--;
 
 		cpu->setFlag(Zero, reg == 0);
@@ -209,7 +217,7 @@ public:
 	}
 	inline void DECR_HL()
 	{
-		uint8_t val = cpu->read8(cpu->registers.HL.val);
+		uint8_t val { cpu->read8(cpu->registers.HL.val) };
 		DECR(val);
 		cpu->write8(cpu->registers.HL.val, val);
 	}
@@ -217,8 +225,7 @@ public:
 	inline void SUB(uint8_t regInd)
 	{
 		if (regInd == cpu->HL_IND) cpu->addCycle();
-		uint8_t& reg = cpu->getRegister(regInd);
-		cpu->registers.A = cp_base(cpu->registers.A.val, reg, 0);
+		cpu->registers.A = cp_base(cpu->registers.A.val, cpu->getRegister(regInd), 0);
 	}
 	inline void SUB(Register8& reg, uint8_t val)
 	{
@@ -227,8 +234,7 @@ public:
 	inline void CP(uint8_t regInd)
 	{
 		if (regInd == cpu->HL_IND) cpu->addCycle();
-		uint8_t& reg = cpu->getRegister(regInd);
-		cp_base(cpu->registers.A.val, reg, 0);
+		cp_base(cpu->registers.A.val, cpu->getRegister(regInd), 0);
 	}
 	inline void CP(Register8& reg, uint8_t val)
 	{
@@ -241,8 +247,7 @@ public:
 	inline void SBC(uint8_t regInd)
 	{
 		if (regInd == cpu->HL_IND) cpu->addCycle();
-		uint8_t& reg = cpu->getRegister(regInd);
-		cpu->registers.A = cp_base(cpu->registers.A.val, reg, cpu->getFlag(Carry));
+		cpu->registers.A = cp_base(cpu->registers.A.val, cpu->getRegister(regInd), cpu->getFlag(Carry));
 	}
 
 	inline void AND(Register8& reg, uint8_t val)
@@ -252,8 +257,7 @@ public:
 	inline void AND(uint8_t regInd)
 	{
 		if (regInd == cpu->HL_IND) cpu->addCycle();
-		uint8_t& reg = cpu->getRegister(regInd);
-		and_base(cpu->registers.A.val, reg);
+		and_base(cpu->registers.A.val, cpu->getRegister(regInd));
 	}
 
 	inline void XOR(Register8& reg, uint8_t val)
@@ -263,8 +267,7 @@ public:
 	inline void XOR(uint8_t regInd)
 	{
 		if (regInd == cpu->HL_IND) cpu->addCycle();
-		uint8_t& reg = cpu->getRegister(regInd);
-		xor_base(cpu->registers.A.val, reg);
+		xor_base(cpu->registers.A.val, cpu->getRegister(regInd));
 	}
 
 	inline void OR(Register8& reg, uint8_t val)
@@ -274,8 +277,7 @@ public:
 	inline void OR(uint8_t regInd)
 	{
 		if (regInd == cpu->HL_IND) cpu->addCycle();
-		uint8_t& reg = cpu->getRegister(regInd);
-		or_base(cpu->registers.A.val, reg);
+		or_base(cpu->registers.A.val, cpu->getRegister(regInd));
 	}
 
 	inline void LD(Register8& reg, uint8_t val)
@@ -298,8 +300,8 @@ public:
 	{
 		if (outInd == cpu->HL_IND) cpu->addCycle();
 
-		uint8_t& inReg = cpu->getRegister(inInd);
-		uint8_t outReg = cpu->getRegister(outInd);
+		uint8_t& inReg { cpu->getRegister(inInd) };
+		const uint8_t outReg { cpu->getRegister(outInd) };
 
 		if (inInd == cpu->HL_IND)
 			cpu->write8(cpu->registers.HL.val, outReg);
@@ -311,6 +313,10 @@ public:
 	{
 		cpu->write8(addr.val, reg.val);
 	}
+	inline void LD_MEM(uint16_t addr, Register8 reg)
+	{
+		cpu->write8(addr, reg.val);
+	}
 	inline void LD_MEM(uint16_t addr, uint8_t val)
 	{
 		cpu->write8(addr, val);
@@ -319,10 +325,6 @@ public:
 	{
 		cpu->write8(addr, reg.val & 0xFF);
 		cpu->write8(addr + 1, reg.val >> 8);
-	}
-	inline void LD_MEM(uint16_t addr, Register8 reg)
-	{
-		cpu->write8(addr, reg.val);
 	}
 
 	inline void LD_C_A() 
@@ -405,7 +407,7 @@ public:
 		if (regInd == cpu->HL_IND)
 			cpu->addCycle();
 
-		uint8_t& reg = cpu->getRegister(regInd);
+		uint8_t& reg { cpu->getRegister(regInd) };
 		rrc_base(reg);
 
 		if (regInd == cpu->HL_IND)
@@ -422,7 +424,7 @@ public:
 		if (regInd == cpu->HL_IND)
 			cpu->addCycle();
 
-		uint8_t& reg = cpu->getRegister(regInd);
+		uint8_t& reg { cpu->getRegister(regInd) };
 		rl_base(reg);
 
 		if (regInd == cpu->HL_IND)
@@ -439,7 +441,7 @@ public:
 		if (regInd == cpu->HL_IND)
 			cpu->addCycle();
 
-		uint8_t& reg = cpu->getRegister(regInd);
+		uint8_t& reg { cpu->getRegister(regInd) };
 		rr_base(reg);
 
 		if (regInd == cpu->HL_IND)
@@ -451,8 +453,8 @@ public:
 		if (regInd == cpu->HL_IND)
 			cpu->addCycle();
 
-		uint8_t& reg = cpu->getRegister(regInd);
-		uint8_t carry = (reg & 0x80) >> 7;
+		uint8_t& reg { cpu->getRegister(regInd) };
+		const uint8_t carry = (reg & 0x80) >> 7;
 		reg <<= 1;
 
 		cpu->resetFlags();
@@ -469,8 +471,8 @@ public:
 		if (regInd == cpu->HL_IND)
 			cpu->addCycle();
 
-		uint8_t& reg = cpu->getRegister(regInd);
-		uint8_t carry = reg & 1;
+		uint8_t& reg { cpu->getRegister(regInd) };
+		const uint8_t carry = reg & 1;
 		reg >>= 1;
 
 		if constexpr (arithmetic) 
@@ -495,9 +497,9 @@ public:
 		if (regInd == cpu->HL_IND)
 			cpu->addCycle();
 
-		uint8_t& reg = cpu->getRegister(regInd);
-		uint8_t upperNibble = reg & 0xF0;
-		uint8_t lowerNibble = reg & 0x0F;
+		uint8_t& reg { cpu->getRegister(regInd) };
+		const uint8_t upperNibble = reg & 0xF0;
+		const uint8_t lowerNibble = reg & 0x0F;
 
 		reg = (lowerNibble << 4) | (upperNibble >> 4);
 		cpu->resetFlags();
@@ -512,10 +514,10 @@ public:
 		if (regInd == cpu->HL_IND)
 			cpu->addCycle();
 
-		uint8_t reg = cpu->getRegister(regInd);
-		bool bitSet = reg & (1 << bit);
+		const uint8_t reg { cpu->getRegister(regInd) };
+		const bool set = reg & (1 << bit);
 
-		cpu->setFlag(Zero, !bitSet);
+		cpu->setFlag(Zero, !set);
 		cpu->setFlag(Subtract, false);
 		cpu->setFlag(HalfCarry, true);
 	}
@@ -524,7 +526,7 @@ public:
 		if (regInd == cpu->HL_IND)
 			cpu->addCycle();
 
-		uint8_t& reg = cpu->getRegister(regInd);
+		uint8_t& reg { cpu->getRegister(regInd) };
 		reg &= ~(1 << bit);
 
 		if (regInd == cpu->HL_IND)
@@ -535,7 +537,7 @@ public:
 		if (regInd == cpu->HL_IND)
 			cpu->addCycle();
 
-		uint8_t& reg = cpu->getRegister(regInd);
+		uint8_t& reg { cpu->getRegister(regInd) };
 		reg |= (1 << bit);
 
 		if (regInd == cpu->HL_IND)
