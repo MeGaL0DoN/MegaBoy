@@ -263,6 +263,8 @@ bool loadFile(std::istream& st, const std::filesystem::path& filePath)
         return handleFileError("Error Loading the Battery Save!");
     case FileLoadResult::CorruptSaveState: 
         return handleFileError("Save State is Corrupt!");
+	case FileLoadResult::SaveStateVersionError:
+		return handleFileError("Requires Older Emulator Version!");
     case FileLoadResult::ROMNotFound:      
         return handleFileError("ROM Not Found! Load the ROM First.");
     case FileLoadResult::FileError:        

@@ -15,13 +15,14 @@
 
 enum class FileLoadResult
 {
+	FileError,
 	SuccessROM,
-	SuccessSaveState,
 	InvalidROM,
 	InvalidBattery,
-	CorruptSaveState,
 	ROMNotFound,
-	FileError
+	SuccessSaveState,
+	CorruptSaveState,
+	SaveStateVersionError
 };
 
 struct gameSharkCheat
@@ -95,6 +96,8 @@ public:
 	inline void setBootRomExitCallback(void(*callback)()) { bootRomExitCallback = callback; }
 
 	static constexpr std::string_view SAVE_STATE_SIGNATURE = "MegaBoy Emulator Save State";
+	static constexpr uint16_t SAVE_STATE_VERSION = 110; // 1.1.0 | Update after making breaking change to the save state format.
+
 	static bool isSaveStateFile(std::istream& st);
 
 	FileLoadResult loadFile(std::istream& st, std::filesystem::path filePath, bool loadBatteryOnRomload);

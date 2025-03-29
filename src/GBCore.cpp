@@ -551,6 +551,7 @@ bool GBCore::validateAndLoadRom(const std::filesystem::path& romPath, uint8_t ch
 // .mbs SAVE STATE FORMAT (LITTLE ENDIAN):
 // 27 byte save signature (SAVE_STATE_SIGNATURE variable)
 // 8 byte FNV-1a hash of the file (excluding the signature)
+// 2 byte save state version number
 // 1 byte ROM cartridge header checksum
 // 2 byte ROM file path (UTF-8) length
 // N byte ROM file path
@@ -567,6 +568,8 @@ bool GBCore::validateAndLoadRom(const std::filesystem::path& romPath, uint8_t ch
 void GBCore::writeState(std::ostream& os) const
 {
 	std::ostringstream st{};
+
+	ST_WRITE(SAVE_STATE_VERSION);
 
 	const auto checksum { cartridge.getChecksum() };
 	ST_WRITE(checksum);
@@ -634,6 +637,12 @@ FileLoadResult GBCore::loadState(std::istream& is)
 		return FileLoadResult::CorruptSaveState;
 
 	memstream st { buffer };
+
+	uint16_t saveStateVersion;
+	ST_READ(saveStateVersion);
+
+	if (saveStateVersion != SAVE_STATE_VERSION)
+		return FileLoadResult::SaveStateVersionError;
 
 	uint8_t stateRomChecksum;
 	ST_READ(stateRomChecksum);
