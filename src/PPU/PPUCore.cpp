@@ -456,12 +456,7 @@ void PPUCore<sys>::handlePixelTransfer()
 	tryStartSpriteFetcher();
 
 	if (objFIFO.s.fetcherActive)
-	{
-		//if (bgFIFO.s.state != FetcherState::PushFIFO)
-		//	executeBGFetcher();
-		//else
-			executeObjFetcher();
-	}
+		executeObjFetcher();
 	else
 		executeBGFetcher();
 
@@ -480,9 +475,6 @@ void PPUCore<sys>::handlePixelTransfer()
 
 		if (s.xPosCounter == SCR_WIDTH) [[unlikely]]
 		{
-			//if (s.videoCycles >= 289)
-			//	std::cout << "Dots: " << +s.videoCycles << " obj: " << +objCount << " scx: " << +regs.SCX << " new scaline: " << (bgFIFO.s.newScanline ? "true" : "false")  <<'\n';
-
 			SetPPUMode(PPUMode::HBlank);
 			s.videoCycles = 0;
 		}
@@ -541,6 +533,7 @@ void PPUCore<sys>::executeBGFetcher()
 
 		if ((bgFIFO.s.cycles & 0x1) == 0)
 		{
+			bgFIFO.s.SCYlatch = regs.SCY;
 			const int tileDataAddr { getBGTileAddr(bgFIFO.s.tileMap) + getBGTileOffset() };
 
 			if constexpr (sys == GBSystem::CGB)
@@ -559,7 +552,7 @@ void PPUCore<sys>::executeBGFetcher()
 
 		if ((bgFIFO.s.cycles & 0x1) == 0)
 		{
-			if (bgFIFO.s.newScanline)
+			if (bgFIFO.s.newScanline) [[unlikely]]
 			{
 				bgFIFO.s.fetchX--;
 				bgFIFO.s.newScanline = false;
@@ -732,16 +725,13 @@ void PPUCore<sys>::renderFIFOs()
 		else
 			objHasPriority &= (!obj.priority || bg.color == 0);
 
-		outputColor = objHasPriority ? getColor<true>(obj.color, obj.palette) : getColor<false>(bg.color, bg.palette);
+		outputColor = objHasPriority ? getColor<true, true>(obj.color, obj.palette) : getColor<false, true>(bg.color, bg.palette);
 
-		if (debugPPU)
-		{
-			if (objHasPriority)
-				PixelOps::setPixel(debugOAMFramebuffer.get(), SCR_WIDTH, s.xPosCounter, s.LY, getColor<true>(obj.color, obj.palette));
-		}
+		if (debugPPU && objHasPriority)
+			PixelOps::setPixel(debugOAMFramebuffer.get(), SCR_WIDTH, s.xPosCounter, s.LY, getColor<true>(obj.color, obj.palette));
 	}
 	else
-		outputColor = getColor<false>(bg.color, bg.palette);
+		outputColor = getColor<false, true>(bg.color, bg.palette);
 
 	if (debugPPU)
 	{

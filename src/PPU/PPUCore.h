@@ -5,6 +5,7 @@
 #include "PPU.h"
 #include "../MMU.h"
 #include "../CPU/CPU.h"
+#include "../appConfig.h"
 
 template <GBSystem sys>
 class PPUCore final : public PPU
@@ -74,7 +75,7 @@ private:
 		return ((tileHigh >> ind) & 1) << 1 | ((tileLow >> ind) & 1);
 	}
 
-	template <bool obj>
+	template <bool obj, bool mainTexture = false>
 	constexpr color getColor(uint8_t colorID, uint8_t palette)
 	{
 		if constexpr (System::IsCGBDevice(sys))
@@ -94,8 +95,14 @@ private:
 					colorID = BGP[colorID];
 			}
 
-			const uint8_t paletteRAMInd = palette * 8 + colorID * 2;
-			return color::fromRGB5(paletteRamPtr[paletteRAMInd + 1] << 8 | paletteRamPtr[paletteRAMInd]);
+			const int paletteRAMInd { palette * 8 + colorID * 2 };
+			const uint16_t rgb5 = paletteRamPtr[paletteRAMInd + 1] << 8 | paletteRamPtr[paletteRAMInd];
+
+			// If rendering main texutre, don't use color correction, let frontend deal with it (doing it in opengl shader instead).
+			if constexpr (mainTexture)
+				return color::fromRGB5(rgb5, false);
+			else
+				return color::fromRGB5(rgb5, appConfig::gbcColorCorrection);
 		}
 		else
 		{
@@ -117,7 +124,7 @@ private:
 
 	inline uint8_t getBGTileOffset() const
 	{
-		const uint8_t bgLineOffset = (s.LY + regs.SCY) % 8;
+		const uint8_t bgLineOffset = (s.LY + bgFIFO.s.SCYlatch) % 8;
 		const uint8_t windowLineOffset = s.WLY % 8;
 
 		if constexpr (sys == GBSystem::DMG)

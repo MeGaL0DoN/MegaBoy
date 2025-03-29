@@ -49,7 +49,8 @@ struct FIFOState
 struct BGFIFOState : FIFOState
 {
 	uint16_t tileMap{};
-	uint8_t fetchX{ 0 };
+	uint8_t fetchX{};
+	uint8_t SCYlatch{};
 	uint8_t cgbAttributes{};
 
 	int8_t scanlineDiscardPixels { -1 };

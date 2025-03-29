@@ -172,11 +172,11 @@ bool GBCore::runNoCartridgeBootROM(GBSystem bootSys)
 	return true;
 }
 
-template void GBCore::_emulateFrame<true>();
-template void GBCore::_emulateFrame<false>();
+template void GBCore::emulateFrameBase<true>();
+template void GBCore::emulateFrameBase<false>();
 
 template <bool checkBreakpoints>
-void GBCore::_emulateFrame()
+void GBCore::emulateFrameBase()
 {
 	if (!executingProgram() || emulationPaused) [[unlikely]]
 		return;
@@ -256,9 +256,9 @@ FileLoadResult GBCore::loadFile(std::istream& st, std::filesystem::path filePath
 
 			if (romFilePath.stem() != stem)
 			{
-				for (auto ext : romExtensions)
+				for (auto romExt : romExtensions)
 				{
-					const auto romPath { FileUtils::replaceExtension(filePath, ext) };
+					const auto romPath { FileUtils::replaceExtension(filePath, romExt) };
 					std::ifstream ifs { romPath, std::ios::in | std::ios::binary };
 					if (!ifs) continue;
 
@@ -354,9 +354,8 @@ std::vector<uint8_t> GBCore::extractZippedROM(std::istream& st)
 		if (filename.length() < 3) continue;
 
 		const std::string ext { filename.substr(filename.length() - 3) };
-		const bool isGB { ext == ".gb" || ext == "gbc" };
 
-		if (isGB)
+		if (ext == ".gb" || ext == "gbc")
 		{
 			const auto uncompressedSize { file_stat.m_uncomp_size };
 			std::vector<uint8_t> buffer(uncompressedSize);

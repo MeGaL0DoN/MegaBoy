@@ -79,7 +79,13 @@ public:
 
 	GBCore();
 
-	inline void emulateFrame() { (this->*emulateFrameFunc)(); }
+	inline void emulateFrame()
+	{
+		if (enableBreakpointChecks)
+			emulateFrameBase<true>();
+		else
+			emulateFrameBase<false>();
+	}
 
 	inline void unmapBootROM() { mmu.isBootROMMapped = false; }
 	inline bool executingBootROM() { return mmu.isBootROMMapped; }
@@ -205,7 +211,6 @@ public:
 private:
 	void (*drawCallback)(const uint8_t* framebuffer, bool firstFrame) { nullptr };
 	void (*bootRomExitCallback)() { nullptr };
-	void (GBCore::*emulateFrameFunc)() { &GBCore::_emulateFrame<false> };
 
 	bool ppuDebugEnable{ false };
 
@@ -220,14 +225,10 @@ private:
 
 	std::array<bool, 0x10000> breakpoints{};
 	std::array<bool, 0x100> opcodeBreakpoints{};
-
-	inline void enableBreakpointChecks(bool val)
-	{
-		emulateFrameFunc = val ? &GBCore::_emulateFrame<true> : &GBCore::_emulateFrame<false>;
-	}
+	bool enableBreakpointChecks { false };
 
 	template<bool checkBreakpoints>
-	void _emulateFrame();
+	void emulateFrameBase();
 
 	void stepComponents();
 

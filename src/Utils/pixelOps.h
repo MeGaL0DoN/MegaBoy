@@ -17,17 +17,44 @@ namespace PixelOps
 			return R == other.R && G == other.G && B == other.B;
 		}
 
-		constexpr static color fromRGB5(uint16_t rgb5)
+		static constexpr color fromRGB5(uint16_t rgb5, bool colorCorrection)
 		{
-			return color
+			uint8_t R = rgb5 & 0x1F;
+			uint8_t G = (rgb5 >> 5) & 0x1F;
+			uint8_t B = (rgb5 >> 10) & 0x1F;
+
+			if (colorCorrection)
 			{
-				componentFromRGB5(rgb5 & 0x1F),
-				componentFromRGB5((rgb5 >> 5) & 0x1F),
-				componentFromRGB5((rgb5 >> 10) & 0x1F)
-			};
+				constexpr std::array<uint8_t, 32> gammaTable
+				{
+					0, 62, 64, 89, 90, 109, 111, 127, 128, 142, 143, 156, 156, 168, 169, 180, 181,
+					191, 192, 201, 202, 211, 212, 221, 221, 230, 230, 238, 239, 247, 247, 255
+				};
+
+				const uint8_t Rx = (13 * R + 2 * G + B) >> 4;
+				const uint8_t Gx = (3 * G + B) >> 2;
+				const uint8_t Bx = (2 * G + 14 * B) >> 4;
+
+				R = gammaTable[Rx];
+				G = gammaTable[Gx];
+				B = gammaTable[Bx];
+			}
+			else
+			{
+				constexpr auto toRGB8 = [](uint8_t rgb5) -> uint8_t
+				{
+					return (rgb5 << 3) | (rgb5 >> 2);
+				};
+
+				R = toRGB8(R);
+				G = toRGB8(G);
+				B = toRGB8(B);
+			}
+
+			return color { R, G, B };
 		}
 
-		static color fromHex(std::string hexStr)
+		static inline color fromHex(std::string hexStr)
 		{
 			if (hexStr[0] == '#')
 				hexStr = hexStr.substr(1);
@@ -45,17 +72,12 @@ namespace PixelOps
 			};
 		}
 
-		std::string toHex() const 
+		inline std::string toHex() const 
 		{
 			std::stringstream ss;
 			ss << "#" << std::hex << std::uppercase << std::setfill('0') << std::setw(2)
 								  << static_cast<int>(R) << std::setw(2) << static_cast<int>(G) << std::setw(2) << static_cast<int>(B);
 			return ss.str();
-		}
-	private:
-		constexpr static uint8_t componentFromRGB5(uint8_t rgb5)
-		{
-			return (rgb5 << 3) | (rgb5 >> 2);
 		}
 	};
 

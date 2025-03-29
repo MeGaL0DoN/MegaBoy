@@ -16,7 +16,7 @@ public:
 	static void renderWindows(float scaleFactor);
 
 	static void signalVBlank();
-	static void signalROMreset();
+	static void signalROMreset(bool cartridgeUnload = false);
 	static void signalSaveStateChange();
 	static void signalBreakpoint();
 

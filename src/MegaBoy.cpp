@@ -453,7 +453,7 @@ void handleCartridgeUnload()
     }
 
     updateWindowTitle();
-    debugUI::signalROMreset();
+    debugUI::signalROMreset(true);
 }
 
 // To clear the screen in no cartridge boot rom execute mode (for unofficial boot roms which don't do cartridge header checks and always unmap itself).

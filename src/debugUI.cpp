@@ -21,7 +21,7 @@ void debugUI::renderMenu()
         if (ImGui::MenuItem("Disassembly"))
         {
             showDisassembly = !showDisassembly;
-            gb.enableBreakpointChecks(showDisassembly);
+			gb.enableBreakpointChecks = showDisassembly;
         }
         if (ImGui::MenuItem("PPU View"))
         {
@@ -65,13 +65,14 @@ void debugUI::disassembleRom()
     }
 }
 
-void debugUI::signalROMreset()
+void debugUI::signalROMreset(bool cartridgeUnload)
 {
     romDisassembly.clear();
     removeTempBreakpoint();
 
-    if (showBreakpointHitWindow && !gb.executingBootROM())
-        showBreakpointHitWindow = false;
+    // Don't set it to false if breakpoint is in the boot rom and boot rom will continue running (cartridge was unloaded but rom not restarted).
+    if (showBreakpointHitWindow && (!cartridgeUnload || !gb.executingBootROM()))
+		showBreakpointHitWindow = false;
 }
 void debugUI::signalSaveStateChange()
 {
@@ -955,7 +956,7 @@ void debugUI::renderWindows(float scaleFactor)
         ImGui::End();
 
         if (!showDisassembly)
-            gb.enableBreakpointChecks(false);
+			gb.enableBreakpointChecks = false;
     }
     if (showPPUView)
     {
@@ -1172,7 +1173,7 @@ void debugUI::renderWindows(float scaleFactor)
                         for (int x = 0; x < COLORS; x++)
                         {
                             const uint16_t rgb5 { gbcColorToRGB5(y, x, paletteRam) };
-                            const auto col { color::fromRGB5(rgb5) };
+                            const auto col { color::fromRGB5(rgb5, appConfig::gbcColorCorrection) };
 
                             const auto pos { ImVec2(startPos.x + xOffset + x * (squareSize + gapSize), startPos.y + y * (squareSize + gapSize)) };
                             drawList->AddRectFilled(pos, ImVec2(pos.x + squareSize, pos.y + squareSize), IM_COL32(col.R, col.G, col.B, 255));
@@ -1187,7 +1188,7 @@ void debugUI::renderWindows(float scaleFactor)
                             ss << "RGB5: " << (rgb5 & 0x1F) << " " << ((rgb5 >> 5) & 0x1F) << " " << ((rgb5 >> 10) & 0x1F);
 
                             if (ImGui::IsItemHovered())
-                                ImGui::SetTooltip(ss.str().c_str());
+                                ImGui::SetTooltip("%s", ss.str().c_str());
                         }
                     }
                 };
@@ -1217,7 +1218,7 @@ void debugUI::renderWindows(float scaleFactor)
                             const int palette { p == DMGPalette::OBP1 ? 1 : 0 };
 
 							rgb5 = gbcColorToRGB5(palette, colInd, ram);
-							col = color::fromRGB5(rgb5);
+							col = color::fromRGB5(rgb5, appConfig::gbcColorCorrection);
                         }
                         else
                             col = PPU::ColorPalette[colInd];
@@ -1237,7 +1238,7 @@ void debugUI::renderWindows(float scaleFactor)
                             ss << "\nRGB5: " << (rgb5 & 0x1F) << " " << ((rgb5 >> 5) & 0x1F) << " " << ((rgb5 >> 10) & 0x1F);
 
                         if (ImGui::IsItemHovered())
-                            ImGui::SetTooltip(ss.str().c_str());
+                            ImGui::SetTooltip("%s", ss.str().c_str());
                     }
                 };
 
