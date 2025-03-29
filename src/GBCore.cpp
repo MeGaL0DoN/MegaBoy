@@ -203,7 +203,7 @@ void GBCore::emulateFrameBase()
 
 void GBCore::stepComponents()
 {
-	cpu.updateTimer();
+	cpu.executeTimer();
 	ppu->execute();
 	mmu.execute();
 	serial.execute();

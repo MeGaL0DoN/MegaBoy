@@ -478,13 +478,13 @@ void debugUI::renderWindows(float scaleFactor)
             ImGui::Text("PC: $%04X", gb.cpu.s.PC);
             ImGui::SameLine();
             ImGui::Text("| SP: $%04X", gb.cpu.s.SP.val);
-            ImGui::Text("DIV: $%02X", gb.cpu.s.DIV_reg);
+            ImGui::Text("DIV: $%02X", gb.cpu.s.divCounter >> 8);
             ImGui::SameLine();
             ImGui::Spacing();
             ImGui::SameLine();
-            ImGui::Text("| TIMA: $%02X", gb.cpu.s.TIMA_reg);
+            ImGui::Text("| TIMA: $%02X", gb.cpu.s.timaReg);
             ImGui::Text("Cycles: %llu", (gb.totalCycles() / gb.cpu.TcyclesPerM())); // Displaying M cycles
-            ImGui::Text("Frequency: %.3f MHz", gb.cpu.s.GBCdoubleSpeed ? 2.097 : 1.048);
+            ImGui::Text("Frequency: %.3f MHz", gb.cpu.doubleSpeedMode() ? 2.097 : 1.048);
             ImGui::Text("Halted: %s", gb.cpu.s.halted ? "True" : "False");
 
             ImGui::SeparatorText("Registers");

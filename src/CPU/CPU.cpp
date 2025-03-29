@@ -27,7 +27,7 @@ void CPU::loadState(std::istream& st)
 {
 	ST_READ(s);
 	ST_READ(registers);
-	tCyclesPerM = s.GBCdoubleSpeed ? 2 : 4;
+	tCyclesPerM = s.cgbDoubleSpeed ? 2 : 4;
 }
 
 void CPU::addCycle()
@@ -91,7 +91,7 @@ bool CPU::handleHaltedState()
 	return true;
 }
 
-#define T_CYCLES (cycles * (s.GBCdoubleSpeed ? 2 : 4))
+#define T_CYCLES (cycles * (s.cgbDoubleSpeed ? 2 : 4))
 
 uint8_t CPU::execute()
 {
@@ -114,10 +114,10 @@ uint8_t CPU::execute()
 
 	opcode = fetch8();
 
-	if (s.halt_bug) [[unlikely]]
+	if (s.haltBug) [[unlikely]]
 	{
 		s.PC--;
-		s.halt_bug = false;
+		s.haltBug = false;
 	}
 
 	executeMain();

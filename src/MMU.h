@@ -29,8 +29,8 @@ public:
 	void saveState(std::ostream& st) const;
 	void loadState(std::istream& st);
 
-	inline void write8(uint16_t addr, uint8_t val) { (this->*write_func)(addr, val); }
-	inline uint8_t read8(uint16_t addr) const { return (this->*read_func)(addr); }
+	inline void write8(uint16_t addr, uint8_t val) { (this->*writeFunc)(addr, val); }
+	inline uint8_t read8(uint16_t addr) const { return (this->*readFunc)(addr); }
 
 	void execute();
 
@@ -105,6 +105,6 @@ private:
 	template <GBSystem sys>
 	uint8_t read8(uint16_t addr) const;
 
-	void(MMU::*write_func)(uint16_t, uint8_t) { nullptr };
-	uint8_t(MMU::*read_func)(uint16_t) const { nullptr };
+	void(MMU::*writeFunc)(uint16_t, uint8_t) { nullptr };
+	uint8_t(MMU::*readFunc)(uint16_t) const { nullptr };
 };

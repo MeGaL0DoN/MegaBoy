@@ -10,16 +10,16 @@ void MMU::updateSystem()
 	switch (System::Current())
 	{
 	case GBSystem::DMG:		
-		read_func = &MMU::read8<GBSystem::DMG>;
-		write_func = &MMU::write8<GBSystem::DMG>;
+		readFunc = &MMU::read8<GBSystem::DMG>;
+		writeFunc = &MMU::write8<GBSystem::DMG>;
 		break;
 	case GBSystem::CGB:
-		read_func = &MMU::read8<GBSystem::CGB>;
-		write_func = &MMU::write8<GBSystem::CGB>;
+		readFunc = &MMU::read8<GBSystem::CGB>;
+		writeFunc = &MMU::write8<GBSystem::CGB>;
 		break;
 	case GBSystem::DMGCompatMode:
-		read_func = &MMU::read8<GBSystem::DMGCompatMode>;
-		write_func = &MMU::write8<GBSystem::DMGCompatMode>;
+		readFunc = &MMU::read8<GBSystem::DMGCompatMode>;
+		writeFunc = &MMU::write8<GBSystem::DMGCompatMode>;
 		break;
 	}
 }
@@ -118,7 +118,7 @@ void MMU::executeDMA()
 		s.dma.delayCycles--;
 	else
 	{
-		gb.ppu->OAM[s.dma.cycles++] = (this->*read_func)(s.dma.sourceAddr++);
+		gb.ppu->OAM[s.dma.cycles++] = (this->*readFunc)(s.dma.sourceAddr++);
 
 		if (s.dma.restartRequest && s.dma.delayCycles-- == 0)
 		{
@@ -141,7 +141,7 @@ void MMU::executeGHDMA()
 
 		// Upper 3 bits of dest address are masked in place, actual address is not modified.
 		for (int i = 0; i < 0x10; i++)
-			gb.ppu->VRAM[(gbc.ghdma.destAddr++) & 0x1FFF] = (this->*read_func)(gbc.ghdma.sourceAddr++);
+			gb.ppu->VRAM[(gbc.ghdma.destAddr++) & 0x1FFF] = (this->*readFunc)(gbc.ghdma.sourceAddr++);
 
 		// Since it's actually (transferLength - 1), transfer is over once it underflows to FF.
 		// Also when dest address overflows.
@@ -203,23 +203,30 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			gb.joypad.writeInputReg(val);
 			break;
 		case 0xFF01:
-			gb.serial.s.serial_reg = val;
+			gb.serial.s.serialReg = val;
 			break;
 		case 0xFF02:
 			gb.serial.writeSerialControl(val);
 			break;
 		case 0xFF04:
-			gb.cpu.s.DIV_reg = 0;
-			gb.cpu.s.DIV_COUNTER = 0;
+			gb.cpu.s.divCounter = 0;
 			break;
 		case 0xFF05:
-			gb.cpu.s.TIMA_reg = val;
+			if (!gb.cpu.s.timaOverflowed)
+			{
+				gb.cpu.s.timaReg = val;
+				gb.cpu.s.timaOverflowDelay = false;
+			}
 			break;
 		case 0xFF06:
-			gb.cpu.s.TMA_reg = val;
+			gb.cpu.s.tmaReg = val;
+
+			if (gb.cpu.s.timaOverflowed)
+				gb.cpu.s.timaReg = val;
+
 			break;
 		case 0xFF07:
-			gb.cpu.s.TAC_reg = val;
+			gb.cpu.writeTacReg(val);
 			break;
 		case 0xFF0F:
 			gb.cpu.s.IF = val | 0xE0;
@@ -559,17 +566,17 @@ uint8_t MMU::read8(uint16_t addr) const
 		case 0xFF00:
 			return gb.joypad.readInputReg();
 		case 0xFF01:
-			return gb.serial.s.serial_reg;
+			return gb.serial.s.serialReg;
 		case 0xFF02:
 			return gb.serial.readSerialControl();
 		case 0xFF04:
-			return gb.cpu.s.DIV_reg;
+			return gb.cpu.s.divCounter >> 8; 
 		case 0xFF05:
-			return gb.cpu.s.TIMA_reg;
+			return gb.cpu.s.timaReg;
 		case 0xFF06:
-			return gb.cpu.s.TMA_reg;
+			return gb.cpu.s.tmaReg;
 		case 0xFF07:
-			return gb.cpu.s.TAC_reg | 0b11111000;
+			return gb.cpu.s.tacReg | 0b11111000;
 		case 0xFF0F:
 			return gb.cpu.s.IF;
 		case 0xFF40:
@@ -599,7 +606,7 @@ uint8_t MMU::read8(uint16_t addr) const
 
 		case 0xFF4D:
 			if constexpr (sys == GBSystem::CGB)
-				return 0x7E | (static_cast<uint8_t>(gb.cpu.s.GBCdoubleSpeed) << 7) | static_cast<uint8_t>(gb.cpu.s.prepareSpeedSwitch);
+				return 0x7E | (static_cast<uint8_t>(gb.cpu.s.cgbDoubleSpeed) << 7) | static_cast<uint8_t>(gb.cpu.s.prepareSpeedSwitch);
 			else
 				return 0xFF;
 		case 0xFF4F:

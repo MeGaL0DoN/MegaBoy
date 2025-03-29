@@ -599,12 +599,11 @@ public:
 	{
 		if (cpu->s.prepareSpeedSwitch && System::Current() == GBSystem::CGB)
 		{
-			cpu->s.GBCdoubleSpeed = !cpu->s.GBCdoubleSpeed;
-			cpu->tCyclesPerM = cpu->s.GBCdoubleSpeed ? 2 : 4;
+			cpu->s.cgbDoubleSpeed = !cpu->s.cgbDoubleSpeed;
+			cpu->tCyclesPerM = cpu->s.cgbDoubleSpeed ? 2 : 4;
 			cpu->s.prepareSpeedSwitch = false;
 
-			cpu->s.DIV_COUNTER = 0;
-			cpu->s.DIV_reg = 0;
+			cpu->s.divCounter = 0;
 
 			if (cpu->pendingInterrupt() && cpu->s.IME)
 				return; // if interrupts and IME, then stop is 1 byte opcode
@@ -620,7 +619,7 @@ public:
 		cpu->s.halted = true;
 
 		if (!cpu->s.IME && cpu->pendingInterrupt())
-			cpu->s.halt_bug = true;
+			cpu->s.haltBug = true;
 	}
 
 	inline void JR(int8_t val) 

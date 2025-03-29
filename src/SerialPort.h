@@ -25,11 +25,11 @@ private:
 
 	struct serialState
 	{
-		uint8_t serial_control { System::Current() == GBSystem::CGB ? static_cast<uint8_t>(0x7F) : static_cast<uint8_t>(0x7E) };
-		uint8_t serial_reg{0x0};
+		uint8_t serialControl { System::Current() == GBSystem::CGB ? static_cast<uint8_t>(0x7F) : static_cast<uint8_t>(0x7E) };
+		uint8_t serialReg { 0x0 };
 
-		uint16_t serialCycles{0x0};
-		uint8_t transferredBits{0x0};
+		uint16_t serialCycles { 0x0 };
+		uint8_t transferredBits { 0x0 };
 	};
 
 	serialState s{};

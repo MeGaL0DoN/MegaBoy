@@ -40,36 +40,49 @@ void CPU::requestInterrupt(Interrupt interrupt)
 	s.IF = setBit(s.IF, static_cast<uint8_t>(interrupt));
 }
 
-constexpr std::array<uint16_t, 4> TIMAcycles = { 256, 4, 16, 64 };
+constexpr std::array<uint8_t, 4> TIMA_BITS { 9, 3, 5, 7 };
 
-void CPU::updateTimer()
+bool CPU::detectTimaOverflow()
+{
+	const bool timerEnabled = getBit(s.tacReg, 2);
+	const uint8_t timerBit { TIMA_BITS[s.tacReg & 0b11] };
+	const bool newDivBit { getBit(s.divCounter, timerBit) && timerEnabled };
+
+	bool overflow { false };
+
+	if (!newDivBit && s.oldDivBit)
+		overflow = (++s.timaReg == 0);
+
+	s.oldDivBit = newDivBit;
+	return overflow;
+}
+
+void CPU::executeTimer()
 {
 	if (!s.stopState) [[likely]]
-	{
-		s.DIV_COUNTER++;
+		s.divCounter += 4;
 
-		if (s.DIV_COUNTER >= 64)
-		{
-			s.DIV_COUNTER -= 64;
-			s.DIV_reg++;
-		}
+	s.timaOverflowed = false;
+
+	if (s.timaOverflowDelay)
+	{
+		requestInterrupt(Interrupt::Timer);
+		s.timaReg = s.tmaReg;
+		s.timaOverflowDelay = false;
+		s.timaOverflowed = true;
 	}
 
-	if (!getBit(s.TAC_reg, 2))
-		return;
+	s.timaOverflowDelay = detectTimaOverflow();
+}
 
-	s.TIMA_COUNTER++;
-	const uint16_t currentTIMAspeed { TIMAcycles[s.TAC_reg & 0x03] };
+// TAC reg writes cause immediate falling edge detection so interrupt can be requested immediately, without 1M cycle delay as usual.
+void CPU::writeTacReg(uint8_t val)
+{
+	s.tacReg = val;
 
-	while (s.TIMA_COUNTER >= currentTIMAspeed)
+	if (detectTimaOverflow())
 	{
-		s.TIMA_COUNTER -= currentTIMAspeed;
-		s.TIMA_reg++;
-
-		if (s.TIMA_reg == 0)
-		{
-			s.TIMA_reg = s.TMA_reg;
-			requestInterrupt(Interrupt::Timer);
-		}
+		requestInterrupt(Interrupt::Timer);
+		s.timaReg = s.tmaReg;
 	}
 }

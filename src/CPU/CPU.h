@@ -27,7 +27,7 @@ class CPU
 public:
 	uint8_t execute();
 	void requestInterrupt(Interrupt interrupt);
-	void updateTimer();
+	void executeTimer();
 
 	std::string disassemble(uint16_t addr, uint8_t(*readFunc)(uint16_t), uint8_t* instrLen);
 
@@ -43,7 +43,7 @@ public:
 	void setHaltExitEvent(void(*event)()) { haltExitEvent = event; }
 
 	constexpr uint8_t TcyclesPerM() const { return tCyclesPerM; }
-	constexpr bool doubleSpeedMode() const { return s.GBCdoubleSpeed; }
+	constexpr bool doubleSpeedMode() const { return s.cgbDoubleSpeed; }
 
 	void saveState(std::ostream& st) const;
 	void loadState(std::istream& st);
@@ -52,6 +52,9 @@ private:
 
 	void executeMain();
 	void executePrefixed();
+
+	bool detectTimaOverflow();
+	void writeTacReg(uint8_t val);
 
 	void handleInterrupts();
 	bool handleHaltedState();
@@ -106,31 +109,32 @@ private:
 
 	struct cpuState
 	{
-		uint16_t PC{ 0x100 };
-		Register16 SP{ 0xFFFE };
+		uint16_t PC { 0x100 };
+		Register16 SP { 0xFFFE };
 
-		uint8_t DIV_reg{ 0xAC };
-		uint8_t TIMA_reg{ 0x00 };
-		uint8_t TMA_reg{ 0x00 };
-		uint8_t TAC_reg{ 0xF8 };
+		uint16_t divCounter { 0x00 };
+		uint8_t timaReg { 0x00 };
+		uint8_t tmaReg { 0x00 };
+		uint8_t tacReg { 0xF8 };
 
-		uint16_t DIV_COUNTER{ 0 };
-		uint16_t TIMA_COUNTER{ 0 };
+		bool oldDivBit { false };
+		bool timaOverflowDelay { false };
+		bool timaOverflowed { false };
 
-		uint8_t IE{ 0x00 };
-		uint8_t IF{ 0xE1 };
+		uint8_t IE { 0x00 };
+		uint8_t IF { 0xE1 };
 
-		bool halted{ false };
-		bool halt_bug{ false };
+		bool halted { false };
+		bool haltBug { false };
 
-		bool stopState{ false };
-		uint16_t stopCycleCounter{ 0 };
+		bool stopState { false };
+		uint16_t stopCycleCounter { 0 };
 
-		bool IME{ false };
-		bool shouldSetIME{ false };
+		bool IME { false };
+		bool shouldSetIME { false };
 
-		bool GBCdoubleSpeed{ false };
-		bool prepareSpeedSwitch{ false };
+		bool cgbDoubleSpeed { false };
+		bool prepareSpeedSwitch { false };
 	};
 
 	cpuState s{};
