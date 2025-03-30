@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <iostream>
+#include "RTC.h"
 
 struct MBCBase
 {
@@ -18,6 +19,7 @@ struct MBCBase
 	virtual void reset(bool resetBattery) = 0;
 
 	virtual uint16_t getCurrentRomBank() = 0;
+	virtual RTC* getRTC() { return nullptr; }
 
 	bool sramDirty { false };
 };

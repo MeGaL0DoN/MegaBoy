@@ -320,6 +320,9 @@ bool GBCore::loadROM(std::istream& st, const std::filesystem::path& filePath)
 	romFilePath = filePath;
 	reset(true);
 
+	if (speedFactor != 1 && cartridge.RTC != nullptr)
+		cartridge.RTC->enableFastForward(speedFactor);
+
 	return true;
 }
 
@@ -767,10 +770,13 @@ bool GBCore::loadSaveStateThumbnail(const std::filesystem::path& path, std::span
 
 	memstream st { buffer };
 
+	uint16_t saveStateVersion;
+	ST_READ(saveStateVersion);
+
 	uint8_t saveStateChecksum;
 	ST_READ(saveStateChecksum);
 
-	if (cartridge.getChecksum() != saveStateChecksum)
+	if (cartridge.getChecksum() != saveStateChecksum || saveStateVersion != SAVE_STATE_VERSION)
 		return false;
 
 	uint16_t filePathLen { 0 };

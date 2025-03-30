@@ -3,9 +3,10 @@
 #include <cstdint>
 #include <iostream>
 #include <chrono>
+#include "RTC.h"
 #include "../defines.h"
 
-struct RTCRegs
+struct RTC3Regs
 {
 	uint8_t S{};
 	uint8_t M{};
@@ -27,10 +28,10 @@ struct RTCRegs
 	}
 };
 
-struct RTCState
+struct RTC3State
 {
-	RTCRegs regs{};
-	RTCRegs latchedRegs{};
+	RTC3Regs regs{};
+	RTC3Regs latchedRegs{};
 
 	uint8_t reg{ 0 };
 	uint8_t latchWrite{ 0xFF };
@@ -38,13 +39,13 @@ struct RTCState
 	int32_t cycles{ 0 };
 };
 
-class RTCTimer
+class RTC3 : public RTC
 {
 public:
-	RTCState s{};
+	RTC3State s{};
 
 	static constexpr uint32_t CYCLES_PER_SECOND = 1048576 * 4;
-	void addRTCcycles(uint64_t cycles);
+	void addCycles(uint64_t cycles);
 
 	constexpr void setReg(uint8_t reg) { s.reg = reg; }
 	void writeReg(uint8_t val);
@@ -52,23 +53,28 @@ public:
 	bool loadBattery(std::istream& st);
 	void saveBattery(std::ostream& st) const;
 
-	inline void reset() { s = {}; lastUnixTime = unix_time(); }
+	inline void reset() 
+	{
+		s = {};
+		lastUnixTime = getUnixTime(); 
+	}
 
-	constexpr void fastForwardEnableEvent(int speedFactor) 
+	inline void enableFastForward(int speedFactor) override
 	{
 		s.cycles *= speedFactor;
 		slowDownFactor = speedFactor;
 	}
-	constexpr void fastForwardDisableEvent() 
+	inline void disableFastForward() override 
 	{
 		s.cycles /= slowDownFactor;
 		slowDownFactor = 1;
 	}
+
 private:
 	uint64_t lastUnixTime{};
 	int slowDownFactor { 1 };
 
-	inline uint64_t unix_time() const
+	inline uint64_t getUnixTime() const
 	{
 		return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 	}

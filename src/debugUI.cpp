@@ -483,6 +483,11 @@ void debugUI::renderWindows(float scaleFactor)
             ImGui::Spacing();
             ImGui::SameLine();
             ImGui::Text("| TIMA: $%02X", gb.cpu.s.timaReg);
+            ImGui::Text("TAC: $%02X", gb.cpu.s.tacReg);
+            ImGui::SameLine();
+            ImGui::Spacing();
+            ImGui::SameLine();
+            ImGui::Text("| TMA: $%02X", gb.cpu.s.tmaReg);
             ImGui::Text("Cycles: %llu", (gb.totalCycles() / gb.cpu.TcyclesPerM())); // Displaying M cycles
             ImGui::Text("Frequency: %.3f MHz", gb.cpu.doubleSpeedMode() ? 2.097 : 1.048);
             ImGui::Text("Halted: %s", gb.cpu.s.halted ? "True" : "False");

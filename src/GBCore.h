@@ -188,12 +188,16 @@ public:
 	constexpr void enableFastForward(int factor)
 	{
 		speedFactor = factor;
-		cartridge.timer.fastForwardEnableEvent(factor);
+
+		if (cartridge.RTC != nullptr)
+			cartridge.RTC->enableFastForward(factor);
 	}
 	constexpr void disableFastForward()
 	{
 		speedFactor = 1;
-		cartridge.timer.fastForwardDisableEvent();
+
+		if (cartridge.RTC != nullptr)
+			cartridge.RTC->disableFastForward();
 	}
 
 	std::vector<gameGenieCheat> gameGenies{};

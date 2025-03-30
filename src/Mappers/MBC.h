@@ -13,7 +13,7 @@ struct MBCstate
 	uint8_t romBank { 1 };
 };
 
-// mbc state class template
+// MBC state class template
 template <typename T>
 class MBC : public MBCBase
 {
@@ -40,7 +40,7 @@ public:
 	{
 		if (cartridge.hasBattery)
 		{
-			const uint32_t saveSize = FileUtils::remainingBytes(st);
+			const uint32_t saveSize { FileUtils::remainingBytes(st) };
 
 			if (saveSize < ram.size())
 				return false;

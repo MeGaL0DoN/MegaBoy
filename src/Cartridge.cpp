@@ -3,12 +3,13 @@
 #include "Cartridge.h"
 #include "GBCore.h"
 
-#include "Mappers/RomOnlyMBC.h"
+#include "Mappers/NoMBC.h"
 #include "Mappers/MBC1.h"
 #include "Mappers/MBC2.h"
 #include "Mappers/MBC3.h"
 #include "Mappers/MBC5.h"
 #include "Mappers/HuC1.h"
+#include "Mappers/HuC3.h"
 
 Cartridge::Cartridge(GBCore& gbCore) : gb(gbCore), rom(std::vector<uint8_t>(MIN_ROM_SIZE * 2, 0xFF)), mapper(std::make_unique<RomOnlyMBC>(*this))
 {}
@@ -20,7 +21,6 @@ void Cartridge::unload()
 	romLoaded = false;
 	hasRAM = false;
 	hasBattery = false;
-	hasTimer = false;
 	romBanks = 2;
 	ramBanks = 0;
 
@@ -68,7 +68,7 @@ uint8_t Cartridge::calculateHeaderChecksum(std::istream& is) const
 	uint8_t checksum = 0;
 	is.seekg(0x134, std::ios::beg);
 
-	for (size_t i = 0x134; i <= 0x14C; i++)
+	for (int i = 0x134; i <= 0x14C; i++)
 	{
 		uint8_t byte;
 		is.read(reinterpret_cast<char*>(&byte), 1);
@@ -121,10 +121,7 @@ bool Cartridge::proccessCartridgeHeader(std::istream& is, uint32_t fileSize)
 		return false;
 
 	const bool initialHasBattery { hasBattery };
-	const bool initialHasTimer { hasTimer };
-
 	hasBattery = false;
-	hasTimer = false;
 
 	switch (readByte(0x147)) // MBC Type
 	{
@@ -148,16 +145,16 @@ bool Cartridge::proccessCartridgeHeader(std::istream& is, uint32_t fileSize)
 		break;
 	case 0x0F:
 	case 0x10:
-		hasBattery = true; hasTimer = true;
-		mapper = std::make_unique<MBC3>(*this);
+		hasBattery = true; 
+		mapper = std::make_unique<MBC3>(*this, true);
 		break;
 	case 0x11:
 	case 0x12:
-		mapper = std::make_unique<MBC3>(*this);
+		mapper = std::make_unique<MBC3>(*this, false);
 		break;
 	case 0x13:
 		hasBattery = true;
-		mapper = std::make_unique<MBC3>(*this);
+		mapper = std::make_unique<MBC3>(*this, false);
 		break;
 	case 0x19:
 	case 0x1A:
@@ -175,6 +172,10 @@ bool Cartridge::proccessCartridgeHeader(std::istream& is, uint32_t fileSize)
 		hasBattery = true;
 		mapper = std::make_unique<MBC5>(*this, true);
 		break;
+	case 0xFE:
+		hasBattery = true;
+		mapper = std::make_unique<HuC3>(*this);
+		break;
 	case 0xFF:
 		hasBattery = true;
 		mapper = std::make_unique<HuC1>(*this);
@@ -183,7 +184,6 @@ bool Cartridge::proccessCartridgeHeader(std::istream& is, uint32_t fileSize)
 	default:
 		std::cout << "Unknown MBC! \n";
 		hasBattery = initialHasBattery;  
-		hasTimer = initialHasTimer;
 		return false;
 	}
 
@@ -208,6 +208,7 @@ bool Cartridge::proccessCartridgeHeader(std::istream& is, uint32_t fileSize)
 
 	this->romBanks = romBanks;
 	this->checksum = checksum;
+	this->RTC = mapper->getRTC();
 
 	hasRAM = ramBanks != 0;
 	ram.resize(RAM_BANK_SIZE * ramBanks);

@@ -3,9 +3,10 @@
 #include <iostream>
 #include <memory>
 #include <vector>
+#include <optional>
 
 #include "Mappers/MBCBase.h"
-#include "Mappers/RTCTimer.h"
+#include "Mappers/RTC.h"
 #include "Utils/bitOps.h"
 #include "appConfig.h"
 #include "gbSystem.h"
@@ -39,11 +40,11 @@ public:
 
 	bool hasRAM { false };
 	bool hasBattery { false };
+
 	uint16_t romBanks { 2 };
 	uint16_t ramBanks { 0 };
 
-	bool hasTimer { false };
-	RTCTimer timer { };
+	RTC* RTC { nullptr };
 
 	std::vector<uint8_t> rom{};
 	std::vector<uint8_t> ram{};

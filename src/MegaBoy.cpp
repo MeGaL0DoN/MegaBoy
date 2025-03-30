@@ -590,7 +590,7 @@ void updateImGUIViewports()
 {
     if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
     {
-        auto backupContext { glfwGetCurrentContext() };
+        const auto backupContext { glfwGetCurrentContext() };
         ImGui::UpdatePlatformWindows();
         ImGui::RenderPlatformWindowsDefault();
         glfwMakeContextCurrent(backupContext);
@@ -2145,7 +2145,6 @@ void mainLoop()
             
             gbExecuteTimes += (glfwGetTime() - execStart);
             gbFrameCount++;
-
             numUpdates++;
 		}
         
