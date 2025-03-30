@@ -500,116 +500,118 @@ void PPUCore<sys>::executeBGFetcher()
 	switch (bgFIFO.s.state)
 	{
 	case FetcherState::FetchTileNo:
-		bgFIFO.s.cycles++;
+	{
+		if ((++bgFIFO.s.cycles & 0x1) != 0)
+			break;
 
-		if ((bgFIFO.s.cycles & 0x1) == 0)
+		uint16_t tileMapInd;
+
+		if (!bgFIFO.s.fetchingWindow)
 		{
-			uint16_t tileMapInd;
-
-			if (!bgFIFO.s.fetchingWindow)
-			{
-				const uint16_t yOffset = (static_cast<uint8_t>(s.LY + regs.SCY) / 8) * 32;
-				const uint8_t xOffset = (bgFIFO.s.fetchX + (regs.SCX / 8)) & 0x1F;
-				tileMapInd = BGTileMapAddr() + ((yOffset + xOffset) & 0x3FF);
-			}
-			else
-			{
-				const uint16_t yOffset = (s.WLY / 8) * 32;
-				const uint8_t xOffset = bgFIFO.s.fetchX & 0x1F;
-				tileMapInd = WindowTileMapAddr() + ((yOffset + xOffset) & 0x3FF);
-			}
-
-			bgFIFO.s.tileMap = VRAM_BANK0[tileMapInd];
-
-			if constexpr (sys == GBSystem::CGB)
-				bgFIFO.s.cgbAttributes = VRAM_BANK1[tileMapInd];
-
-			bgFIFO.s.fetchX++;
-			bgFIFO.s.state = FetcherState::FetchTileDataLow;
+			const uint16_t yOffset = (static_cast<uint8_t>(s.LY + regs.SCY) / 8) * 32;
+			const uint8_t xOffset = (bgFIFO.s.fetchX + (regs.SCX / 8)) & 0x1F;
+			tileMapInd = BGTileMapAddr() + ((yOffset + xOffset) & 0x3FF);
 		}
+		else
+		{
+			const uint16_t yOffset = (s.WLY / 8) * 32;
+			const uint8_t xOffset = bgFIFO.s.fetchX & 0x1F;
+			tileMapInd = WindowTileMapAddr() + ((yOffset + xOffset) & 0x3FF);
+		}
+
+		bgFIFO.s.tileMap = VRAM_BANK0[tileMapInd];
+
+		if constexpr (sys == GBSystem::CGB)
+			bgFIFO.s.cgbAttributes = VRAM_BANK1[tileMapInd];
+
+		bgFIFO.s.fetchX++;
+		bgFIFO.s.state = FetcherState::FetchTileDataLow;
 		break;
+	}
 	case FetcherState::FetchTileDataLow:
-		bgFIFO.s.cycles++;
+	{
+		if ((++bgFIFO.s.cycles & 0x1) != 0)
+			break;
 
-		if ((bgFIFO.s.cycles & 0x1) == 0)
+		bgFIFO.s.SCYlatch = regs.SCY;
+		const int tileDataAddr { getBGTileAddr(bgFIFO.s.tileMap) + getBGTileOffset() };
+
+		if constexpr (sys == GBSystem::CGB)
 		{
-			bgFIFO.s.SCYlatch = regs.SCY;
-			const int tileDataAddr { getBGTileAddr(bgFIFO.s.tileMap) + getBGTileOffset() };
-
-			if constexpr (sys == GBSystem::CGB)
-			{
-				const uint8_t* bank { getBit(bgFIFO.s.cgbAttributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data() };
-				bgFIFO.s.tileLow = bank[tileDataAddr];
-			}
-			else
-				bgFIFO.s.tileLow = VRAM_BANK0[tileDataAddr];
-
-			bgFIFO.s.state = FetcherState::FetchTileDataHigh;
+			const uint8_t* bank { getBit(bgFIFO.s.cgbAttributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data() };
+			bgFIFO.s.tileLow = bank[tileDataAddr];
 		}
+		else
+			bgFIFO.s.tileLow = VRAM_BANK0[tileDataAddr];
+
+		bgFIFO.s.state = FetcherState::FetchTileDataHigh;
 		break;
+	}
 	case FetcherState::FetchTileDataHigh:
-		bgFIFO.s.cycles++;
+	{
+		if ((++bgFIFO.s.cycles & 0x1) != 0)
+			break;
 
-		if ((bgFIFO.s.cycles & 0x1) == 0)
+		if (bgFIFO.s.newScanline) [[unlikely]]
 		{
-			if (bgFIFO.s.newScanline) [[unlikely]]
-			{
-				bgFIFO.s.fetchX--;
-				bgFIFO.s.newScanline = false;
-				bgFIFO.s.state = FetcherState::FetchTileNo;
-				break;
-			}
-
-			const int tileDataAddr { getBGTileAddr(bgFIFO.s.tileMap) + getBGTileOffset() + 1 };
-
-			if constexpr (sys == GBSystem::CGB)
-			{
-				const uint8_t* bank { getBit(bgFIFO.s.cgbAttributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data() };
-				bgFIFO.s.tileHigh = bank[tileDataAddr];
-			}
-			else
-				bgFIFO.s.tileHigh = VRAM_BANK0[tileDataAddr];
-
-			bgFIFO.s.state = FetcherState::PushFIFO;
-		}
-		break;
-	case FetcherState::PushFIFO: 
-		if (bgFIFO.empty())
-		{
-			if (bgFIFO.s.scanlineDiscardPixels == -1)
-				bgFIFO.s.scanlineDiscardPixels = bgFIFO.s.fetchingWindow ? (regs.WX < 7 ? 7 - regs.WX : 0) : (regs.SCX & 0x7);
-
-			int cnt = 7;
-
-			if (bgFIFO.s.fetchingWindow)
-			{
-				cnt -= bgFIFO.s.scanlineDiscardPixels;
-				bgFIFO.s.scanlineDiscardPixels = 0;
-			}
-
-			if constexpr (sys == GBSystem::CGB)
-			{
-				const bool xFlip = getBit(bgFIFO.s.cgbAttributes, 5);
-				const bool priority = getBit(bgFIFO.s.cgbAttributes, 7);
-				const uint8_t cgbPalette = bgFIFO.s.cgbAttributes & 0x7;
-
-				const int cntStart { (xFlip ? 0 : cnt) };
-				const int cntEnd { xFlip ? cnt + 1 : -1 };
-				const int cntStep { xFlip ? 1 : -1 };
-
-				for (int i = cntStart; i != cntEnd; i += cntStep)
-					bgFIFO.push(FIFOEntry { getColorID(bgFIFO.s.tileLow, bgFIFO.s.tileHigh, i), cgbPalette, priority });
-			}
-			else
-			{
-				for (int i = cnt; i >= 0; i--)
-					bgFIFO.push(FIFOEntry { getColorID(bgFIFO.s.tileLow, bgFIFO.s.tileHigh, i) });
-			}
-
-			bgFIFO.s.cycles = 0;
+			bgFIFO.s.fetchX--;
+			bgFIFO.s.newScanline = false;
 			bgFIFO.s.state = FetcherState::FetchTileNo;
+			break;
 		}
+
+		const int tileDataAddr { getBGTileAddr(bgFIFO.s.tileMap) + getBGTileOffset() + 1 };
+
+		if constexpr (sys == GBSystem::CGB)
+		{
+			const uint8_t* bank { getBit(bgFIFO.s.cgbAttributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data() };
+			bgFIFO.s.tileHigh = bank[tileDataAddr];
+		}
+		else
+			bgFIFO.s.tileHigh = VRAM_BANK0[tileDataAddr];
+
+		bgFIFO.s.state = FetcherState::PushFIFO;
 		break;
+	}
+	case FetcherState::PushFIFO:
+	{
+		if (!bgFIFO.empty())
+			break;
+
+		if (bgFIFO.s.scanlineDiscardPixels == -1)
+			bgFIFO.s.scanlineDiscardPixels = bgFIFO.s.fetchingWindow ? (regs.WX < 7 ? 7 - regs.WX : 0) : (regs.SCX & 0x7);
+
+		int cnt { 7 };
+
+		if (bgFIFO.s.fetchingWindow)
+		{
+			cnt -= bgFIFO.s.scanlineDiscardPixels;
+			bgFIFO.s.scanlineDiscardPixels = 0;
+		}
+
+		if constexpr (sys == GBSystem::CGB)
+		{
+			const bool xFlip = getBit(bgFIFO.s.cgbAttributes, 5);
+			const bool priority = getBit(bgFIFO.s.cgbAttributes, 7);
+			const uint8_t cgbPalette = bgFIFO.s.cgbAttributes & 0x7;
+
+			const int cntStart { (xFlip ? 0 : cnt) };
+			const int cntEnd { xFlip ? cnt + 1 : -1 };
+			const int cntStep { xFlip ? 1 : -1 };
+
+			for (int i = cntStart; i != cntEnd; i += cntStep)
+				bgFIFO.push(FIFOEntry{ getColorID(bgFIFO.s.tileLow, bgFIFO.s.tileHigh, i), cgbPalette, priority });
+		}
+		else
+		{
+			for (int i = cnt; i >= 0; i--)
+				bgFIFO.push(FIFOEntry{ getColorID(bgFIFO.s.tileLow, bgFIFO.s.tileHigh, i) });
+		}
+
+		bgFIFO.s.cycles = 0;
+		bgFIFO.s.state = FetcherState::FetchTileNo;
+		break;
+	}
 	}
 }
 
@@ -621,45 +623,44 @@ void PPUCore<sys>::executeObjFetcher()
 	switch (objFIFO.s.state)
 	{
 	case FetcherState::FetchTileNo:
-		objFIFO.s.cycles++;
-
-		if ((objFIFO.s.cycles & 0x1) == 0)
+		if ((++objFIFO.s.cycles & 0x1) == 0)
 			objFIFO.s.state = FetcherState::FetchTileDataLow;
 
 		break;
 	case FetcherState::FetchTileDataLow:
-		objFIFO.s.cycles++;
+	{
+		if ((++objFIFO.s.cycles & 0x1) != 0)
+			break;
 
-		if ((objFIFO.s.cycles & 0x1) == 0)
+		if constexpr (sys == GBSystem::CGB)
 		{
-			if constexpr (sys == GBSystem::CGB)
-			{
-				const uint8_t* bank { getBit(obj.attributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data() };
-				objFIFO.s.tileLow = bank[obj.tileAddr + getObjTileOffset(obj)];
-			}
-			else
-				objFIFO.s.tileLow = VRAM_BANK0[obj.tileAddr + getObjTileOffset(obj)];
-
-			objFIFO.s.state = FetcherState::FetchTileDataHigh;
+			const uint8_t* bank { getBit(obj.attributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data() };
+			objFIFO.s.tileLow = bank[obj.tileAddr + getObjTileOffset(obj)];
 		}
+		else
+			objFIFO.s.tileLow = VRAM_BANK0[obj.tileAddr + getObjTileOffset(obj)];
+
+		objFIFO.s.state = FetcherState::FetchTileDataHigh;
 		break;
+	}
 	case FetcherState::FetchTileDataHigh:
-		objFIFO.s.cycles++;
+	{
+		if ((++objFIFO.s.cycles & 0x1) != 0)
+			break;
 
-		if ((objFIFO.s.cycles & 0x1) == 0)
+		if constexpr (sys == GBSystem::CGB)
 		{
-			if constexpr (sys == GBSystem::CGB)
-			{
-				const uint8_t* bank { getBit(obj.attributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data() };
-				objFIFO.s.tileHigh = bank[obj.tileAddr + getObjTileOffset(obj) + 1];
-			}
-			else
-				objFIFO.s.tileHigh = VRAM_BANK0[obj.tileAddr + getObjTileOffset(obj) + 1];
-
-			objFIFO.s.state = FetcherState::PushFIFO;
+			const uint8_t* bank { getBit(obj.attributes, 3) ? VRAM_BANK1.data() : VRAM_BANK0.data() };
+			objFIFO.s.tileHigh = bank[obj.tileAddr + getObjTileOffset(obj) + 1];
 		}
-		break; 
+		else
+			objFIFO.s.tileHigh = VRAM_BANK0[obj.tileAddr + getObjTileOffset(obj) + 1];
+
+		objFIFO.s.state = FetcherState::PushFIFO;
+		break;
+	}
 	case FetcherState::PushFIFO:
+	{
 		const bool bgPriority = getBit(obj.attributes, 7);
 		const bool xFlip = getBit(obj.attributes, 5);
 		uint8_t palette;
@@ -688,7 +689,7 @@ void PPUCore<sys>::executeObjFetcher()
 				overwriteObj = objFIFO[fifoInd].color == 0;
 
 			if (overwriteObj)
-				objFIFO[fifoInd] = FIFOEntry { colorId, palette, bgPriority };
+				objFIFO[fifoInd] = FIFOEntry{ colorId, palette, bgPriority };
 		}
 
 		objFIFO.s.objInd++;
@@ -696,6 +697,7 @@ void PPUCore<sys>::executeObjFetcher()
 
 		tryStartSpriteFetcher();
 		break;
+	}
 	}
 }
 

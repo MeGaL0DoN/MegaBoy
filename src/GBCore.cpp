@@ -81,7 +81,7 @@ void GBCore::reset(bool resetBattery, bool clearBuf, bool fullReset)
 
 	if (mmu.isBootROMMapped)
 	{
-		// This is important since only known pre-bootrom state is that LCD and APU are disabled, and PC is 0x00.
+		// This is important since the only known pre-bootrom state is that LCD and APU are disabled, and PC is 0x00.
 		cpu.resetPC();
 		ppu->setLCDEnable(false);
 		apu.regs.apuEnable = false;
