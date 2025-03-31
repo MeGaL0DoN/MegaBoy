@@ -1722,8 +1722,11 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
 {
     (void)_window; (void)scancode;
 
+    if (action != GLFW_PRESS && action != GLFW_RELEASE)
+        return;
+
     // Don't process new key presses if ImGui is capturing keyboard input (e.g. typing in text box), but still process key releases.
-    if (ImGui::GetIO().WantCaptureKeyboard && action != GLFW_RELEASE)
+    if (ImGui::GetIO().WantCaptureKeyboard && action == GLFW_PRESS)
 		return;
 
     if (awaitingKeyBind != -1 && key != GLFW_KEY_UNKNOWN)
@@ -1817,7 +1820,7 @@ void key_callback(GLFWwindow* _window, int key, int scancode, int action, int mo
         return;
     }
 
-    gb.joypad.update(key, action);
+    gb.joypad.update(key, action == GLFW_PRESS);
 }
 
 void drop_callback(GLFWwindow* _window, int count, const char** paths)

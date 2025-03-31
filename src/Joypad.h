@@ -12,7 +12,7 @@ public:
 	explicit Joypad(CPU& cpu) : cpu(cpu)
 	{}
 	           
-	void update(int key, int action);
+	void update(int key, bool action);
 	void reset();
 
 	uint8_t readInputReg() const;

@@ -21,9 +21,10 @@ public:
 		{
 			return rom[(s.romBank & (cartridge.romBanks - 1)) * 0x4000 + (addr - 0x4000)];
 		}
-		if (addr <= 0xBFFF)
+		if (addr >= 0xA000 && addr <= 0xBFFF)
 		{
-			return s.ramEnable ? ram[(s.ramBank & (cartridge.ramBanks - 1)) * 0x2000 + (addr - 0xA000)] : 0xFF;
+			// When RAM is disabled, IR mode is active. The value 0xC0 is no light, so always returning it since IR is not emulated.
+			return s.ramEnable ? ram[(s.ramBank & (cartridge.ramBanks - 1)) * 0x2000 + (addr - 0xA000)] : 0xC0;
 		}
 
 		return 0xFF;
@@ -33,7 +34,7 @@ public:
 	{
 		if (addr <= 0x1FFF)
 		{
-			s.ramEnable = (val & 0x0F) != 0x0E;
+			s.ramEnable = (val != 0x0E);
 		}
 		else if (addr <= 0x3FFF)
 		{

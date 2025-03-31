@@ -9,7 +9,7 @@
 
 struct MBCstate
 {
-	bool ramEnable{ false };
+	bool ramEnable { false };
 	uint8_t romBank { 1 };
 };
 
