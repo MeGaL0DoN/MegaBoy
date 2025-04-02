@@ -183,7 +183,7 @@ public:
 		add8_base(cpu->registers.A, reg, cpu->getFlag(Carry));
 	}
 
-	inline void addToHL(Register16 reg)
+	inline void ADD_HL(Register16 reg)
 	{
 		const uint32_t result = cpu->registers.HL.val + reg.val;
 
@@ -194,7 +194,7 @@ public:
 		cpu->registers.HL = result & 0xFFFF;
 		cpu->addCycle();
 	}
-	inline void addToSP(int8_t val) 
+	inline void ADD_SP(int8_t val) 
 	{
 		add16_signed(cpu->s.SP, val);
 		cpu->addCycle();

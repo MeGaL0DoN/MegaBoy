@@ -174,7 +174,7 @@ void CPU::executeMain()
 		instructions->LD_MEM(fetch16(), s.SP);
 		break;
 	case 0x09:
-		instructions->addToHL(registers.BC);
+		instructions->ADD_HL(registers.BC);
 		break;
 	case 0x0A:
 		instructions->LD(registers.A, registers.BC); 
@@ -222,7 +222,7 @@ void CPU::executeMain()
 		instructions->JR(fetch8());
 		break;
 	case 0x19:
-		instructions->addToHL(registers.DE);
+		instructions->ADD_HL(registers.DE);
 		break;
 	case 0x1A:
 		instructions->LD(registers.A, registers.DE);
@@ -270,7 +270,7 @@ void CPU::executeMain()
 		instructions->JR_CON(getFlag(Zero), fetch8());
 		break;
 	case 0x29:
-		instructions->addToHL(registers.HL);
+		instructions->ADD_HL(registers.HL);
 		break;
 	case 0x2A:
 		instructions->LD_A_HLI();
@@ -318,7 +318,7 @@ void CPU::executeMain()
 		instructions->JR_CON(getFlag(Carry), fetch8());
 		break;
 	case 0x39:
-		instructions->addToHL(s.SP);
+		instructions->ADD_HL(s.SP);
 		break;
 	case 0x3A:
 		instructions->LD_A_HLD();
@@ -604,7 +604,7 @@ void CPU::executeMain()
 		instructions->RST(0x20);
 		break;
 	case 0xE8:
-		instructions->addToSP(fetch8());
+		instructions->ADD_SP(fetch8());
 		break;
 	case 0xE9:
 		instructions->JP_HL();

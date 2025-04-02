@@ -23,11 +23,10 @@ public:
 	static constexpr uint32_t RAM_BANK_SIZE = 0x2000;
 
 	static constexpr bool romSizeValid(uint32_t size) { return size >= MIN_ROM_SIZE && size <= MAX_ROM_SIZE; }
-	static inline bool romSizeValid(std::istream& is)
+	static inline bool romSizeValid(std::istream& st)
 	{
-		is.seekg(0, std::ios::end);
-		const uint32_t size = is.tellg();
-		return romSizeValid(size);
+		st.seekg(0, std::ios::end);
+		return romSizeValid(st.tellg());
 	}
 
 	explicit Cartridge(GBCore& gbCore);
@@ -74,6 +73,6 @@ private:
 	GBCore& gb;
 	std::unique_ptr<MBCBase> mapper { nullptr };
 
-	bool romLoaded{ false };
-	uint8_t checksum{ 0 };
+	bool romLoaded { false };
+	uint8_t checksum { 0 };
 };

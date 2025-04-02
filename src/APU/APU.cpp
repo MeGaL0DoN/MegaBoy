@@ -67,6 +67,13 @@ void APU::reset()
 	channel4.reset();
 }
 
+void APU::powerOff()
+{
+	// Write zero to all audio registers except 0xFF26 (control) itself.
+	for (uint16_t addr = 0xFF10; addr <= 0xFF25; addr++)
+		gb.mmu.write8(addr, 0);
+}
+
 void sound_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
 {
 	auto& gb { *static_cast<GBCore*>(pDevice->pUserData) };

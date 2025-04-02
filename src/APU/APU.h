@@ -93,6 +93,8 @@ private:
 		return (channel4.getSample() << 4) | channel3.getSample();
 	}
 
+	void powerOff();
+
 	uint16_t frameSequencerCycles{};
 	uint8_t frameSequencerStep{};
 };

@@ -10,11 +10,11 @@ void debugUI::renderMenu()
 {
     if (ImGui::BeginMenu("Debug"))
     {
-        if (ImGui::MenuItem("Memory View"))
+        if (ImGui::MenuItem("Memory"))
         {
             showMemoryView = !showMemoryView;
         }
-        if (ImGui::MenuItem("CPU View"))
+        if (ImGui::MenuItem("CPU"))
         {
             showCPUView = !showCPUView;
         }
@@ -23,11 +23,11 @@ void debugUI::renderMenu()
             showDisassembly = !showDisassembly;
 			gb.enableBreakpointChecks = showDisassembly;
         }
-        if (ImGui::MenuItem("PPU View"))
+        if (ImGui::MenuItem("PPU Registers"))
         {
             showPPUView = !showPPUView;
         }
-        if (ImGui::MenuItem("VRAM View"))
+        if (ImGui::MenuItem("VRAM"))
         {
             showVRAMView = !showVRAMView;
             
@@ -38,7 +38,7 @@ void debugUI::renderMenu()
         {
 			showPaletteView = !showPaletteView;
         }
-        if (ImGui::MenuItem("Audio View"))
+        if (ImGui::MenuItem("Audio"))
         {
             showAudioView = !showAudioView;
         }
@@ -511,20 +511,26 @@ void debugUI::renderWindows(float scaleFactor)
             ImGui::SeparatorText("Flags");
             ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
 
-            bool zero = gb.cpu.getFlag(FlagType::Zero);
-            bool carry = gb.cpu.getFlag(FlagType::Carry);
-            bool halfCarry = gb.cpu.getFlag(FlagType::HalfCarry);
-            bool negative = gb.cpu.getFlag(FlagType::Subtract);
+            bool zero { gb.cpu.getFlag(FlagType::Zero) };
+            bool carry { gb.cpu.getFlag(FlagType::Carry) };
+            bool halfCarry { gb.cpu.getFlag(FlagType::HalfCarry) };
+            bool negative { gb.cpu.getFlag(FlagType::Subtract) };
 
             ImGui::Checkbox("Z", &zero);
             ImGui::SameLine();
             ImGui::Spacing();
             ImGui::SameLine();
+
             ImGui::Checkbox("C", &carry);
+            ImGui::SameLine();
+            ImGui::Spacing();
+            ImGui::SameLine();
+
             ImGui::Checkbox("H", &halfCarry);
             ImGui::SameLine();
             ImGui::Spacing();
             ImGui::SameLine();
+
             ImGui::Checkbox("N", &negative);
 
             ImGui::SeparatorText("Interrupts");

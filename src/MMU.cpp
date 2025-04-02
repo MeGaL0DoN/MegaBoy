@@ -399,90 +399,102 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			if constexpr (System::IsCGBDevice(sys))
 				gbc.FF75 = val;
 			break;
-
-		case 0xFF10: 
-			gb.apu.channel1.regs.NR10 = val; 
-			break;
-		case 0xFF11:
-			gb.apu.channel1.regs.NRx1 = val; 
-			gb.apu.channel1.reloadLength();
-			break;
-		case 0xFF12: 
-			gb.apu.channel1.regs.NRx2 = val; 
-			if (!gb.apu.channel1.dacEnabled()) gb.apu.channel1.disable();
-			break;
-		case 0xFF13:
-			gb.apu.channel1.regs.NRx3 = val; 
-			break;
-		case 0xFF14: 
-			gb.apu.channel1.regs.NRx4 = val; 
-			if (getBit(val, 7)) gb.apu.channel1.trigger();
-			break;
-		case 0xFF16: 
-			gb.apu.channel2.regs.NRx1 = val; 
-			gb.apu.channel2.reloadLength();
-			break;
-		case 0xFF17:
-			gb.apu.channel2.regs.NRx2 = val; 
-			if (!gb.apu.channel2.dacEnabled()) gb.apu.channel2.disable();
-			break;
-		case 0xFF18: 
-			gb.apu.channel2.regs.NRx3 = val;
-			break;
-		case 0xFF19: 
-			gb.apu.channel2.regs.NRx4 = val; 
-			if (getBit(val, 7)) gb.apu.channel2.trigger();
-			break;
-		case 0xFF1A:
-			gb.apu.channel3.regs.NR30 = val;
-			if (!gb.apu.channel3.dacEnabled()) gb.apu.channel3.disable();
-			break;
-		case 0xFF1B:
-			gb.apu.channel3.regs.NR31 = val;
-			gb.apu.channel3.reloadLength();
-			break;
-		case 0xFF1C:
-			gb.apu.channel3.regs.NR32 = val;
-			break;
-		case 0xFF1D:
-			gb.apu.channel3.regs.NR33 = val;
-			break;
-		case 0xFF1E:
-			gb.apu.channel3.regs.NR34 = val;
-			if (getBit(val, 7)) gb.apu.channel3.trigger();
-			break;
-		case 0xFF20:
-			gb.apu.channel4.regs.NR41 = val;
-			gb.apu.channel4.reloadLength();
-			break;
-		case 0xFF21:
-			gb.apu.channel4.regs.NR42 = val;
-			if (!gb.apu.channel4.dacEnabled()) gb.apu.channel4.disable();
-			break;
-		case 0xFF22:
-			gb.apu.channel4.regs.NR43 = val;
-			break;
-		case 0xFF23:
-			gb.apu.channel4.regs.NR44 = val;
-			if (getBit(val, 7)) gb.apu.channel4.trigger();
-			break;
-		case 0xFF24: 
-			gb.apu.regs.NR50 = val; 
-			break;
-		case 0xFF25:
-			gb.apu.regs.NR51 = val;
-			break;
-		case 0xFF26:
-		{
-			const bool apuEnable = getBit(val, 7);
-			if (!apuEnable) gb.apu.reset();
-			gb.apu.regs.apuEnable = apuEnable;
-			break;
-		}
-
 		default:
+			// Audio registers are not writable when APU is disabled.
+			if (gb.apu.enabled())
+			{
+				switch (addr)
+				{
+				case 0xFF10:
+					gb.apu.channel1.regs.NR10 = val;
+					break;
+				case 0xFF11:
+					gb.apu.channel1.regs.NRx1 = val;
+					gb.apu.channel1.reloadLength();
+					break;
+				case 0xFF12:
+					gb.apu.channel1.regs.NRx2 = val;
+					if (!gb.apu.channel1.dacEnabled()) gb.apu.channel1.disable();
+					break;
+				case 0xFF13:
+					gb.apu.channel1.regs.NRx3 = val;
+					break;
+				case 0xFF14:
+					gb.apu.channel1.regs.NRx4 = val;
+					if (getBit(val, 7)) gb.apu.channel1.trigger();
+					break;
+				case 0xFF16:
+					gb.apu.channel2.regs.NRx1 = val;
+					gb.apu.channel2.reloadLength();
+					break;
+				case 0xFF17:
+					gb.apu.channel2.regs.NRx2 = val;
+					if (!gb.apu.channel2.dacEnabled()) gb.apu.channel2.disable();
+					break;
+				case 0xFF18:
+					gb.apu.channel2.regs.NRx3 = val;
+					break;
+				case 0xFF19:
+					gb.apu.channel2.regs.NRx4 = val;
+					if (getBit(val, 7)) gb.apu.channel2.trigger();
+					break;
+				case 0xFF1A:
+					gb.apu.channel3.regs.NR30 = val;
+					if (!gb.apu.channel3.dacEnabled()) gb.apu.channel3.disable();
+					break;
+				case 0xFF1B:
+					gb.apu.channel3.regs.NR31 = val;
+					gb.apu.channel3.reloadLength();
+					break;
+				case 0xFF1C:
+					gb.apu.channel3.regs.NR32 = val;
+					break;
+				case 0xFF1D:
+					gb.apu.channel3.regs.NR33 = val;
+					break;
+				case 0xFF1E:
+					gb.apu.channel3.regs.NR34 = val;
+					if (getBit(val, 7)) gb.apu.channel3.trigger();
+					break;
+				case 0xFF20:
+					gb.apu.channel4.regs.NR41 = val;
+					gb.apu.channel4.reloadLength();
+					break;
+				case 0xFF21:
+					gb.apu.channel4.regs.NR42 = val;
+					if (!gb.apu.channel4.dacEnabled()) gb.apu.channel4.disable();
+					break;
+				case 0xFF22:
+					gb.apu.channel4.regs.NR43 = val;
+					break;
+				case 0xFF23:
+					gb.apu.channel4.regs.NR44 = val;
+					if (getBit(val, 7)) gb.apu.channel4.trigger();
+					break;
+				case 0xFF24:
+					gb.apu.regs.NR50 = val;
+					break;
+				case 0xFF25:
+					gb.apu.regs.NR51 = val;
+					break;
+				}
+			}
+
+			if (addr == 0xFF26)
+			{
+				const bool apuEnable = getBit(val, 7);
+
+				if (gb.apu.enabled() && !apuEnable)
+					gb.apu.powerOff();
+
+				gb.apu.regs.apuEnable = apuEnable;
+				break;
+			}
+
 			if (addr >= 0xFF30 && addr <= 0xFF3F)
 				gb.apu.channel3.waveRAM[addr - 0xFF30] = val;
+
+			break;
 		}
 	}
 	else if (addr <= 0xFFFE)
