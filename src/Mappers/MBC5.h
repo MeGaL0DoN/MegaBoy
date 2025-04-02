@@ -53,8 +53,8 @@ public:
 		else if (addr >= 0xA000 && addr <= 0xBFFF)
 		{
 			if (!cartridge.hasRAM || !s.ramEnable) return;
-			sramDirty = true;
 			ram[(s.ramBank & (cartridge.ramBanks - 1)) * 0x2000 + (addr - 0xA000)] = val;
+			sramDirty = true;
 		}
 	}
 

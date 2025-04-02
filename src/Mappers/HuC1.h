@@ -38,8 +38,7 @@ public:
 		}
 		else if (addr <= 0x3FFF)
 		{
-			s.romBank = val;
-			if (s.romBank == 0) s.romBank = 1;
+			s.romBank = val == 0 ? 1 : val;
 		}
 		else if (addr <= 0x5FFF)
 		{

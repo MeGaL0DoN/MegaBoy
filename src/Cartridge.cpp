@@ -14,7 +14,7 @@
 Cartridge::Cartridge(GBCore& gbCore) : gb(gbCore), rom(std::vector<uint8_t>(MIN_ROM_SIZE * 2, 0xFF)), mapper(std::make_unique<RomOnlyMBC>(*this))
 {}
 
-uint64_t Cartridge::getGBTotalCycles() const { return gb.totalCycles(); }
+uint64_t Cartridge::getGBCycles() const { return gb.totalCycles(); }
 
 void Cartridge::unload()
 {

@@ -724,7 +724,7 @@ void GBCore::writeGBState(std::ostream& st) const
 	apu.saveState(st);
 	serial.saveState(st);
 	joypad.saveState(st);
-	cartridge.getMapper()->saveState(st); // Mapper must be saved last.
+	cartridge.getMapper()->saveState(st);
 }
 void GBCore::readGBState(std::istream& st)
 {

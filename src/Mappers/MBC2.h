@@ -32,7 +32,7 @@ public:
 	{
 		if (addr <= 0x3FFF)
 		{
-			bool romBankBit = (addr >> 8) & 1;
+			const bool romBankBit = (addr >> 8) & 1;
 
 			if (romBankBit)
 			{
@@ -45,8 +45,8 @@ public:
 		else if (addr >= 0xA000 && addr <= 0xBFFF)
 		{
 			if (!s.ramEnable) return;
-			sramDirty = true;
 			ram[addr & 0x1FF] = val;
+			sramDirty = true;
 		}
 	}
 };

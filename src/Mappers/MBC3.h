@@ -18,10 +18,7 @@ public:
 			RTC = RTC3{};
 	}
 
-	RTC* getRTC() override
-	{
-		return RTC.has_value() ? &RTC.value() : nullptr;
-	}
+	RTC* getRTC() override { return RTC.has_value() ? &RTC.value() : nullptr; }
 
 	void saveBattery(std::ostream& st) const override
 	{
@@ -35,16 +32,11 @@ public:
 	}
 	bool loadBattery(std::istream& st) override
 	{
-		if (!MBC::loadBattery(st))
-			return false;
-
-		if (RTC.has_value())
-		{
-			lastRTCAccessCycles = cartridge.getGBTotalCycles();
-			RTC->loadBattery(st);
-		}
-
-		return true;
+		return load<false>(st);
+	}
+	void loadState(std::istream& st) override
+	{
+		load<true>(st);
 	}
 
 	void reset(bool resetBattery) override
@@ -120,15 +112,18 @@ public:
 				RTC->s.latched = !RTC->s.latched;
 
 				if (RTC->s.latched)
+				{
 					RTC->s.latchedRegs = RTC->s.regs;
+					sramDirty = true;
+				}
 			}
 
 			RTC->s.latchWrite = val;
 		}
 		else if (addr <= 0xBFFF)
 		{
-			if (!s.ramEnable) return;
-			sramDirty = true;
+			if (!s.ramEnable) 
+				return;
 
 			if (s.rtcModeActive)
 			{
@@ -137,6 +132,8 @@ public:
 			}
 			else
 				ram[(s.ramBank & (cartridge.ramBanks - 1)) * 0x2000 + (addr - 0xA000)] = val;
+
+			sramDirty = true;
 		}
 	}
 
@@ -152,9 +149,27 @@ private:
 			RTC->reset();
 	}
 
+	template <bool saveState>
+	bool load(std::istream& st)
+	{
+		if constexpr (saveState)
+			ST_READ(s);
+
+		if (!MBC::loadBattery(st))
+			return false;
+
+		if (RTC.has_value())
+		{
+			lastRTCAccessCycles = cartridge.getGBCycles();
+			return RTC->load<saveState>(st);
+		}
+
+		return true;
+	}
+
 	void updateRTC() const
 	{
-		RTC->addCycles(cartridge.getGBTotalCycles() - lastRTCAccessCycles);
-		lastRTCAccessCycles = cartridge.getGBTotalCycles();
+		RTC->addCycles(cartridge.getGBCycles() - lastRTCAccessCycles);
+		lastRTCAccessCycles = cartridge.getGBCycles();
 	}
 };
