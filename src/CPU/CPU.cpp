@@ -15,6 +15,7 @@ void CPU::reset()
 
 	cycles = 0;
 	tCyclesPerM = 4; // GBC double speed is off by default.
+	haltCycleCounter = 0;
 }
 
 void CPU::saveState(std::ostream& st) const
@@ -59,13 +60,26 @@ uint8_t& CPU::getRegister(uint8_t ind)
 		case 5: return registers.L.val;
 		case 6: 
 		{
-			HL_val = gb.mmu.read8(registers.HL.val);
-			return HL_val;
+			HLval = gb.mmu.read8(registers.HL.val);
+			return HLval;
 		}
 		case 7: return registers.A.val;
 	}
 
 	UNREACHABLE();
+}
+
+void CPU::exitHalt()
+{
+	if (s.halted)
+	{
+		s.halted = false;
+		s.stopState = false;
+		haltCycleCounter += (gb.cycleCount() - haltStartCycles);
+
+		if (haltExitEvent != nullptr)
+			haltExitEvent();
+	}
 }
 
 constexpr uint16_t STOP_PERIOD_CYCLES = 32768;

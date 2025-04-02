@@ -90,6 +90,8 @@ void GBCore::reset(bool resetBattery, bool clearBuf, bool fullReset)
 	emulationPaused = false;
 	breakpointHit = false;
 	cycleCounter = 0;
+	frameCounter = 0;
+	cpuUsageCycles = 0;
 }
 
 constexpr uint16_t DMG_BOOTROM_SIZE = sizeof(MMU::baseBootROM);
@@ -181,7 +183,8 @@ void GBCore::emulateFrameBase()
 	if (!executingProgram() || emulationPaused) [[unlikely]]
 		return;
 
-	const uint64_t targetCycles { cycleCounter + (CYCLES_PER_FRAME * speedFactor) };
+	const uint32_t frameCycles { CYCLES_PER_FRAME * speedFactor };
+	const uint64_t targetCycles { cycleCounter + frameCycles };
 
 	while (cycleCounter < targetCycles)
 	{
@@ -198,6 +201,15 @@ void GBCore::emulateFrameBase()
 		}
 
 		cycleCounter += cpu.execute();
+	}
+
+	cpuUsageCycles += frameCycles;
+
+	if (++frameCounter % 60 == 0)
+	{
+		cpuUsage = 100.f - ((static_cast<double>(cpu.haltCycleCount()) / cpuUsageCycles) * 100);
+		cpu.resetHaltCycleCount();
+		cpuUsageCycles = 0;
 	}
 }
 

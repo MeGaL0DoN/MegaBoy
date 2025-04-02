@@ -5,9 +5,9 @@ struct emptyState {};
 
 class RomOnlyMBC : public MBC<emptyState>
 {
+public:
 	using MBC::MBC;
 
-public:
 	uint8_t read(uint16_t addr) const override
 	{
 		return addr <= 0x7FFF ? rom[addr] : 0xFF;

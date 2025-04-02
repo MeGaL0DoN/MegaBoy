@@ -475,7 +475,7 @@ void debugUI::renderWindows(float scaleFactor)
     {
         if (ImGui::Begin("CPU View", &showCPUView, ImGuiWindowFlags_NoResize))
         {
-            ImGui::Text("PC: $%04X", gb.cpu.s.PC);
+            ImGui::TextColored(ImVec4(255, 255, 0, 255), "PC: $%04X", gb.cpu.s.PC);
             ImGui::SameLine();
             ImGui::Text("| SP: $%04X", gb.cpu.s.SP.val);
             ImGui::Text("DIV: $%02X", gb.cpu.s.divCounter >> 8);
@@ -488,9 +488,10 @@ void debugUI::renderWindows(float scaleFactor)
             ImGui::Spacing();
             ImGui::SameLine();
             ImGui::Text("| TMA: $%02X", gb.cpu.s.tmaReg);
-            ImGui::Text("Cycles: %llu", (gb.totalCycles() / gb.cpu.TcyclesPerM())); // Displaying M cycles
-            ImGui::Text("Frequency: %.3f MHz", gb.cpu.doubleSpeedMode() ? 2.097 : 1.048);
             ImGui::Text("Halted: %s", gb.cpu.s.halted ? "True" : "False");
+            ImGui::Text("Cycles: %llu", (gb.cycleCount() / gb.cpu.TcyclesPerM())); // Displaying M cycles
+            ImGui::Text("Frequency: %.3f MHz", gb.cpu.doubleSpeedMode() ? 2.097 : 1.048);
+            ImGui::TextColored(ImVec4(255, 255, 0, 255), "CPU Usage: %.2f%%", gb.getCPUUsage());
 
             ImGui::SeparatorText("Registers");
 
@@ -1030,14 +1031,10 @@ void debugUI::renderWindows(float scaleFactor)
 
             ImGui::Text("Mode Dot Counter: %d", gb.ppu->s.videoCycles);
 
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(255, 255, 0, 255));
-
             if (lcdEnable)
-                ImGui::Text("Dots Until VBlank: %d", gb.ppu->s.dotsUntilVBlank);
+                ImGui::TextColored(ImVec4(255, 255, 0, 255), "Dots Until VBlank: %d", gb.ppu->s.dotsUntilVBlank);
             else
-                ImGui::Text("Dots Until VBlank: ? (LCD off)");
-
-            ImGui::PopStyleColor();
+                ImGui::TextColored(ImVec4(255, 255, 0, 255), "Dots Until VBlank: ? (LCD off)");
         }
 
         ImGui::End();

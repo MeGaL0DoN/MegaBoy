@@ -1536,6 +1536,9 @@ void renderImGUI()
                     {
                         gb.cartridge.unload();
                         handleCartridgeUnload();
+
+                        appConfig::romPath.clear();
+                        appConfig::updateConfigFile();
                     }
                 }
 

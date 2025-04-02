@@ -68,7 +68,9 @@ public:
 	static constexpr uint32_t CYCLES_PER_SECOND = 1048576 * 4;
 	static constexpr double FRAME_RATE = static_cast<double>(CYCLES_PER_FRAME) / CYCLES_PER_SECOND;
 
-	constexpr uint64_t totalCycles() const { return cycleCounter; }
+	constexpr uint64_t cycleCount() const { return cycleCounter; }
+	constexpr uint64_t frameCount() const { return frameCounter; }
+	constexpr float getCPUUsage() const { return cpuUsage; }
 
 	static bool isBootROMValid(std::istream& st, const std::filesystem::path& path);
 
@@ -219,13 +221,17 @@ private:
 	void (*drawCallback)(const uint8_t* framebuffer, bool firstFrame) { nullptr };
 	void (*bootRomExitCallback)() { nullptr };
 
-	bool ppuDebugEnable{ false };
+	bool ppuDebugEnable { false };
 
-	uint64_t cycleCounter{ 0 };
-	int speedFactor{ 1 };
+	uint64_t cycleCounter { 0 };
+	int speedFactor { 1 };
+
+	uint64_t frameCounter { 0 };
+	uint64_t cpuUsageCycles { 0 };
+	float cpuUsage { 0.f };
 
 	std::filesystem::path saveStateFolderPath;
-	int currentSave{ 0 };
+	int currentSave { 0 };
 
 	std::filesystem::path romFilePath;
 	std::filesystem::path customBatterySavePath;

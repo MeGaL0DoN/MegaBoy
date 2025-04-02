@@ -14,7 +14,7 @@
 Cartridge::Cartridge(GBCore& gbCore) : gb(gbCore), rom(std::vector<uint8_t>(MIN_ROM_SIZE * 2, 0xFF)), mapper(std::make_unique<RomOnlyMBC>(*this))
 {}
 
-uint64_t Cartridge::getGBCycles() const { return gb.totalCycles(); }
+uint64_t Cartridge::getGBCycles() const { return gb.cycleCount(); }
 
 void Cartridge::unload()
 {
@@ -32,6 +32,7 @@ void Cartridge::unload()
 	ram.shrink_to_fit();
 
 	mapper = std::make_unique<RomOnlyMBC>(*this);
+	RTC = nullptr;
 }
 
 bool Cartridge::loadROM(std::istream& is)
@@ -99,17 +100,17 @@ void Cartridge::updateSystem(uint8_t cgbFlag)
 	}
 }
 
-bool Cartridge::proccessCartridgeHeader(std::istream& is, uint32_t fileSize)
+bool Cartridge::proccessCartridgeHeader(std::istream& st, uint32_t fileSize)
 {
-	const auto readByte = [&is](uint16_t ind) -> uint8_t
+	const auto readByte = [&st](uint16_t ind) -> uint8_t
 	{
 		uint8_t byte;
-		is.seekg(ind, std::ios::beg);
-		is.read(reinterpret_cast<char*>(&byte), 1);
+		st.seekg(ind, std::ios::beg);
+		ST_READ(byte);
 		return byte;
 	};
 
-	const uint8_t checksum { calculateHeaderChecksum(is) };
+	const uint8_t checksum { calculateHeaderChecksum(st) };
 	const uint8_t storedChecksum { readByte(0x14D) };
 
 	if (checksum != storedChecksum) 
@@ -215,12 +216,12 @@ bool Cartridge::proccessCartridgeHeader(std::istream& is, uint32_t fileSize)
 	ram.shrink_to_fit();
 
 	gb.gameTitle = "";
-	is.seekg(0x134, std::ios::beg);
+	st.seekg(0x134, std::ios::beg);
 	char titleVal;
 
 	for (int i = 0x134; i <= 0x143; i++)
 	{
-		is.get(titleVal);
+		st.get(titleVal);
 		if (titleVal <= 0) break; // If reached the end, or found illegal character
 		gb.gameTitle += titleVal;
 	}

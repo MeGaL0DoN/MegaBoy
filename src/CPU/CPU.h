@@ -45,6 +45,9 @@ public:
 	constexpr uint8_t TcyclesPerM() const { return tCyclesPerM; }
 	constexpr bool doubleSpeedMode() const { return s.cgbDoubleSpeed; }
 
+	constexpr uint64_t haltCycleCount() const { return haltCycleCounter; }
+	constexpr void resetHaltCycleCount() { haltCycleCounter = 0; }
+
 	void saveState(std::ostream& st) const;
 	void loadState(std::istream& st);
 private:
@@ -58,6 +61,7 @@ private:
 
 	void handleInterrupts();
 	bool handleHaltedState();
+	void exitHalt();
 
 	inline uint8_t pendingInterrupt()
 	{
@@ -95,18 +99,6 @@ private:
 		registers.AF.low.val &= 0x0F;
 	}
 
-	inline void exitHalt()
-	{
-		if (s.halted)
-		{
-			s.halted = false;
-			s.stopState = false;
-
-			if (haltExitEvent != nullptr)
-				haltExitEvent();
-		}
-	}
-
 	struct cpuState
 	{
 		uint16_t PC { 0x100 };
@@ -142,11 +134,14 @@ private:
 
 	uint8_t opcode { 0 };
 	uint8_t cycles { 0 };
-	uint8_t HL_val {};
+	uint8_t HLval{};
 
 	uint8_t tCyclesPerM { 0 };
 
 	std::unique_ptr<CPUInstructions> instructions;
+
+	uint64_t haltStartCycles{};
+	uint64_t haltCycleCounter{};
 
 	void(*retEvent)();
 	void(*haltExitEvent)();

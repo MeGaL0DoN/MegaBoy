@@ -164,7 +164,7 @@ public:
 
 	inline void ADD(uint8_t regInd)
 	{
-		if (regInd == cpu->HL_IND) cpu->addCycle();
+		if (regInd == CPU::HL_IND) cpu->addCycle();
 		const uint8_t& reg { cpu->getRegister(regInd) };
 		add8_base(cpu->registers.A, reg, 0);
 	}
@@ -178,7 +178,7 @@ public:
 	}
 	inline void ADC(uint8_t regInd)
 	{
-		if (regInd == cpu->HL_IND) cpu->addCycle();
+		if (regInd == CPU::HL_IND) cpu->addCycle();
 		const uint8_t& reg { cpu->getRegister(regInd) };
 		add8_base(cpu->registers.A, reg, cpu->getFlag(Carry));
 	}
@@ -224,7 +224,7 @@ public:
 
 	inline void SUB(uint8_t regInd)
 	{
-		if (regInd == cpu->HL_IND) cpu->addCycle();
+		if (regInd == CPU::HL_IND) cpu->addCycle();
 		cpu->registers.A = cp_base(cpu->registers.A.val, cpu->getRegister(regInd), 0);
 	}
 	inline void SUB(Register8& reg, uint8_t val)
@@ -233,7 +233,7 @@ public:
 	}
 	inline void CP(uint8_t regInd)
 	{
-		if (regInd == cpu->HL_IND) cpu->addCycle();
+		if (regInd == CPU::HL_IND) cpu->addCycle();
 		cp_base(cpu->registers.A.val, cpu->getRegister(regInd), 0);
 	}
 	inline void CP(Register8& reg, uint8_t val)
@@ -246,7 +246,7 @@ public:
 	}
 	inline void SBC(uint8_t regInd)
 	{
-		if (regInd == cpu->HL_IND) cpu->addCycle();
+		if (regInd == CPU::HL_IND) cpu->addCycle();
 		cpu->registers.A = cp_base(cpu->registers.A.val, cpu->getRegister(regInd), cpu->getFlag(Carry));
 	}
 
@@ -256,7 +256,7 @@ public:
 	}
 	inline void AND(uint8_t regInd)
 	{
-		if (regInd == cpu->HL_IND) cpu->addCycle();
+		if (regInd == CPU::HL_IND) cpu->addCycle();
 		and_base(cpu->registers.A.val, cpu->getRegister(regInd));
 	}
 
@@ -266,7 +266,7 @@ public:
 	}
 	inline void XOR(uint8_t regInd)
 	{
-		if (regInd == cpu->HL_IND) cpu->addCycle();
+		if (regInd == CPU::HL_IND) cpu->addCycle();
 		xor_base(cpu->registers.A.val, cpu->getRegister(regInd));
 	}
 
@@ -276,7 +276,7 @@ public:
 	}
 	inline void OR(uint8_t regInd)
 	{
-		if (regInd == cpu->HL_IND) cpu->addCycle();
+		if (regInd == CPU::HL_IND) cpu->addCycle();
 		or_base(cpu->registers.A.val, cpu->getRegister(regInd));
 	}
 
@@ -298,12 +298,12 @@ public:
 	}
 	inline void LD(uint8_t inInd, uint8_t outInd)
 	{
-		if (outInd == cpu->HL_IND) cpu->addCycle();
+		if (outInd == CPU::HL_IND) cpu->addCycle();
 
 		uint8_t& inReg { cpu->getRegister(inInd) };
 		const uint8_t outReg { cpu->getRegister(outInd) };
 
-		if (inInd == cpu->HL_IND)
+		if (inInd == CPU::HL_IND)
 			cpu->write8(cpu->registers.HL.val, outReg);
 		else
 			inReg = outReg;
@@ -387,13 +387,13 @@ public:
 	}
 	inline void RLC(uint8_t regInd)
 	{
-		if (regInd == cpu->HL_IND)
+		if (regInd == CPU::HL_IND)
 			cpu->addCycle();
 
-		uint8_t& reg = cpu->getRegister(regInd);
+		uint8_t& reg { cpu->getRegister(regInd) };
 		rlc_base(reg);
 
-		if (regInd == cpu->HL_IND)
+		if (regInd == CPU::HL_IND)
 			cpu->write8(cpu->registers.HL.val, reg);
 	}
 
@@ -404,13 +404,13 @@ public:
 	}
 	inline void RRC(uint8_t regInd)
 	{
-		if (regInd == cpu->HL_IND)
+		if (regInd == CPU::HL_IND)
 			cpu->addCycle();
 
 		uint8_t& reg { cpu->getRegister(regInd) };
 		rrc_base(reg);
 
-		if (regInd == cpu->HL_IND)
+		if (regInd == CPU::HL_IND)
 			cpu->write8(cpu->registers.HL.val, reg);
 	}
 
@@ -421,13 +421,13 @@ public:
 	}
 	inline void RL(uint8_t regInd)
 	{
-		if (regInd == cpu->HL_IND)
+		if (regInd == CPU::HL_IND)
 			cpu->addCycle();
 
 		uint8_t& reg { cpu->getRegister(regInd) };
 		rl_base(reg);
 
-		if (regInd == cpu->HL_IND)
+		if (regInd == CPU::HL_IND)
 			cpu->write8(cpu->registers.HL.val, reg);
 	}
 
@@ -438,19 +438,19 @@ public:
 	}
 	inline void RR(uint8_t regInd)
 	{
-		if (regInd == cpu->HL_IND)
+		if (regInd == CPU::HL_IND)
 			cpu->addCycle();
 
 		uint8_t& reg { cpu->getRegister(regInd) };
 		rr_base(reg);
 
-		if (regInd == cpu->HL_IND)
+		if (regInd == CPU::HL_IND)
 			cpu->write8(cpu->registers.HL.val, reg);
 	}
 
 	inline void SLA(uint8_t regInd)
 	{
-		if (regInd == cpu->HL_IND)
+		if (regInd == CPU::HL_IND)
 			cpu->addCycle();
 
 		uint8_t& reg { cpu->getRegister(regInd) };
@@ -461,14 +461,14 @@ public:
 		cpu->setFlag(Carry, carry);
 		cpu->setFlag(Zero, reg == 0);
 
-		if (regInd == cpu->HL_IND)
+		if (regInd == CPU::HL_IND)
 			cpu->write8(cpu->registers.HL.val, reg);
 	}
 
 	template <bool arithmetic>
 	inline void SR(uint8_t regInd) 
 	{
-		if (regInd == cpu->HL_IND)
+		if (regInd == CPU::HL_IND)
 			cpu->addCycle();
 
 		uint8_t& reg { cpu->getRegister(regInd) };
@@ -485,7 +485,7 @@ public:
 		cpu->setFlag(Carry, carry);
 		cpu->setFlag(Zero, reg == 0);
 
-		if (regInd == cpu->HL_IND)
+		if (regInd == CPU::HL_IND)
 			cpu->write8(cpu->registers.HL.val, reg);
 	}
 
@@ -494,7 +494,7 @@ public:
 
 	inline void SWAP(uint8_t regInd)
 	{
-		if (regInd == cpu->HL_IND)
+		if (regInd == CPU::HL_IND)
 			cpu->addCycle();
 
 		uint8_t& reg { cpu->getRegister(regInd) };
@@ -505,13 +505,13 @@ public:
 		cpu->resetFlags();
 		cpu->setFlag(Zero, reg == 0);
 
-		if (regInd == cpu->HL_IND)
+		if (regInd == CPU::HL_IND)
 			cpu->write8(cpu->registers.HL.val, reg);
 	}
 
 	inline void BIT(uint8_t bit, uint8_t regInd)
 	{
-		if (regInd == cpu->HL_IND)
+		if (regInd == CPU::HL_IND)
 			cpu->addCycle();
 
 		const uint8_t reg { cpu->getRegister(regInd) };
@@ -523,24 +523,24 @@ public:
 	}
 	inline void RES(uint8_t bit, uint8_t regInd)
 	{
-		if (regInd == cpu->HL_IND)
+		if (regInd == CPU::HL_IND)
 			cpu->addCycle();
 
 		uint8_t& reg { cpu->getRegister(regInd) };
 		reg &= ~(1 << bit);
 
-		if (regInd == cpu->HL_IND)
+		if (regInd == CPU::HL_IND)
 			cpu->write8(cpu->registers.HL.val, reg);
 	}
 	inline void SET(uint8_t bit, uint8_t regInd)
 	{
-		if (regInd == cpu->HL_IND)
+		if (regInd == CPU::HL_IND)
 			cpu->addCycle();
 
 		uint8_t& reg { cpu->getRegister(regInd) };
 		reg |= (1 << bit);
 
-		if (regInd == cpu->HL_IND)
+		if (regInd == CPU::HL_IND)
 			cpu->write8(cpu->registers.HL.val, reg);
 	}
 
@@ -610,6 +610,7 @@ public:
 
 			cpu->s.halted = true;
 			cpu->s.stopState = true;
+			cpu->haltStartCycles = cpu->gb.cycleCount();
 		}
 
 		cpu->s.PC++;
@@ -617,6 +618,7 @@ public:
 	inline void HALT() 
 	{
 		cpu->s.halted = true;
+		cpu->haltStartCycles = cpu->gb.cycleCount();
 
 		if (!cpu->s.IME && cpu->pendingInterrupt())
 			cpu->s.haltBug = true;
