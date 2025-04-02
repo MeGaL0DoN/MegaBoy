@@ -84,11 +84,12 @@ struct customWave
 		s.freqPeriodTimer--;
 	}
 
-	inline uint8_t getSample() const
+	inline uint8_t getCurrentWaveByte() const
 	{
-		const uint8_t sample = (s.sampleInd & 1) == 0 ? (waveRAM[s.sampleInd >> 1] >> 4) : (waveRAM[s.sampleInd >> 1] & 0xF);
-		return (sample >> getVolumeShift()) * s.enabled;
+		return (s.sampleInd & 1) == 0 ? (waveRAM[s.sampleInd >> 1] >> 4) : (waveRAM[s.sampleInd >> 1] & 0xF);
 	}
+
+	inline uint8_t getSample() const { return (getCurrentWaveByte() >> getVolumeShift()) * s.enabled; }
 
 	customWaveState s{};
 	customWaveRegs regs{};

@@ -759,7 +759,17 @@ uint8_t MMU::read8(uint16_t addr) const
 
 		default:
 			if (addr >= 0xFF30 && addr <= 0xFF3F)
+			{
+				if (gb.apu.channel3.s.enabled)
+				{
+					if (System::Current() == GBSystem::DMG)
+						return 0xFF;
+					else
+						return gb.apu.channel3.getCurrentWaveByte();
+				}
+
 				return gb.apu.channel3.waveRAM[addr - 0xFF30];
+			}
 
 			return 0xFF;
 		}
