@@ -50,14 +50,15 @@ void debugUI::renderMenu()
 void debugUI::disassembleRom()
 {
     uint8_t instrLen;
-    uint16_t addr = (dissasmRomBank == 0) ? 0 : 0x4000;  
-    const uint16_t endAddr = addr + 0x3FFF;
+    uint16_t addr = (dissasmRomBank == 0) ? 0 : gb.cartridge.romBankSize();  
+    const uint16_t endAddr = addr + (gb.cartridge.romBankSize() - 1);
 
     while (addr <= endAddr)
     {
         const std::string disasm = hexOps::toHexStr<true>(addr).append(": ").append(gb.cpu.disassemble(addr, [](uint16_t addr) 
         {
-            return gb.cartridge.rom[(dissasmRomBank * 0x4000) + (addr - (dissasmRomBank == 0 ? 0 : 0x4000))];
+            const int bankAddr { dissasmRomBank * gb.cartridge.romBankSize() };
+            return gb.cartridge.rom[bankAddr + (addr - (dissasmRomBank == 0 ? 0 : gb.cartridge.romBankSize()))];
         }, &instrLen));
 
         romDisassembly.push_back(instructionDisasmEntry { addr, instrLen, {}, disasm });
