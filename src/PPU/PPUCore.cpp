@@ -533,7 +533,7 @@ void PPUCore<sys>::executeBGFetcher()
 		if ((++bgFIFO.s.cycles & 0x1) != 0)
 			break;
 
-		bgFIFO.s.SCYlatch = regs.SCY;
+		s.SCYlatch = regs.SCY;
 		const int tileDataAddr { getBGTileAddr(bgFIFO.s.tileMap) + getBGTileOffset() };
 
 		if constexpr (sys == GBSystem::CGB)

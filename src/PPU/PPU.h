@@ -50,7 +50,6 @@ struct BGFIFOState : FIFOState
 {
 	uint16_t tileMap{};
 	uint8_t fetchX{};
-	uint8_t SCYlatch{};
 	uint8_t cgbAttributes{};
 
 	int8_t scanlineDiscardPixels { -1 };
@@ -146,6 +145,7 @@ struct ppuState
 
 	uint8_t LY{};
 	uint8_t WLY{};
+	uint8_t SCYlatch{};
 	uint8_t xPosCounter{};
 	PPUMode state{};
 	PPUMode prevState{};
@@ -178,6 +178,10 @@ struct gbcPaletteData
 
 		for (; i < RAM.size(); i++)
 			RAM[i] = obj ? RngOps::gen8bit() : ((i & 1) == 0 ? 0xFF : 0x7F);
+
+		// When CGB Boot ROM ends, OCPS register is 1. 
+		regValue = obj ? 1 : 0;
+		autoIncrement = true;
 	}
 
 	inline uint8_t readReg() const

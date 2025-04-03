@@ -48,10 +48,10 @@ public:
 	std::vector<uint8_t> rom{};
 	std::vector<uint8_t> ram{};
 
-	bool loadROM(std::istream& is);
+	bool loadROM(std::istream& st);
 	void unload();
 
-	uint8_t calculateHeaderChecksum(std::istream& is) const;
+	uint8_t calculateHeaderChecksum(std::istream& st) const;
 
 	inline void updateSystem()
 	{
@@ -67,7 +67,7 @@ public:
 		return appConfig::systemPreference == GBSystemPreference::ForceCGB && !getBit(rom[0x143], 7);
 	}
 private:
-	bool proccessCartridgeHeader(std::istream& is, uint32_t fileSize);
+	bool proccessCartridgeHeader(std::istream& st);
 	void updateSystem(uint8_t cgbFlag);
 
 	GBCore& gb;

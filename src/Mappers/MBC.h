@@ -33,12 +33,12 @@ public:
 
 	virtual void saveBattery(std::ostream& st) const override
 	{
-		if (cartridge.hasBattery)
+		if (cartridge.hasRAM)
 			st.write(reinterpret_cast<const char*>(ram.data()), ram.size());
 	}
 	virtual bool loadBattery(std::istream& st) override
 	{
-		if (cartridge.hasBattery)
+		if (cartridge.hasRAM)
 		{
 			const uint32_t saveSize { FileUtils::remainingBytes(st) };
 

@@ -436,15 +436,7 @@ FileLoadResult GBCore::loadState(const std::filesystem::path& path)
 }
 FileLoadResult GBCore::loadState(int num)
 {
-	std::ifstream st { getSaveStatePath(num), std::ios::in | std::ios::binary };
-
-	if (!st)
-		return FileLoadResult::FileError;
-
-	if (!isSaveStateFile(st))
-		return FileLoadResult::CorruptSaveState;
-
-	const auto result { loadState(st) };
+	const auto result { loadState(getSaveStatePath(num)) };
 
 	if (result == FileLoadResult::SuccessSaveState)
 		updateSelectedSaveInfo(num);
@@ -662,7 +654,7 @@ FileLoadResult GBCore::loadState(std::istream& is)
 	uint8_t stateRomChecksum;
 	ST_READ(stateRomChecksum);
 
-	uint16_t filePathLen { 0 };
+	uint16_t filePathLen;
 	ST_READ(filePathLen);
 
 	std::string romPath(filePathLen, 0);

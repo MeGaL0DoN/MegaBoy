@@ -35,15 +35,15 @@ void Cartridge::unload()
 	RTC = nullptr;
 }
 
-bool Cartridge::loadROM(std::istream& is)
+bool Cartridge::loadROM(std::istream& st)
 {
-	is.seekg(0, std::ios::end);
-	const uint32_t size = is.tellg();
+	st.seekg(0, std::ios::end);
+	const uint32_t size = st.tellg();
 	
 	if (!romSizeValid(size))
 		return false;
 
-	if (!proccessCartridgeHeader(is, size))
+	if (!proccessCartridgeHeader(st))
 		return false;
 
 	// 16 KB
@@ -54,25 +54,41 @@ bool Cartridge::loadROM(std::istream& is)
 		std::memset(rom.data() + MIN_ROM_SIZE, 0xFF, MIN_ROM_SIZE);
 	}
 	else
-		rom.resize(size);
+	{
+		// If rom size is not power of 2, pad to the next one.
+		if ((size & (size - 1)) != 0)
+		{
+			uint32_t newSize { 1 };
+
+			while (newSize < size)
+				newSize <<= 1;
+
+			rom.resize(newSize);
+			std::memset(rom.data() + size, 0xFF, (newSize - size));
+		}
+		else
+			rom.resize(size);
+	}
+
+	this->romBanks = rom.size() / ROM_BANK_SIZE;
 
 	rom.shrink_to_fit();
-	is.seekg(0, std::ios::beg);
-	is.read(reinterpret_cast<char*>(rom.data()), size);
+	st.seekg(0, std::ios::beg);
+	st.read(reinterpret_cast<char*>(rom.data()), size);
 
 	romLoaded = true;
 	return true;
 }
 
-uint8_t Cartridge::calculateHeaderChecksum(std::istream& is) const
+uint8_t Cartridge::calculateHeaderChecksum(std::istream& st) const
 {
 	uint8_t checksum = 0;
-	is.seekg(0x134, std::ios::beg);
+	st.seekg(0x134, std::ios::beg);
 
 	for (int i = 0x134; i <= 0x14C; i++)
 	{
 		uint8_t byte;
-		is.read(reinterpret_cast<char*>(&byte), 1);
+		ST_READ(byte);
 		checksum = checksum - byte - 1;
 	}
 
@@ -100,7 +116,7 @@ void Cartridge::updateSystem(uint8_t cgbFlag)
 	}
 }
 
-bool Cartridge::proccessCartridgeHeader(std::istream& st, uint32_t fileSize)
+bool Cartridge::proccessCartridgeHeader(std::istream& st)
 {
 	const auto readByte = [&st](uint16_t ind) -> uint8_t
 	{
@@ -114,11 +130,6 @@ bool Cartridge::proccessCartridgeHeader(std::istream& st, uint32_t fileSize)
 	const uint8_t storedChecksum { readByte(0x14D) };
 
 	if (checksum != storedChecksum) 
-		return false;
-
-	const uint16_t romBanks = 1 << (readByte(0x148) + 1);
-
-	if (romBanks > std::max(fileSize, MIN_ROM_SIZE * 2) / ROM_BANK_SIZE) 
 		return false;
 
 	const bool initialHasBattery { hasBattery };
@@ -207,7 +218,6 @@ bool Cartridge::proccessCartridgeHeader(std::istream& st, uint32_t fileSize)
 		break;
 	}
 
-	this->romBanks = romBanks;
 	this->checksum = checksum;
 	this->RTC = mapper->getRTC();
 

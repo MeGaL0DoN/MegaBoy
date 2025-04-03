@@ -124,7 +124,7 @@ private:
 
 	inline uint8_t getBGTileOffset() const
 	{
-		const uint8_t bgLineOffset = (s.LY + bgFIFO.s.SCYlatch) % 8;
+		const uint8_t bgLineOffset = (s.LY + s.SCYlatch) % 8;
 		const uint8_t windowLineOffset = s.WLY % 8;
 
 		if constexpr (sys == GBSystem::DMG)
