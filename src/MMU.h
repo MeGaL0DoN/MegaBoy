@@ -93,8 +93,8 @@ public:
 private:
 	GBCore& gb;
 
-	std::array<uint8_t, 0x8000> WRAM_BANKS{};
-	std::array<uint8_t, 127> HRAM{};
+	std::array<uint8_t, 0x8000> wramBanks{};
+	std::array<uint8_t, 127> hram{};
 
 	constexpr bool dmaInProgress() const { return s.dma.transfer && s.dma.delayCycles == 0; }
 	void startDMATransfer();

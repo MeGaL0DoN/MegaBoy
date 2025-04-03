@@ -19,9 +19,6 @@ public:
 	static constexpr uint32_t MIN_ROM_SIZE = 0x4000;
 	static constexpr uint32_t MAX_ROM_SIZE = 0x800000;
 
-	static constexpr uint32_t ROM_BANK_SIZE = 0x4000;
-	static constexpr uint32_t RAM_BANK_SIZE = 0x2000;
-
 	static constexpr bool romSizeValid(uint32_t size) { return size >= MIN_ROM_SIZE && size <= MAX_ROM_SIZE; }
 	static inline bool romSizeValid(std::istream& st)
 	{
@@ -32,6 +29,11 @@ public:
 	explicit Cartridge(GBCore& gbCore);
 
 	inline MBCBase* getMapper() const { return mapper.get(); }
+
+	// MBC6 checks.
+	constexpr uint16_t romBankSize() { return mapperID == 0x20 ? 0x2000 : 0x4000; }
+	constexpr uint16_t ramBankSize() { return mapperID == 0x20 ? 0x1000 : 0x2000; }
+
 	constexpr bool loaded() const { return romLoaded; }
 	constexpr uint8_t getChecksum() const { return checksum; }
 
@@ -72,6 +74,7 @@ private:
 
 	GBCore& gb;
 	std::unique_ptr<MBCBase> mapper { nullptr };
+	uint8_t mapperID { };
 
 	bool romLoaded { false };
 	uint8_t checksum { 0 };

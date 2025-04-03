@@ -8,6 +8,7 @@
 #include "Mappers/MBC2.h"
 #include "Mappers/MBC3.h"
 #include "Mappers/MBC5.h"
+#include "Mappers/MBC6.h"
 #include "Mappers/HuC1.h"
 #include "Mappers/HuC3.h"
 
@@ -70,7 +71,7 @@ bool Cartridge::loadROM(std::istream& st)
 			rom.resize(size);
 	}
 
-	this->romBanks = rom.size() / ROM_BANK_SIZE;
+	this->romBanks = rom.size() / romBankSize();
 
 	rom.shrink_to_fit();
 	st.seekg(0, std::ios::beg);
@@ -135,7 +136,9 @@ bool Cartridge::proccessCartridgeHeader(std::istream& st)
 	const bool initialHasBattery { hasBattery };
 	hasBattery = false;
 
-	switch (readByte(0x147)) // MBC Type
+	const uint8_t mbc { readByte(0x147) };
+
+	switch (mbc) 
 	{
 	case 0x00:
 		mapper = std::make_unique<RomOnlyMBC>(*this);
@@ -184,6 +187,11 @@ bool Cartridge::proccessCartridgeHeader(std::istream& st)
 		hasBattery = true;
 		mapper = std::make_unique<MBC5>(*this, true);
 		break;
+	case 0x20:
+		hasBattery = true;
+		mapper = std::make_unique<MBC6>(*this);
+		break;
+	// 0x22 MBC7 ... todo
 	case 0xFE:
 		hasBattery = true;
 		mapper = std::make_unique<HuC3>(*this);
@@ -219,10 +227,11 @@ bool Cartridge::proccessCartridgeHeader(std::istream& st)
 	}
 
 	this->checksum = checksum;
+	this->mapperID = mbc;
 	this->RTC = mapper->getRTC();
+	this->hasRAM = ramBanks != 0;
 
-	hasRAM = ramBanks != 0;
-	ram.resize(RAM_BANK_SIZE * ramBanks);
+	ram.resize(ramBankSize() * ramBanks);
 	ram.shrink_to_fit();
 
 	gb.gameTitle = "";

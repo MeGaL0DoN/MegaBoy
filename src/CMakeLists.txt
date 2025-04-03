@@ -57,6 +57,7 @@ add_executable(MegaBoy
         "Mappers/MBC2.h"
         "Mappers/MBC3.h"     
         "Mappers/MBC5.h"
+        "Mappers/MBC6.h"
         "Mappers/HuC1.h"
         "Mappers/HuC3.h"
         "Mappers/RTC.h"

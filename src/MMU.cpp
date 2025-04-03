@@ -31,19 +31,19 @@ void MMU::reset()
 	dmgCompatSwitch = false;
 
 	for (int i = 0; i < 0x2000; i++)
-		WRAM_BANKS[i] = RngOps::gen8bit();
+		wramBanks[i] = RngOps::gen8bit();
 
 	if (System::Current() == GBSystem::CGB)
 	{
 		// WRAM Bank 2 is zeroed instead.
 		for (int i = 0x2000; i < 0x3000; i++)
-			WRAM_BANKS[i] = 0;
+			wramBanks[i] = 0;
 
 		for (int i = 0x3000; i < 0x8000; i++)
-			WRAM_BANKS[i] = RngOps::gen8bit();
+			wramBanks[i] = RngOps::gen8bit();
 	}
 
-	for (uint8_t& i : HRAM)
+	for (uint8_t& i : hram)
 		i = RngOps::gen8bit();
 }
 
@@ -56,8 +56,8 @@ void MMU::saveState(std::ostream& st) const
 
 	const int WRAMSize { System::Current() == GBSystem::CGB ? 0x8000 : 0x2000 };
 
-	st.write(reinterpret_cast<const char*>(WRAM_BANKS.data()), WRAMSize);
-	ST_WRITE_ARR(HRAM);
+	st.write(reinterpret_cast<const char*>(wramBanks.data()), WRAMSize);
+	ST_WRITE_ARR(hram);
 }
 
 void MMU::loadState(std::istream& st)
@@ -72,8 +72,8 @@ void MMU::loadState(std::istream& st)
 
 	const int WRAMSize { System::Current() == GBSystem::CGB ? 0x8000 : 0x2000 };
 
-	st.read(reinterpret_cast<char*>(WRAM_BANKS.data()), WRAMSize);
-	ST_READ_ARR(HRAM);
+	st.read(reinterpret_cast<char*>(wramBanks.data()), WRAMSize);
+	ST_READ_ARR(hram);
 }
 
 void MMU::execute()
@@ -177,18 +177,18 @@ void MMU::write8(uint16_t addr, uint8_t val)
 	}
 	else if (addr <= 0xCFFF)
 	{
-		WRAM_BANKS[addr - 0xC000] = val;
+		wramBanks[addr - 0xC000] = val;
 	}
 	else if (addr <= 0xDFFF)
 	{
 		if constexpr (sys == GBSystem::CGB)
-			WRAM_BANKS[gbc.wramBank * 0x1000 + addr - 0xD000] = val;
+			wramBanks[gbc.wramBank * 0x1000 + addr - 0xD000] = val;
 		else
-			WRAM_BANKS[addr - 0xC000] = val;
+			wramBanks[addr - 0xC000] = val;
 	}
 	else if (addr <= 0xFDFF)
 	{
-		WRAM_BANKS[addr - 0xE000] = val;
+		wramBanks[addr - 0xE000] = val;
 	}
 	else if (addr <= 0xFE9F)
 	{
@@ -499,7 +499,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 	}
 	else if (addr <= 0xFFFE)
 	{
-		HRAM[addr - 0xFF80] = val;
+		hram[addr - 0xFF80] = val;
 	}
 	else
 		gb.cpu.s.IE = val;
@@ -547,16 +547,16 @@ uint8_t MMU::read8(uint16_t addr) const
 	if constexpr (sys == GBSystem::CGB)
 	{
 		if (addr <= 0xCFFF)
-			return WRAM_BANKS[addr - 0xC000];
+			return wramBanks[addr - 0xC000];
 		if (addr <= 0xDFFF)
-			return WRAM_BANKS[gbc.wramBank * 0x1000 + addr - 0xD000];
+			return wramBanks[gbc.wramBank * 0x1000 + addr - 0xD000];
 	}
 	else if (addr <= 0xDFFF)
-		return WRAM_BANKS[addr - 0xC000];
+		return wramBanks[addr - 0xC000];
 
 	if (addr <= 0xFDFF)
 	{
-		return WRAM_BANKS[addr - 0xE000];
+		return wramBanks[addr - 0xE000];
 	}
 	if (addr <= 0xFE9F)
 	{
@@ -776,7 +776,7 @@ uint8_t MMU::read8(uint16_t addr) const
 	}
 	if (addr <= 0xFFFE)
 	{
-		return HRAM[addr - 0xFF80];
+		return hram[addr - 0xFF80];
 	}
 	else
 		return gb.cpu.s.IE;

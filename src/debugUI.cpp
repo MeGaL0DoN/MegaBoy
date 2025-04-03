@@ -433,16 +433,19 @@ void debugUI::renderWindows(float scaleFactor)
                     printMem(0, [](uint16_t addr) { return gb.mmu.read8(addr); });
                     break;
                 case MemView::ROM:
-                    clipper.Begin(0x4000 / 16);
-                    printMem(memViewRomBank == 0 ? 0 : 0x4000, [](uint16_t addr) { return gb.cartridge.rom[(memViewRomBank * 0x4000) + addr]; });
+                    clipper.Begin(gb.cartridge.romBankSize() / 16);
+                    printMem(memViewRomBank == 0 ? 0 : gb.cartridge.romBankSize(), [](uint16_t addr) 
+                    {
+                        return gb.cartridge.rom[(memViewRomBank * gb.cartridge.romBankSize()) + addr]; 
+                    });
                     break;
                 case MemView::WRAM:
                     clipper.Begin(0x1000 / 16);
-                    printMem(memViewWramBank == 0 ? 0xC000 : 0xD000, [](uint16_t addr) { return gb.mmu.WRAM_BANKS[(memViewWramBank * 0x1000) + addr]; });
+                    printMem(memViewWramBank == 0 ? 0xC000 : 0xD000, [](uint16_t addr) { return gb.mmu.wramBanks[(memViewWramBank * 0x1000) + addr]; });
                     break;
                 case MemView::SRAM:
-                    clipper.Begin(0x2000 / 16);
-                    printMem(0xA000, [](uint16_t addr) { return gb.cartridge.ram[(memViewRamBank) * 0x2000 + addr]; });
+                    clipper.Begin(gb.cartridge.ramBankSize() / 16);
+                    printMem(0xA000, [](uint16_t addr) { return gb.cartridge.ram[(memViewRamBank) * gb.cartridge.ramBankSize() + addr]; });
                     break;
                 case MemView::VRAM:
                     clipper.Begin(0x2000 / 16);
@@ -460,8 +463,8 @@ void debugUI::renderWindows(float scaleFactor)
                     printMem(0xFF00, [](uint16_t addr) { return gb.mmu.read8(addr + 0xFF00); });
                     break;
                 case MemView::HRAM:
-                    clipper.Begin((sizeof(MMU::HRAM) / 16) + 1);
-                    printMem(0xFF80, [](uint16_t addr) { return addr == sizeof(MMU::HRAM) ? gb.cpu.s.IE : gb.mmu.HRAM[addr]; });
+                    clipper.Begin((sizeof(MMU::hram) / 16) + 1);
+                    printMem(0xFF80, [](uint16_t addr) { return addr == sizeof(MMU::hram) ? gb.cpu.s.IE : gb.mmu.hram[addr]; });
                     break;
                 }
             }
