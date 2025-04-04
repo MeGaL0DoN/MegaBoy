@@ -161,7 +161,7 @@ private:
 		if (RTC.has_value())
 		{
 			lastRTCAccessCycles = cartridge.getGBCycles();
-			return RTC->load<saveState>(st);
+			RTC->load<saveState>(st);
 		}
 
 		return true;

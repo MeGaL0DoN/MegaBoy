@@ -26,7 +26,8 @@ public:
 		if (!MBC::loadBattery(st))
 			return false;
 
-		return RTC.loadBattery(st);
+		RTC.loadBattery(st);
+		return true;
 	}
 
 	void saveState(std::ostream& st) const override
