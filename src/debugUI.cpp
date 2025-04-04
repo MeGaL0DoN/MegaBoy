@@ -1221,8 +1221,8 @@ void debugUI::renderWindows(float scaleFactor)
                         const auto palette { p == DMGPalette::BGP ? gb.ppu->BGP : p == DMGPalette::OBP0 ? gb.ppu->OBP0 : gb.ppu->OBP1 };
                         const int colInd { palette[i] };
 
-                        color col;
-					    uint16_t rgb5;
+                        color col{};
+                        uint16_t rgb5{};
 
                         if (System::Current() == GBSystem::DMGCompatMode)
                         {

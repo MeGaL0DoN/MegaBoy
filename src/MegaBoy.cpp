@@ -586,16 +586,16 @@ void rescaleWindow()
 #endif
 }
 
-void updateImGUIViewports()
-{
-    if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
-    {
-        const auto backupContext { glfwGetCurrentContext() };
-        ImGui::UpdatePlatformWindows();
-        ImGui::RenderPlatformWindowsDefault();
-        glfwMakeContextCurrent(backupContext);
-    }
-}
+//void updateImGUIViewports()
+//{
+//    if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+//    {
+//        const auto backupContext { glfwGetCurrentContext() };
+//        ImGui::UpdatePlatformWindows();
+//        ImGui::RenderPlatformWindowsDefault();
+//        glfwMakeContextCurrent(backupContext);
+//    }
+//}
 
 #ifndef EMSCRIPTEN
 std::filesystem::path saveFileDialog(const std::string& defaultName, const nfdnfilteritem_t* filter)
@@ -1670,7 +1670,7 @@ void renderImGUI()
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-    updateImGUIViewports();
+    //updateImGUIViewports();
 }
 
 void renderGameBoy(double deltaTime)
@@ -2004,7 +2004,7 @@ void setWindowSize()
     ImGui::EndMainMenuBar();
 
     ImGui::Render();
-    updateImGUIViewports();
+    //updateImGUIViewports();
 
 #ifdef EMSCRIPTEN
     devicePixelRatio = EM_ASM_DOUBLE ({ return window.devicePixelRatio; });
@@ -2038,11 +2038,11 @@ void setImGUI()
     io.Fonts->AddFontFromMemoryCompressedTTF(resources::robotoMonoFont, sizeof(resources::robotoMonoFont), scaleFactor * 17.0f);
     ImGui::GetStyle().ScaleAllSizes(scaleFactor);
 
-#ifdef __linux__
-    if (std::getenv("WAYLAND_DISPLAY") == nullptr) io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
-#elif !defined(EMSCRIPTEN)
-    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
-#endif
+//#ifdef __linux__
+//    if (std::getenv("WAYLAND_DISPLAY") == nullptr) io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+//#elif !defined(EMSCRIPTEN)
+//    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+//#endif
 
     ImGui::StyleColorsDark();
     ImGui_ImplGlfw_InitForOpenGL(window, true);

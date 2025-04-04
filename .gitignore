@@ -367,6 +367,6 @@ cmake-build-release/
 .idea/
 VS_PROJ/
 
-CMakeUserPresets.json
+src/CMakeUserPresets.json
 *.gb
 *.gbc

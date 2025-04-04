@@ -6,31 +6,25 @@ struct Register8
 {
 	uint8_t val;
 
-	Register8() = default;
-	explicit Register8(uint8_t v) : val(v)
-	{};
-
-	void operator =(uint8_t _val)
+	void operator =(uint8_t val)
 	{
-		this->val = _val;
+		this->val = val;
 	}
 };
 
 union Register16 
 {
 	uint16_t val;
-	struct {
+
+	struct 
+	{
 		Register8 low;
 		Register8 high;
 	};
 
-	Register16() = default;
-	explicit Register16(uint16_t v) : val(v)
-	{};
-
-	void operator =(uint16_t _val)
+	void operator =(uint16_t val)
 	{
-		this->val = _val;
+		this->val = val;
 	}
 };
 
