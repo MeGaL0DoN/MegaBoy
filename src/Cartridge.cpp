@@ -231,7 +231,12 @@ bool Cartridge::proccessCartridgeHeader(std::istream& st)
 	this->RTC = mapper->getRTC();
 	this->hasRAM = ramBanks != 0;
 
-	ram.resize(ramBankSize() * ramBanks);
+	// MBC2 always has 512 nibbles of RAM, ignore the ram banks header value.
+	if (mbc == 0x5 || mbc == 0x6)
+		ram.resize(512);
+	else
+		ram.resize(ramBankSize() * ramBanks);
+
 	ram.shrink_to_fit();
 
 	gb.gameTitle = "";

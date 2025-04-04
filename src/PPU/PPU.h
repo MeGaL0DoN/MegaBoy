@@ -198,9 +198,11 @@ struct gbcPaletteData
 	{
 		return RAM[regValue & 0x3F];
 	}
-	inline void writePaletteRAM(uint8_t val)
+	inline void writePaletteRAM(uint8_t val, bool vramAcessible)
 	{
-		RAM[regValue & 0x3F] = val;
+		if (vramAcessible)
+			RAM[regValue & 0x3F] = val;
+
 		regValue = autoIncrement ? ((regValue + 1) & 0x3F) : regValue;
 	}
 

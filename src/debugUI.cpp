@@ -1160,7 +1160,7 @@ void debugUI::renderWindows(float scaleFactor)
                 return high << 8 | low;
             };
 
-            if (System::Current() == GBSystem::CGB && gb.executingProgram())
+            if (System::Current() == GBSystem::CGB)
             {
                 constexpr int PALETTES = 8;
 

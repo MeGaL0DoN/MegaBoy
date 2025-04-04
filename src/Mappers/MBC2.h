@@ -5,10 +5,7 @@
 class MBC2 : public MBC<MBCstate>
 {
 public:
-	MBC2(Cartridge& cartridge) : MBC(cartridge)
-	{
-		ram.resize(512);
-	}
+	using MBC::MBC;
 
 	uint8_t read(uint16_t addr) const override
 	{

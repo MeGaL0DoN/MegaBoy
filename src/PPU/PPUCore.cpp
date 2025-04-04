@@ -17,6 +17,9 @@ void PPUCore<sys>::reset(bool clearBuf)
 	std::memset(VRAM_BANK0.data(), 0, sizeof(VRAM_BANK0));
 	VRAM = VRAM_BANK0.data();
 
+	s = {};
+	regs = {};
+
 	if constexpr (System::IsCGBDevice(sys))
 	{
 		std::memset(VRAM_BANK1.data(), 0, sizeof(VRAM_BANK1));
@@ -24,9 +27,6 @@ void PPUCore<sys>::reset(bool clearBuf)
 	}
 	if constexpr (sys != GBSystem::CGB)
 		updatePalette(regs.BGP, this->BGP);
-
-	s = {};
-	regs = {};
 
 	if (clearBuf)
 		clearBuffer(true);

@@ -1174,7 +1174,7 @@ void renderImGUI()
     static bool dmgBootLoaded { false };
     static bool cgbBootLoaded { false };
 
-	const auto updateBootROMLoadedValues = []()
+	const auto checkBootROMLoaded = []()
 	{
         if (ImGui::IsWindowAppearing())
         {
@@ -1247,7 +1247,7 @@ void renderImGUI()
             if (ImGui::Checkbox("Load last ROM on Startup", &appConfig::loadLastROM))
                 appConfig::updateConfigFile();
 #endif
-            updateBootROMLoadedValues();
+            checkBootROMLoaded();
 
             bool bootRomsLoaded { gb.cartridge.loaded() ?
                                   (System::Current() == GBSystem::DMG ? dmgBootLoaded : cgbBootLoaded) : (dmgBootLoaded || cgbBootLoaded) };
@@ -1534,7 +1534,7 @@ void renderImGUI()
                 {
                     if (ImGui::MenuItem("Unload Cartridge"))
                     {
-                        gb.cartridge.unload();
+                        gb.unloadCartridge();
                         handleCartridgeUnload();
 
                         appConfig::romPath.clear();
@@ -1560,7 +1560,7 @@ void renderImGUI()
                 {
                     std::optional<GBSystem> bootRomSys{};
 
-					updateBootROMLoadedValues();
+                    checkBootROMLoaded();
 
                     if (dmgBootLoaded)
                     {
@@ -1583,7 +1583,7 @@ void renderImGUI()
                 {
                     if (ImGui::MenuItem("Shut Down"))
                     {
-                        gb.unmapBootROM();
+                        gb.shutDown();
                         handleCartridgeUnload();
                     }
                 }

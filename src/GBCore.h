@@ -90,7 +90,6 @@ public:
 			emulateFrameBase<false>();
 	}
 
-	inline void unmapBootROM() { mmu.isBootROMMapped = false; }
 	inline bool executingBootROM() { return mmu.isBootROMMapped; }
 	inline bool executingProgram() { return cartridge.loaded() || mmu.isBootROMMapped; }
 
@@ -185,6 +184,26 @@ public:
 		}
 		else
 			reset(false, true, false);
+	}
+
+	inline void shutDown() 
+	{
+		mmu.isBootROMMapped = false;
+
+		if (System::Current() != GBSystem::DMG)
+		{
+			System::Set(GBSystem::DMG);
+			updateSystem();
+		}
+
+		reset(true, false, false);
+	}
+	inline void unloadCartridge()
+	{
+		cartridge.unload();
+
+		if (!executingBootROM())
+			shutDown();
 	}
 
 	constexpr void enableFastForward(int factor)

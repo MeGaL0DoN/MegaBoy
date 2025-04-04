@@ -319,7 +319,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 		case 0xFF69:
 			if constexpr (sys == GBSystem::CGB)
-				gb.ppu->gbcRegs.BCPS.writePaletteRAM(val);
+				gb.ppu->gbcRegs.BCPS.writePaletteRAM(val, gb.ppu->canWriteVRAM());
 			break;
 		case 0xFF6A:
 			if constexpr (sys == GBSystem::CGB)
@@ -327,7 +327,7 @@ void MMU::write8(uint16_t addr, uint8_t val)
 			break;
 		case 0xFF6B:
 			if constexpr (sys == GBSystem::CGB)
-				gb.ppu->gbcRegs.OCPS.writePaletteRAM(val);
+				gb.ppu->gbcRegs.OCPS.writePaletteRAM(val, gb.ppu->canWriteVRAM());
 			break;
 		case 0xFF70:
 			if constexpr (sys == GBSystem::CGB)
@@ -637,7 +637,7 @@ uint8_t MMU::read8(uint16_t addr) const
 				return 0xFF;
 		case 0xFF69:
 			if constexpr (sys == GBSystem::CGB)
-				return gb.ppu->gbcRegs.BCPS.readPaletteRAM();
+				return gb.ppu->canReadVRAM() ? gb.ppu->gbcRegs.BCPS.readPaletteRAM() : 0xFF;
 			else
 				return 0xFF;
 		case 0xFF6A:
@@ -649,7 +649,7 @@ uint8_t MMU::read8(uint16_t addr) const
 				return 0xFF;
 		case 0xFF6B:
 			if constexpr (sys == GBSystem::CGB)
-				return gb.ppu->gbcRegs.OCPS.readPaletteRAM();
+				return gb.ppu->canReadVRAM() ? gb.ppu->gbcRegs.OCPS.readPaletteRAM() : 0xFF;
 			else
 				return 0xFF;
 		case 0xFF70:

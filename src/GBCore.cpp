@@ -11,6 +11,7 @@
 GBCore::GBCore()
 {
 	updatePPUSystem();
+	reset(false, false, false);
 
 	mmu.bootRomExitEvent = [&]()
 	{
@@ -92,6 +93,7 @@ void GBCore::reset(bool resetBattery, bool clearBuf, bool fullReset)
 	cycleCounter = 0;
 	frameCounter = 0;
 	cpuUsageCycles = 0;
+	cpuUsage = 0.f;
 }
 
 constexpr uint16_t DMG_BOOTROM_SIZE = sizeof(MMU::baseBootROM);
