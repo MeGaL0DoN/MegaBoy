@@ -14,19 +14,19 @@ class HuC3 : public MBC<HuC3State>
 public:
 	using MBC::MBC;
 
-	RTC* getRTC() override { return &RTC; }
+	RTC* getRTC() override { return &rtc; }
 
 	void saveBattery(std::ostream& st) const override
 	{
 		MBC::saveBattery(st);
-		RTC.saveBattery(st);
+		rtc.saveBattery(st);
 	}
 	bool loadBattery(std::istream& st) override
 	{
 		if (!MBC::loadBattery(st))
 			return false;
 
-		RTC.loadBattery(st);
+		rtc.loadBattery(st);
 		return true;
 	}
 
@@ -34,13 +34,13 @@ public:
 	{
 		ST_WRITE(s);
 		MBC::saveBattery(st);
-		RTC.saveState(st);
+		rtc.saveState(st);
 	}
 	void loadState(std::istream& st) override
 	{
 		ST_READ(s);
 		MBC::loadBattery(st);
-		RTC.loadState(st);
+		rtc.loadState(st);
 	}
 
 	uint8_t read(uint16_t addr) const override
@@ -63,9 +63,9 @@ public:
 			case 0xB:
 				return 0xFF; // RTC command write register (write-only).
 			case 0xC:
-				return RTC.readCommandResponse();
+				return rtc.readCommandResponse();
 			case 0xD:
-				return RTC.readSemaphore();
+				return rtc.readSemaphore();
 			case 0xE:
 				// I think 0xC0 is no signal for IR same as in HuC1, but not sure.
 				return 0xC0;
@@ -101,12 +101,12 @@ public:
 				ram[(s.ramBank & (cartridge.ramBanks - 1)) * 0x2000 + (addr - 0xA000)] = val;
 				break;
 			case 0xB:
-				RTC.writeCommand(val);
+				rtc.writeCommand(val);
 				break;
 			case 0xC:
 				break; // RTC command response register (read-only).
 			case 0xD:
-				RTC.writeSemaphore(val);
+				rtc.writeSemaphore(val);
 				break;
 			case 0xE:
 				break; // IR, ignore writes.
@@ -119,11 +119,11 @@ public:
 	}
 
 private:
-	mutable HuC3RTC RTC{};
+	mutable HuC3RTC rtc{};
 
 	void resetBatteryState() override
 	{
 		MBC::resetBatteryState();
-		RTC.reset();
+		rtc.reset();
 	}
 };

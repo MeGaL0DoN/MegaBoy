@@ -1,8 +1,9 @@
-#include "debugUI.h"
-#include "Utils/bitOps.h"
-
 #include <algorithm>
 #include <ImGUI/imgui.h>
+
+#include "debugUI.h"
+#include "Utils/bitOps.h"
+#include "Utils/glFunctions.h"
 
 extern GBCore gb;
 

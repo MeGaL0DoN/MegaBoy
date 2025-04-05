@@ -334,8 +334,8 @@ bool GBCore::loadROM(std::istream& st, const std::filesystem::path& filePath)
 	romFilePath = filePath;
 	reset(true);
 
-	if (speedFactor != 1 && cartridge.RTC != nullptr)
-		cartridge.RTC->enableFastForward(speedFactor);
+	if (speedFactor != 1 && cartridge.rtc != nullptr)
+		cartridge.rtc->enableFastForward(speedFactor);
 
 	return true;
 }
@@ -538,7 +538,7 @@ bool GBCore::validateAndLoadRom(const std::filesystem::path& romPath, uint8_t ch
 		return false;
 
 	const auto loadRom = [&](auto&& st) -> bool {
-		return cartridge.calculateHeaderChecksum(st) == checksum && cartridge.loadROM(st);
+		return Cartridge::calculateHeaderChecksum(st) == checksum && cartridge.loadROM(st);
 	};
 
 	if (romPath.extension() == ".zip")

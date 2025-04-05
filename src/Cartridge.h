@@ -1,9 +1,7 @@
 #pragma once
 
-#include <iostream>
 #include <memory>
 #include <vector>
-#include <optional>
 
 #include "Mappers/MBCBase.h"
 #include "Mappers/RTC.h"
@@ -31,8 +29,8 @@ public:
 	inline MBCBase* getMapper() const { return mapper.get(); }
 
 	// MBC6 checks.
-	constexpr uint16_t romBankSize() { return mapperID == 0x20 ? 0x2000 : 0x4000; }
-	constexpr uint16_t ramBankSize() { return mapperID == 0x20 ? 0x1000 : 0x2000; }
+	constexpr uint16_t romBankSize() const { return mapperID == 0x20 ? 0x2000 : 0x4000; }
+	constexpr uint16_t ramBankSize() const { return mapperID == 0x20 ? 0x1000 : 0x2000; }
 
 	constexpr bool loaded() const { return romLoaded; }
 	constexpr uint8_t getChecksum() const { return checksum; }
@@ -45,7 +43,7 @@ public:
 	uint16_t romBanks { 2 };
 	uint16_t ramBanks { 0 };
 
-	RTC* RTC { nullptr };
+	RTC* rtc { nullptr };
 
 	std::vector<uint8_t> rom{};
 	std::vector<uint8_t> ram{};
@@ -53,7 +51,7 @@ public:
 	bool loadROM(std::istream& st);
 	void unload();
 
-	uint8_t calculateHeaderChecksum(std::istream& st) const;
+	static uint8_t calculateHeaderChecksum(std::istream& st);
 
 	inline void updateSystem()
 	{
@@ -61,7 +59,7 @@ public:
 		updateSystem(rom[0x143]);
 	}
 
-	inline bool isDMGCompatSystem()
+	inline bool isDMGCompatSystem() const
 	{
 		if (!romLoaded || System::Current() != GBSystem::CGB)
 			return false;
@@ -69,12 +67,12 @@ public:
 		return appConfig::systemPreference == GBSystemPreference::ForceCGB && !getBit(rom[0x143], 7);
 	}
 private:
-	bool proccessCartridgeHeader(std::istream& st);
-	void updateSystem(uint8_t cgbFlag);
+	bool processCartridgeHeader(std::istream& st);
+	static void updateSystem(uint8_t cgbFlag);
 
 	GBCore& gb;
-	std::unique_ptr<MBCBase> mapper { nullptr };
-	uint8_t mapperID { };
+	std::unique_ptr<MBCBase> mapper;
+	uint8_t mapperID { 0x00 };
 
 	bool romLoaded { false };
 	uint8_t checksum { 0 };

@@ -1,13 +1,11 @@
 #pragma once
 
 #include "GBCore.h"
-#include "Utils/glFunctions.h"
 #include "Utils/pixelOps.h"
 
 #include <string>
 #include <memory>
 #include <vector>
-#include <map>
 
 class debugUI
 {

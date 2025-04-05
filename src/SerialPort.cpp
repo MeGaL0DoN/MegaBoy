@@ -14,7 +14,7 @@ void SerialPort::writeSerialControl(uint8_t val)
     s.serialControl = val;
 }
 
-uint8_t SerialPort::readSerialControl()
+uint8_t SerialPort::readSerialControl() const
 {
     // Bit 1 (high clock speed) is unused in DMG / DMG Compat mode.
     const uint8_t mask = System::Current() == GBSystem::CGB ? 0b01111100 : 0b01111110;

@@ -90,8 +90,8 @@ public:
 			emulateFrameBase<false>();
 	}
 
-	inline bool executingBootROM() { return mmu.isBootROMMapped; }
-	inline bool executingProgram() { return cartridge.loaded() || mmu.isBootROMMapped; }
+	inline bool executingBootROM() const { return mmu.isBootROMMapped; }
+	inline bool executingProgram() const { return cartridge.loaded() || mmu.isBootROMMapped; }
 
 	inline void setDrawCallback(void (*callback)(const uint8_t*, bool)) { drawCallback = callback; }
 	inline void setBootRomExitCallback(void(*callback)()) { bootRomExitCallback = callback; }
@@ -210,15 +210,15 @@ public:
 	{
 		speedFactor = factor;
 
-		if (cartridge.RTC != nullptr)
-			cartridge.RTC->enableFastForward(factor);
+		if (cartridge.rtc != nullptr)
+			cartridge.rtc->enableFastForward(factor);
 	}
 	constexpr void disableFastForward()
 	{
 		speedFactor = 1;
 
-		if (cartridge.RTC != nullptr)
-			cartridge.RTC->disableFastForward();
+		if (cartridge.rtc != nullptr)
+			cartridge.rtc->disableFastForward();
 	}
 
 	std::vector<gameGenieCheat> gameGenies{};

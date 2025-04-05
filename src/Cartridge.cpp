@@ -33,7 +33,8 @@ void Cartridge::unload()
 	ram.shrink_to_fit();
 
 	mapper = std::make_unique<RomOnlyMBC>(*this);
-	RTC = nullptr;
+	mapperID = 0x00;
+	rtc = nullptr;
 }
 
 bool Cartridge::loadROM(std::istream& st)
@@ -44,7 +45,7 @@ bool Cartridge::loadROM(std::istream& st)
 	if (!romSizeValid(size))
 		return false;
 
-	if (!proccessCartridgeHeader(st))
+	if (!processCartridgeHeader(st))
 		return false;
 
 	// 16 KB
@@ -81,7 +82,7 @@ bool Cartridge::loadROM(std::istream& st)
 	return true;
 }
 
-uint8_t Cartridge::calculateHeaderChecksum(std::istream& st) const
+uint8_t Cartridge::calculateHeaderChecksum(std::istream& st)
 {
 	uint8_t checksum = 0;
 	st.seekg(0x134, std::ios::beg);
@@ -117,7 +118,7 @@ void Cartridge::updateSystem(uint8_t cgbFlag)
 	}
 }
 
-bool Cartridge::proccessCartridgeHeader(std::istream& st)
+bool Cartridge::processCartridgeHeader(std::istream& st)
 {
 	const auto readByte = [&st](uint16_t ind) -> uint8_t
 	{
@@ -228,7 +229,7 @@ bool Cartridge::proccessCartridgeHeader(std::istream& st)
 
 	this->checksum = checksum;
 	this->mapperID = mbc;
-	this->RTC = mapper->getRTC();
+	this->rtc = mapper->getRTC();
 	this->hasRAM = ramBanks != 0;
 
 	// MBC2 always has 512 nibbles of RAM, ignore the ram banks header value.

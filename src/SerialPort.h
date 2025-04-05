@@ -12,7 +12,7 @@ public:
 	explicit SerialPort(CPU& cpu) : cpu(cpu) { }
 
 	void writeSerialControl(uint8_t val);
-	uint8_t readSerialControl();
+	uint8_t readSerialControl() const;
 
 	void execute();
 

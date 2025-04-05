@@ -660,11 +660,8 @@ uint8_t MMU::read8(uint16_t addr) const
 
 		// GHDMA address registers, write-only.
 		case 0xFF51:
-			return 0xFF;
 		case 0xFF52:
-			return 0xFF;
 		case 0xFF53:
-			return 0xFF;
 		case 0xFF54:
 			return 0xFF;
 

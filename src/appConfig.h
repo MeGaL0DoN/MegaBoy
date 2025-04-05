@@ -7,8 +7,8 @@ namespace appConfig
 	inline bool loadLastROM { true };
 	inline int systemPreference { 0 };
 
-	inline bool autosaveState{ true };
-	inline bool batterySaves{ true };
+	inline bool autosaveState { true };
+	inline bool batterySaves { true };
 
 	inline bool blending { true };
 	inline bool vsync { true };
@@ -22,7 +22,7 @@ namespace appConfig
 	inline int palette { 0 };
 
 	inline std::filesystem::path romPath{};
-	inline int saveStateNum{ 0 };
+	inline int saveStateNum { 0 };
 
 #ifdef EMSCRIPTEN
 	constexpr const char* dmgBootRomPath { "data/dmg_boot.bin" };

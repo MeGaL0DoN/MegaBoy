@@ -12,22 +12,22 @@ struct MBC3State : MBCstate
 class MBC3 : public MBC<MBC3State>
 {
 public:
-	MBC3(Cartridge& cartridge, bool hasRTC) : MBC(cartridge)
+	MBC3(Cartridge& cartridge, bool hasrtc) : MBC(cartridge)
 	{
-		if (hasRTC)
-			RTC = RTC3{};
+		if (hasrtc)
+			rtc = RTC3{};
 	}
 
-	RTC* getRTC() override { return RTC.has_value() ? &RTC.value() : nullptr; }
+	RTC* getRTC() override { return rtc.has_value() ? &rtc.value() : nullptr; }
 
 	void saveBattery(std::ostream& st) const override
 	{
 		MBC::saveBattery(st);
 
-		if (RTC.has_value())
+		if (rtc.has_value())
 		{
 			updateRTC();
-			RTC->saveBattery(st);
+			rtc->saveBattery(st);
 		}
 	}
 	bool loadBattery(std::istream& st) override
@@ -43,10 +43,10 @@ public:
 	{
 		MBC::reset(resetBattery);
 
-		if (RTC.has_value())
+		if (rtc.has_value())
 		{
 			lastRTCAccessCycles = 0;
-			RTC->reset();
+			rtc->reset();
 		}
 	}
 
@@ -68,7 +68,7 @@ public:
 			if (s.rtcModeActive)
 			{
 				updateRTC();
-				return RTC->s.latched ? RTC->s.latchedRegs.getReg(RTC->s.reg) : RTC->s.regs.getReg(RTC->s.reg);
+				return rtc->s.latched ? rtc->s.latchedRegs.getReg(rtc->s.reg) : rtc->s.regs.getReg(rtc->s.reg);
 			}
 			else
 				return ram[(s.ramBank & (cartridge.ramBanks - 1)) * 0x2000 + (addr - 0xA000)];
@@ -95,30 +95,30 @@ public:
 				s.rtcModeActive = false;
 				s.ramBank = val;
 			}
-			else if (val <= 0x0C && RTC.has_value())
+			else if (val <= 0x0C && rtc.has_value())
 			{
 				s.rtcModeActive = true;
-				RTC->setReg(val);
+				rtc->setReg(val);
 			}
 		}
 		else if (addr <= 0x7FFF)
 		{
-			if (!RTC.has_value()) 
+			if (!rtc.has_value()) 
 				return;
 
-			if (val == 0x01 && RTC->s.latchWrite == 0x00)
+			if (val == 0x01 && rtc->s.latchWrite == 0x00)
 			{
 				updateRTC();
-				RTC->s.latched = !RTC->s.latched;
+				rtc->s.latched = !rtc->s.latched;
 
-				if (RTC->s.latched)
+				if (rtc->s.latched)
 				{
-					RTC->s.latchedRegs = RTC->s.regs;
+					rtc->s.latchedRegs = rtc->s.regs;
 					sramDirty = true;
 				}
 			}
 
-			RTC->s.latchWrite = val;
+			rtc->s.latchWrite = val;
 		}
 		else if (addr <= 0xBFFF)
 		{
@@ -128,7 +128,7 @@ public:
 			if (s.rtcModeActive)
 			{
 				updateRTC();
-				RTC->writeReg(val);
+				rtc->writeReg(val);
 			}
 			else
 				ram[(s.ramBank & (cartridge.ramBanks - 1)) * 0x2000 + (addr - 0xA000)] = val;
@@ -139,14 +139,14 @@ public:
 
 private:
 	mutable uint64_t lastRTCAccessCycles { 0 };
-	mutable std::optional<RTC3> RTC;
+	mutable std::optional<RTC3> rtc;
 
 	void resetBatteryState() override
 	{
 		MBC::resetBatteryState();
 
-		if (RTC.has_value())
-			RTC->reset();
+		if (rtc.has_value())
+			rtc->reset();
 	}
 
 	template <bool saveState>
@@ -158,10 +158,10 @@ private:
 		if (!MBC::loadBattery(st))
 			return false;
 
-		if (RTC.has_value())
+		if (rtc.has_value())
 		{
 			lastRTCAccessCycles = cartridge.getGBCycles();
-			RTC->load<saveState>(st);
+			rtc->load<saveState>(st);
 		}
 
 		return true;
@@ -169,7 +169,7 @@ private:
 
 	void updateRTC() const
 	{
-		RTC->addCycles(cartridge.getGBCycles() - lastRTCAccessCycles);
+		rtc->addCycles(cartridge.getGBCycles() - lastRTCAccessCycles);
 		lastRTCAccessCycles = cartridge.getGBCycles();
 	}
 };
