@@ -81,15 +81,17 @@ namespace PixelOps
 		}
 	};
 
+	static_assert(sizeof(color) == 3, "PixelOps::color invalid alignment; expected size: 3 bytes.");
+
 	inline void setPixel(uint8_t* buffer, int width, int x, int y, color c)
 	{
-		auto* pixel { reinterpret_cast<color*>(buffer + (y * width + x) * 3) };
-		*pixel = { c.R, c.G, c.B };
+		std::memcpy(buffer + (y * width + x) * 3, &c, sizeof(color));
 	}
 	inline color getPixel(const uint8_t* buffer, int width, int x, int y)
 	{
-		auto* pixel { reinterpret_cast<const color*>(buffer + (y * width + x) * 3) };
-		return *pixel;
+		color c;
+		std::memcpy(&c, buffer + (y * width + x) * 3, sizeof(color));
+		return c;
 	}
 
 	inline void clearBuffer(uint8_t* buffer, int width, int height, color c) 
